@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Calendar, Radio, Clock, CheckCircle2 } from 'lucide-react';
 import { useLiveStore } from '../stores/useLiveStore';
 import { useCourseStore } from '../stores/useCourseStore';
@@ -47,6 +48,17 @@ export default function LiveManage() {
     setNewDesc('');
   };
 
+  useEffect(() => {
+    if (!showCreate) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showCreate]);
+
   const filterTabs: { key: Filter; label: string; count: number }[] = [
     { key: 'ALL', label: '全部', count: liveRooms.length },
     { key: 'LIVING', label: '直播中', count: living.length },
@@ -54,8 +66,80 @@ export default function LiveManage() {
     { key: 'ENDED', label: '已结束', count: ended.length },
   ];
 
+  const createModal = showCreate
+    ? createPortal(
+        <div className="fixed inset-0 z-[100] overflow-hidden bg-indigo-950/25 backdrop-blur-xl">
+          <div className="relative flex min-h-full items-center justify-center overflow-hidden p-4 sm:p-6">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <div className="absolute -left-20 top-1/4 h-72 w-72 rounded-full bg-amber-300/25 blur-3xl" />
+              <div className="absolute -right-16 bottom-1/4 h-80 w-80 rounded-full bg-indigo-300/25 blur-3xl" />
+            </div>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-live-title"
+              className="relative z-10 my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-white/70 bg-white/75 p-5 shadow-2xl shadow-indigo-950/20 backdrop-blur-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-6"
+            >
+              <h2 id="create-live-title" className="font-display text-xl font-semibold text-ink-900">创建直播</h2>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-ink-700">直播标题</label>
+                  <input
+                    type="text"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="input-field"
+                    placeholder="例如：Spring Boot 微服务架构直播答疑"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-ink-700">关联课程</label>
+                  <select
+                    value={newCourseId}
+                    onChange={(e) => setNewCourseId(e.target.value)}
+                    className="input-field cursor-pointer appearance-none"
+                  >
+                    <option value="">请选择课程</option>
+                    {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-ink-700">开播时间</label>
+                  <input
+                    type="datetime-local"
+                    value={newStartTime}
+                    onChange={(e) => setNewStartTime(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-ink-700">直播简介</label>
+                  <textarea
+                    value={newDesc}
+                    onChange={(e) => setNewDesc(e.target.value)}
+                    rows={3}
+                    className="input-field resize-none"
+                    placeholder="简要介绍本次直播内容……"
+                  />
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <button onClick={handleCreate} className="btn-primary flex-1">
+                    <Radio className="h-4 w-4" />
+                    创建直播
+                  </button>
+                  <button onClick={() => setShowCreate(false)} className="btn-outline flex-1">取消</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
+
   return (
-    <div className="space-y-6 animate-fade-up">
+    <>
+      <div className="space-y-6 animate-fade-up">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -99,66 +183,6 @@ export default function LiveManage() {
           </div>
         </div>
       </div>
-
-      {/* Create modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/50 p-4">
-          <div className="bg-white w-full max-w-lg p-6 space-y-5 animate-fade-up">
-            <h2 className="font-display text-xl font-semibold text-ink-900">创建直播</h2>
-            <div>
-              <label className="block text-sm font-medium text-ink-700 mb-2">直播标题</label>
-              <input
-                type="text"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                className="input-field"
-                placeholder="例如：Spring Boot 微服务架构直播答疑"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink-700 mb-2">关联课程</label>
-              <select
-                value={newCourseId}
-                onChange={(e) => setNewCourseId(e.target.value)}
-                className="input-field appearance-none cursor-pointer"
-              >
-                <option value="">请选择课程</option>
-                {courses.map((c) => (
-                  <option key={c.id} value={c.id}>{c.title}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink-700 mb-2">开播时间</label>
-              <input
-                type="datetime-local"
-                value={newStartTime}
-                onChange={(e) => setNewStartTime(e.target.value)}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink-700 mb-2">直播简介</label>
-              <textarea
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-                rows={3}
-                className="input-field resize-none"
-                placeholder="简要介绍本次直播内容……"
-              />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={handleCreate} className="btn-primary flex-1">
-                <Radio className="w-4 h-4" />
-                创建直播
-              </button>
-              <button onClick={() => setShowCreate(false)} className="btn-outline flex-1">
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Filter tabs */}
       <div className="flex gap-2 border-b border-ink-200">
@@ -207,6 +231,8 @@ export default function LiveManage() {
           <p className="text-sm text-ink-400 mt-1">点击右上角「创建直播」开始安排</p>
         </div>
       )}
-    </div>
+      </div>
+      {createModal}
+    </>
   );
 }
