@@ -126,8 +126,8 @@ export default function OrderManage() {
 
       {/* Filters */}
       <div className="card-editorial p-4 md:p-5 animate-fade-up opacity-0 animation-delay-100">
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
             <input
               type="text"
@@ -138,26 +138,26 @@ export default function OrderManage() {
               className="input-field pl-9"
             />
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3 lg:flex-nowrap lg:shrink-0">
             <input
               type="date"
               value={startDate}
               onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-              className="input-field"
+              className="input-field h-[46px] w-full shrink-0 sm:w-[180px] lg:w-[180px]"
             />
-            <span className="self-center text-ink-400">至</span>
+            <span className="shrink-0 text-ink-400">至</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-              className="input-field"
+              className="input-field h-[46px] w-full shrink-0 sm:w-[180px] lg:w-[180px]"
             />
-            <div className="relative">
+            <div className="relative w-full shrink-0 lg:w-[130px]">
               <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
               <select
                 value={status}
                 onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-                className="input-field pl-9 pr-8 appearance-none cursor-pointer min-w-[130px]"
+                className="input-field w-full pl-9 pr-8 appearance-none cursor-pointer"
               >
                 <option value="ALL">全部状态</option>
                 <option value="PAID">已支付</option>
