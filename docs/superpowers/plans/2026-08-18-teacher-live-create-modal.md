@@ -39,7 +39,7 @@ const browser = await chromium.launch({
 
 const viewports = [
   { name: 'desktop', width: 1440, height: 900 },
-  { name: 'mobile', width: 390, height: 700 },
+  { name: 'mobile', width: 390, height: 500 },
 ];
 
 for (const viewport of viewports) {
