@@ -91,8 +91,8 @@ export default function Logs() {
 
       {/* Filters */}
       <div className="card-editorial p-4 md:p-5 animate-fade-up opacity-0 animation-delay-100">
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
             <input
               type="text"
@@ -103,24 +103,24 @@ export default function Logs() {
               className="input-field pl-9"
             />
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3 lg:flex-nowrap lg:shrink-0">
             <input
               type="date"
               value={startDate}
               onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-              className="input-field"
+              className="input-field h-[46px] w-full shrink-0 sm:w-[180px] lg:w-[180px]"
             />
-            <span className="self-center text-ink-400">至</span>
+            <span className="shrink-0 text-ink-400">至</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-              className="input-field"
+              className="input-field h-[46px] w-full shrink-0 sm:w-[180px] lg:w-[180px]"
             />
             <select
               value={level}
               onChange={(e) => { setLevel(e.target.value); setPage(1); }}
-              className="input-field appearance-none cursor-pointer min-w-[120px]"
+              className="input-field w-full shrink-0 appearance-none cursor-pointer lg:w-[140px]"
             >
               <option value="ALL">全部级别</option>
               <option value="INFO">INFO</option>
