@@ -152,7 +152,7 @@ export default function UserManage() {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="input-field pl-9 pr-8 appearance-none cursor-pointer min-w-[120px]"
+                className="input-field pl-9 pr-8 appearance-none cursor-pointer min-w-[140px]"
               >
                 <option value="ALL">全部角色</option>
                 <option value="STUDENT">学员</option>
