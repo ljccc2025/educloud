@@ -1,0 +1,45 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { type JSX } from 'react';
+import MainLayout from './layouts/MainLayout';
+import { useAuthStore } from './stores/useAuthStore';
+
+import Home from './pages/Home';
+import CourseList from './pages/CourseList';
+import CourseDetail from './pages/CourseDetail';
+import MyCourses from './pages/MyCourses';
+import Learning from './pages/Learning';
+import LiveRoom from './pages/LiveRoom';
+import Assignments from './pages/Assignments';
+import Exams from './pages/Exams';
+import Profile from './pages/Profile';
+import Orders from './pages/Orders';
+import Login from './pages/Login';
+
+function ProtectedRoute({ children }: { children: JSX.Element }) {
+  const token = useAuthStore((s) => s.token);
+  if (!token) return <Navigate to="/login" replace />;
+  return children;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<MainLayout />}>
+          <Route index element={<Home />} />
+          <Route path="courses" element={<CourseList />} />
+          <Route path="courses/:id" element={<CourseDetail />} />
+          <Route path="my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />
+          <Route path="learn/:courseId" element={<ProtectedRoute><Learning /></ProtectedRoute>} />
+          <Route path="live/:id" element={<LiveRoom />} />
+          <Route path="assignments" element={<ProtectedRoute><Assignments /></ProtectedRoute>} />
+          <Route path="exams" element={<ProtectedRoute><Exams /></ProtectedRoute>} />
+          <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
