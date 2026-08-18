@@ -3,6 +3,7 @@ import type {
   Course,
   LiveRoom,
   Assignment,
+  Submission,
   Student,
   Exam,
   Activity,
@@ -416,6 +417,51 @@ const mockAssignments: Assignment[] = [
     ],
   },
 ];
+
+const additionalSubmissionPlans: Record<string, { count: number; gradedCount: number }> = {
+  'a-001': { count: 13, gradedCount: 10 },
+  'a-002': { count: 13, gradedCount: 7 },
+  'a-003': { count: 8, gradedCount: 0 },
+};
+
+const submissionContent: Record<string, string> = {
+  'a-001': '已完成博客 API 的核心功能，补充了接口校验、分页查询与异常处理。',
+  'a-002': '完成电商销售数据清洗、趋势分析和可视化报告，已整理 Notebook 与结论说明。',
+  'a-003': '已实现自定义 Hooks，并补充了 TypeScript 类型定义、错误处理与使用示例。',
+};
+
+let nextSubmissionNumber = 9;
+for (const assignment of mockAssignments) {
+  const plan = additionalSubmissionPlans[assignment.id];
+  if (!plan) continue;
+
+  for (let index = 0; index < plan.count; index += 1) {
+    const student = mockStudents[(assignment.submissions.length + index) % mockStudents.length];
+    const isGraded = index < plan.gradedCount;
+    const score = 78 + ((index * 7) % 20);
+    const submission: Submission = {
+      id: `sub-${String(nextSubmissionNumber).padStart(3, '0')}`,
+      assignmentId: assignment.id,
+      studentId: student.id,
+      studentName: student.name,
+      studentAvatar: student.avatar,
+      content: submissionContent[assignment.id],
+      submittedAt: `2026-08-${String(17 + (index % 3)).padStart(2, '0')}T${String(9 + (index % 10)).padStart(2, '0')}:00:00`,
+      status: isGraded ? 'GRADED' : 'SUBMITTED',
+      ...(isGraded
+        ? {
+            score,
+            feedback: '作业内容完整，结构清晰。建议继续补充边界场景测试与结果说明。',
+          }
+        : {}),
+    };
+    assignment.submissions.push(submission);
+    nextSubmissionNumber += 1;
+  }
+
+  assignment.submissionCount = assignment.submissions.length;
+  assignment.gradedCount = assignment.submissions.filter((submission) => submission.status === 'GRADED').length;
+}
 
 // ---------- Mock Exams ----------
 const mockExams: Exam[] = [
