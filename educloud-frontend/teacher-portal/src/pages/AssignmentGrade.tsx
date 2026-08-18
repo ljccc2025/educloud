@@ -9,6 +9,7 @@ import dayjs from 'dayjs';
 export default function AssignmentGrade() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,6 +21,12 @@ export default function AssignmentGrade() {
   }, []);
 
   const selected = assignments.find((a) => a.id === selectedId);
+  const rememberedSubmissionId = selected ? selectedSubmissionIds[selected.id] : undefined;
+  const selectedSubmissionId = selected
+    ? selected.submissions.some((submission) => submission.id === rememberedSubmissionId)
+      ? rememberedSubmissionId ?? ''
+      : selected.submissions[0]?.id ?? ''
+    : '';
 
   const handleGrade = async (submissionId: string, score: number, feedback: string) => {
     await api.gradeSubmission(submissionId, score, feedback);
@@ -153,6 +160,13 @@ export default function AssignmentGrade() {
               <GradeSheet
                 submissions={selected.submissions}
                 totalScore={selected.totalScore}
+                selectedSubmissionId={selectedSubmissionId}
+                onSelectSubmission={(submissionId) =>
+                  setSelectedSubmissionIds((current) => ({
+                    ...current,
+                    [selected.id]: submissionId,
+                  }))
+                }
                 onGrade={handleGrade}
               />
             </div>

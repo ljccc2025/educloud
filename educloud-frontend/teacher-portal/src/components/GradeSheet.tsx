@@ -7,16 +7,23 @@ import dayjs from 'dayjs';
 interface GradeSheetProps {
   submissions: Submission[];
   totalScore: number;
+  selectedSubmissionId: string;
+  onSelectSubmission: (submissionId: string) => void;
   onGrade: (submissionId: string, score: number, feedback: string) => void;
 }
 
-export default function GradeSheet({ submissions, totalScore, onGrade }: GradeSheetProps) {
-  const [selectedId, setSelectedId] = useState<string>(submissions[0]?.id ?? '');
+export default function GradeSheet({
+  submissions,
+  totalScore,
+  selectedSubmissionId,
+  onSelectSubmission,
+  onGrade,
+}: GradeSheetProps) {
   const [scores, setScores] = useState<Record<string, string>>({});
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
   const [savedId, setSavedId] = useState<string | null>(null);
 
-  const selected = submissions.find((s) => s.id === selectedId);
+  const selected = submissions.find((submission) => submission.id === selectedSubmissionId);
 
   const handleSave = (sub: Submission) => {
     const score = Number(scores[sub.id] ?? sub.score ?? '');
@@ -42,10 +49,10 @@ export default function GradeSheet({ submissions, totalScore, onGrade }: GradeSh
           {submissions.map((sub) => (
             <button
               key={sub.id}
-              onClick={() => setSelectedId(sub.id)}
+              onClick={() => onSelectSubmission(sub.id)}
               className={cn(
                 'w-full flex items-center gap-3 p-3 border text-left transition-all',
-                selectedId === sub.id
+                selectedSubmissionId === sub.id
                   ? 'border-indigo-800 bg-indigo-50/50'
                   : 'border-ink-100 bg-white hover:border-ink-300'
               )}
