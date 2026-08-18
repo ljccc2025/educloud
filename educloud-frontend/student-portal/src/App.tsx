@@ -14,6 +14,7 @@ import Exams from './pages/Exams';
 import Profile from './pages/Profile';
 import Orders from './pages/Orders';
 import Login from './pages/Login';
+import Notifications from './pages/Notifications';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const token = useAuthStore((s) => s.token);
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="exams" element={<ProtectedRoute><Exams /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+          <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

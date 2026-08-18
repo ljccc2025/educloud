@@ -5,6 +5,7 @@ import {
   BookOpen, Video, FileText, ClipboardList, LogOut,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useNotificationStore } from '../features/engagement/useNotificationStore';
 import { cn } from '../utils/cn';
 
 const navLinks = [
@@ -18,6 +19,9 @@ const navLinks = [
 export default function Navbar() {
   const navigate = useNavigate();
   const { token, logout } = useAuthStore();
+  const unreadCount = useNotificationStore((state) =>
+    state.notifications.reduce((count, notification) => count + Number(!notification.read), 0),
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -80,10 +84,18 @@ export default function Navbar() {
           <div className="flex items-center gap-1 ml-auto md:ml-0">
             {token ? (
               <>
-                <button className="hidden sm:flex relative p-2 text-ink-500 hover:text-indigo-800 transition-colors">
+                <Link
+                  to="/notifications"
+                  aria-label="通知中心"
+                  className="hidden sm:flex relative p-2 text-ink-500 hover:text-indigo-800 transition-colors"
+                >
                   <Bell size={19} />
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-600 rounded-full" />
-                </button>
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-amber-600 px-1 text-center text-[10px] font-semibold leading-4 text-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </Link>
                 <Link to="/orders" className="hidden sm:flex p-2 text-ink-500 hover:text-indigo-800 transition-colors">
                   <ShoppingCart size={19} />
                 </Link>
@@ -151,6 +163,10 @@ export default function Navbar() {
             <div className="pt-2 border-t border-ink-100 mt-2">
               {token ? (
                 <>
+                  <NavLink to="/notifications" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm text-ink-600 hover:bg-ink-50">
+                    <Bell size={18} /> 通知中心
+                    {unreadCount > 0 && <span className="ml-auto text-xs text-amber-700">{unreadCount}</span>}
+                  </NavLink>
                   <NavLink to="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-sm text-ink-600 hover:bg-ink-50">
                     <User size={18} /> 个人中心
                   </NavLink>
