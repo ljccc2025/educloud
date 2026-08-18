@@ -72,7 +72,7 @@ export default function AiAssistant() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-10 md:px-8 animate-fade-up">
+    <div className="mx-auto w-full max-w-7xl px-4 pb-10 pt-6 md:px-8 animate-fade-up">
       <div className="flex flex-col gap-4 border-b border-ink-100 pb-8 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="section-label">智能学习支持</p>
@@ -89,8 +89,8 @@ export default function AiAssistant() {
         </button>
       </div>
 
-      <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <section className="card-editorial flex h-[36rem] max-h-[calc(100dvh-8rem)] min-h-[28rem] min-w-0 flex-col overflow-hidden lg:h-[calc(100dvh-15rem)] lg:max-h-[42rem] lg:min-h-[32rem]">
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+        <section className="card-editorial flex h-[36rem] max-h-[calc(100dvh-8rem)] min-h-[28rem] min-w-0 flex-col overflow-hidden lg:h-[calc(100dvh-18rem)] lg:max-h-[42rem] lg:min-h-[24rem]">
           <div className="flex shrink-0 items-center gap-3 border-b border-ink-100 px-5 py-4">
             <div className="flex h-9 w-9 items-center justify-center bg-indigo-800 text-white">
               <Bot size={18} />
