@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, FileQuestion, Clock, Users, Play, Pencil, Eye } from 'lucide-react';
 import { api } from '../services/api';
 import type { Exam, ExamStatus } from '../types';
@@ -29,6 +30,17 @@ export default function ExamManage() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!showCreate) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showCreate]);
+
   const handleCreate = async () => {
     if (!newTitle.trim() || !newCourseId) return;
     const course = await api.getCourse(newCourseId);
@@ -47,8 +59,92 @@ export default function ExamManage() {
     setNewCourseId('');
   };
 
+  const createModal = showCreate
+    ? createPortal(
+        <div className="fixed inset-0 z-[100] overflow-hidden bg-indigo-950/25 backdrop-blur-xl">
+          <div className="relative flex min-h-full items-center justify-center overflow-hidden p-4 sm:p-6">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <div className="absolute -left-20 top-1/4 h-72 w-72 rounded-full bg-amber-300/25 blur-3xl" />
+              <div className="absolute -right-16 bottom-1/4 h-80 w-80 rounded-full bg-indigo-300/25 blur-3xl" />
+            </div>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-exam-title"
+              className="relative z-10 my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-white/70 bg-white/75 p-5 shadow-2xl shadow-indigo-950/20 backdrop-blur-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-6"
+            >
+              <h2 id="create-exam-title" className="font-display text-xl font-semibold text-ink-900">
+                创建考试
+              </h2>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-ink-700">考试标题</label>
+                  <input
+                    type="text"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="input-field"
+                    placeholder="例如：期末考试"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-ink-700">关联课程</label>
+                  <select
+                    value={newCourseId}
+                    onChange={(e) => setNewCourseId(e.target.value)}
+                    className="input-field cursor-pointer appearance-none"
+                  >
+                    <option value="">请选择课程</option>
+                    <option value="c-001">Spring Boot 3 实战</option>
+                    <option value="c-002">Python 数据分析与可视化</option>
+                    <option value="c-003">React 18 + TypeScript</option>
+                    <option value="c-005">机器学习入门</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-ink-700">题目数量</label>
+                    <input
+                      type="number"
+                      value={newQuestionCount}
+                      onChange={(e) => setNewQuestionCount(e.target.value)}
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-ink-700">时长（分钟）</label>
+                    <input
+                      type="number"
+                      value={newDuration}
+                      onChange={(e) => setNewDuration(e.target.value)}
+                      className="input-field"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-ink-700">开考时间</label>
+                  <input
+                    type="datetime-local"
+                    value={newScheduledAt}
+                    onChange={(e) => setNewScheduledAt(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+                <div className="flex gap-3 pt-1">
+                  <button onClick={handleCreate} className="btn-primary flex-1">创建</button>
+                  <button onClick={() => setShowCreate(false)} className="btn-outline flex-1">取消</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
+
   return (
-    <div className="space-y-6 animate-fade-up">
+    <>
+      <div className="space-y-6 animate-fade-up">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -87,72 +183,6 @@ export default function ExamManage() {
           </p>
         </div>
       </div>
-
-      {/* Create modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/50 p-4">
-          <div className="bg-white w-full max-w-lg p-6 space-y-5 animate-fade-up">
-            <h2 className="font-display text-xl font-semibold text-ink-900">创建考试</h2>
-            <div>
-              <label className="block text-sm font-medium text-ink-700 mb-2">考试标题</label>
-              <input
-                type="text"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                className="input-field"
-                placeholder="例如：期末考试"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink-700 mb-2">关联课程</label>
-              <select
-                value={newCourseId}
-                onChange={(e) => setNewCourseId(e.target.value)}
-                className="input-field appearance-none cursor-pointer"
-              >
-                <option value="">请选择课程</option>
-                <option value="c-001">Spring Boot 3 实战</option>
-                <option value="c-002">Python 数据分析与可视化</option>
-                <option value="c-003">React 18 + TypeScript</option>
-                <option value="c-005">机器学习入门</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-ink-700 mb-2">题目数量</label>
-                <input
-                  type="number"
-                  value={newQuestionCount}
-                  onChange={(e) => setNewQuestionCount(e.target.value)}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-ink-700 mb-2">时长（分钟）</label>
-                <input
-                  type="number"
-                  value={newDuration}
-                  onChange={(e) => setNewDuration(e.target.value)}
-                  className="input-field"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink-700 mb-2">开考时间</label>
-              <input
-                type="datetime-local"
-                value={newScheduledAt}
-                onChange={(e) => setNewScheduledAt(e.target.value)}
-                className="input-field"
-              />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={handleCreate} className="btn-primary flex-1">创建</button>
-              <button onClick={() => setShowCreate(false)} className="btn-outline flex-1">取消</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Exam table */}
       <div className="card-editorial overflow-hidden">
@@ -243,7 +273,9 @@ export default function ExamManage() {
             </tbody>
           </table>
         </div>
+        </div>
       </div>
-    </div>
+      {createModal}
+    </>
   );
 }
