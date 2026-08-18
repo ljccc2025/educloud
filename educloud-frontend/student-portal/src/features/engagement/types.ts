@@ -10,3 +10,15 @@ export interface StudentNotification {
   actionLabel?: string;
   actionPath?: string;
 }
+
+export interface AssistantMessage {
+  id: string;
+  role: 'student' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export interface AssistantReply {
+  content: string;
+  mode: 'mock' | 'remote';
+}

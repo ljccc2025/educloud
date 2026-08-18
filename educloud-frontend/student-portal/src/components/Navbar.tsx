@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   GraduationCap, Search, Bell, ShoppingCart, Menu, X, User,
-  BookOpen, Video, FileText, ClipboardList, LogOut,
+  BookOpen, Video, FileText, ClipboardList, LogOut, Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../features/engagement/useNotificationStore';
@@ -14,6 +14,7 @@ const navLinks = [
   { to: '/my-courses', label: '我的课程' },
   { to: '/live/1', label: '直播课堂' },
   { to: '/assignments', label: '作业考试' },
+  { to: '/ai-assistant', label: 'AI 助教' },
 ];
 
 export default function Navbar() {
@@ -143,6 +144,7 @@ export default function Navbar() {
               { to: '/live/1', label: '直播课堂', icon: Video },
               { to: '/assignments', label: '作业', icon: FileText },
               { to: '/exams', label: '考试中心', icon: ClipboardList },
+              { to: '/ai-assistant', label: 'AI 助教', icon: Sparkles },
             ].map((item) => (
               <NavLink
                 key={item.to}
