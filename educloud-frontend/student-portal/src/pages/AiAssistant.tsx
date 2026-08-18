@@ -89,9 +89,9 @@ export default function AiAssistant() {
         </button>
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <section className="card-editorial flex min-h-[36rem] min-w-0 flex-col overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-ink-100 px-5 py-4">
+      <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+        <section className="card-editorial flex h-[36rem] max-h-[calc(100dvh-8rem)] min-h-[28rem] min-w-0 flex-col overflow-hidden lg:h-[calc(100dvh-15rem)] lg:max-h-[42rem] lg:min-h-[32rem]">
+          <div className="flex shrink-0 items-center gap-3 border-b border-ink-100 px-5 py-4">
             <div className="flex h-9 w-9 items-center justify-center bg-indigo-800 text-white">
               <Bot size={18} />
             </div>
@@ -101,7 +101,7 @@ export default function AiAssistant() {
             </div>
           </div>
 
-          <div ref={messageListRef} className="flex-1 space-y-5 overflow-y-auto px-4 py-6 sm:px-6" aria-live="polite">
+          <div ref={messageListRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-6 sm:px-6" aria-live="polite">
             {messages.map((message) => {
               const assistant = message.role === 'assistant';
               return (
@@ -128,7 +128,7 @@ export default function AiAssistant() {
             )}
           </div>
 
-          <div className="border-t border-ink-100 bg-white p-4 sm:p-5">
+          <div className="shrink-0 border-t border-ink-100 bg-white p-4 sm:p-5">
             {error && <div className="mb-3 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
             <div className="flex items-end gap-3">
               <textarea
