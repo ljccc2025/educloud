@@ -16,6 +16,7 @@ import Orders from './pages/Orders';
 import Login from './pages/Login';
 import Notifications from './pages/Notifications';
 import AiAssistant from './pages/AiAssistant';
+import Community from './pages/Community';
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const token = useAuthStore((s) => s.token);
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
           <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="ai-assistant" element={<ProtectedRoute><AiAssistant /></ProtectedRoute>} />
+          <Route path="community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

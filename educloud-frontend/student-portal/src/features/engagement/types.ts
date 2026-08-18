@@ -22,3 +22,26 @@ export interface AssistantReply {
   content: string;
   mode: 'mock' | 'remote';
 }
+
+export interface CommunityReply {
+  id: number;
+  author: string;
+  avatar: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface CommunityPost {
+  id: number;
+  title: string;
+  content: string;
+  author: string;
+  avatar: string;
+  courseName: string;
+  tags: string[];
+  createdAt: string;
+  likes: number;
+  liked: boolean;
+  bookmarked: boolean;
+  replies: CommunityReply[];
+}

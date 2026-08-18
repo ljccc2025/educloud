@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   GraduationCap, Search, Bell, ShoppingCart, Menu, X, User,
-  BookOpen, Video, FileText, ClipboardList, LogOut, Sparkles,
+  BookOpen, Video, FileText, ClipboardList, LogOut, Sparkles, MessageCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../features/engagement/useNotificationStore';
@@ -15,6 +15,7 @@ const navLinks = [
   { to: '/live/1', label: '直播课堂' },
   { to: '/assignments', label: '作业考试' },
   { to: '/ai-assistant', label: 'AI 助教' },
+  { to: '/community', label: '学习社区' },
 ];
 
 export default function Navbar() {
@@ -56,13 +57,13 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden lg:flex items-center gap-7">
+          <nav className="hidden lg:flex items-center gap-5">
             {navLinks.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
                 end={link.end}
-                className={({ isActive }) => (isActive ? 'nav-link nav-link-active' : 'nav-link')}
+                className={({ isActive }) => (isActive ? 'nav-link nav-link-active whitespace-nowrap' : 'nav-link whitespace-nowrap')}
               >
                 {link.label}
               </NavLink>
@@ -70,7 +71,7 @@ export default function Navbar() {
           </nav>
 
           {/* Search */}
-          <form onSubmit={handleSearch} className="hidden md:flex relative flex-1 max-w-xs ml-auto">
+          <form onSubmit={handleSearch} className="hidden xl:flex relative flex-1 max-w-[15rem] ml-auto">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
             <input
               type="text"
@@ -145,6 +146,7 @@ export default function Navbar() {
               { to: '/assignments', label: '作业', icon: FileText },
               { to: '/exams', label: '考试中心', icon: ClipboardList },
               { to: '/ai-assistant', label: 'AI 助教', icon: Sparkles },
+              { to: '/community', label: '学习社区', icon: MessageCircle },
             ].map((item) => (
               <NavLink
                 key={item.to}

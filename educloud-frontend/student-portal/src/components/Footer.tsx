@@ -48,6 +48,8 @@ export default function Footer() {
                 <li><Link to="/live/1" className="hover:text-amber-400 transition-colors">直播课堂</Link></li>
               <li><Link to="/assignments" className="hover:text-amber-400 transition-colors">作业中心</Link></li>
               <li><Link to="/exams" className="hover:text-amber-400 transition-colors">考试中心</Link></li>
+              <li><Link to="/ai-assistant" className="hover:text-amber-400 transition-colors">AI 助教</Link></li>
+              <li><Link to="/community" className="hover:text-amber-400 transition-colors">学习社区</Link></li>
               <li><a href="#" className="hover:text-amber-400 transition-colors">常见问题</a></li>
               <li><a href="#" className="hover:text-amber-400 transition-colors">学习指南</a></li>
             </ul>
