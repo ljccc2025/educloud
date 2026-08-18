@@ -72,11 +72,11 @@ export default function AiAssistant() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-10 md:px-8 md:py-14 animate-fade-up">
+    <div className="mx-auto w-full max-w-7xl px-4 py-10 md:px-8 animate-fade-up">
       <div className="flex flex-col gap-4 border-b border-ink-100 pb-8 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="section-label mb-3">智能学习支持</p>
-          <div className="flex flex-wrap items-center gap-3">
+          <p className="section-label">智能学习支持</p>
+          <div className="flex flex-wrap items-center gap-3 pt-6">
             <h1 className="display-heading text-4xl md:text-5xl">AI 助教</h1>
             <span className="badge-indigo normal-case tracking-normal">
               {assistantClient.mode === 'remote' ? '已连接服务' : '演示模式'}
