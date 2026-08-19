@@ -3,6 +3,7 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { useCourseStore } from '@/stores/useCourseStore';
 import { categories } from '@/services/api';
 import CourseCard from '@/components/CourseCard';
+import CourseSortSelect, { type CourseSortOption } from '@/components/CourseSortSelect';
 import { cn } from '@/utils/cn';
 import type { CourseLevel } from '@/types';
 
@@ -16,7 +17,7 @@ const levels: { value: CourseLevel | 'all'; label: string }[] = [
   { value: 'ADVANCED', label: '高级' },
 ];
 
-const sortOptions: { value: SortOption; label: string }[] = [
+const sortOptions: readonly CourseSortOption<SortOption>[] = [
   { value: 'popular', label: '最受欢迎' },
   { value: 'newest', label: '最新发布' },
   { value: 'price-asc', label: '价格从低到高' },
@@ -209,15 +210,11 @@ export default function CourseList() {
             className="w-full pl-11 pr-4 py-3 bg-white border border-ink-200 text-ink-800 text-sm placeholder:text-ink-400 focus:outline-none focus:border-indigo-800 transition-colors"
           />
         </div>
-        <select
+        <CourseSortSelect
           value={sort}
-          onChange={(e) => setSort(e.target.value as SortOption)}
-          className="px-4 py-3 bg-white border border-ink-200 text-ink-700 text-sm focus:outline-none focus:border-indigo-800 cursor-pointer"
-        >
-          {sortOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+          options={sortOptions}
+          onChange={setSort}
+        />
         <button
           type="button"
           onClick={() => setShowMobileFilters(true)}
