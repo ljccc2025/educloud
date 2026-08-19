@@ -44,12 +44,6 @@ export default function CourseSortSelect<T extends string>({
   }, [open]);
 
   useEffect(() => {
-    if (open) {
-      setHighlightIndex(selectedIndex >= 0 ? selectedIndex : 0);
-    }
-  }, [open, selectedIndex]);
-
-  useEffect(() => {
     if (!open || !listRef.current) return;
     const option = listRef.current.children[highlightIndex] as HTMLElement | undefined;
     option?.scrollIntoView({ block: 'nearest' });
@@ -60,11 +54,16 @@ export default function CourseSortSelect<T extends string>({
     setOpen(false);
   };
 
+  const openListbox = () => {
+    setHighlightIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    setOpen(true);
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!open) {
       if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
         event.preventDefault();
-        setOpen(true);
+        openListbox();
       }
       return;
     }
@@ -104,7 +103,10 @@ export default function CourseSortSelect<T extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (open) setOpen(false);
+          else openListbox();
+        }}
         className={cn(
           'flex min-h-[50px] w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left',
           'rounded-xl border text-sm font-medium text-ink-700 transition-all duration-200',
