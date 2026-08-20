@@ -102,6 +102,36 @@ class WorkerLeaseManagerTest {
     }
 
     @Test
+    void leaseDeadlinesIncludeRedisRoundTripTime() {
+        var acquisitionNanos = new AtomicLong(100);
+        var acquisitionRepository = new FakeRepository();
+        acquisitionRepository.acquireAction =
+                () -> acquisitionNanos.addAndGet(Duration.ofSeconds(5).toNanos());
+        var acquisition = fixture(acquisitionRepository, acquisitionNanos);
+        acquisition.manager.start();
+        acquisitionNanos.set(100 + TTL.toNanos());
+
+        assertThatThrownBy(acquisition.manager::requireActiveWorkerId)
+                .isInstanceOf(IdentifierUnavailableException.class)
+                .hasMessageContaining("expired");
+
+        var renewalNanos = new AtomicLong(100);
+        var renewalRepository = new FakeRepository();
+        var renewal = fixture(renewalRepository, renewalNanos);
+        renewal.manager.start();
+        renewalNanos.set(100 + RENEWAL_INTERVAL.toNanos());
+        long renewalStarted = renewalNanos.get();
+        renewalRepository.renewAction =
+                () -> renewalNanos.addAndGet(Duration.ofSeconds(5).toNanos());
+        renewal.runRenewal();
+        renewalNanos.set(renewalStarted + TTL.toNanos());
+
+        assertThatThrownBy(renewal.manager::requireActiveWorkerId)
+                .isInstanceOf(IdentifierUnavailableException.class)
+                .hasMessageContaining("expired");
+    }
+
+    @Test
     void failsClosedOnEmptyRenewalRepositoryFailureOrOwnershipChange() {
         assertRenewalFailureCloses(repository -> repository.renewMode = RenewMode.EMPTY);
         assertRenewalFailureCloses(repository -> repository.renewMode = RenewMode.THROW);
@@ -205,6 +235,8 @@ class WorkerLeaseManagerTest {
     private static final class FakeRepository implements WorkerLeaseRepository {
         private Integer acquireWorker = 0;
         private RenewMode renewMode = RenewMode.SUCCESS;
+        private Runnable acquireAction = () -> {};
+        private Runnable renewAction = () -> {};
         private int renewCalls;
         private final List<String> environments = new ArrayList<>();
         private final List<String> ownerIds = new ArrayList<>();
@@ -221,6 +253,7 @@ class WorkerLeaseManagerTest {
             environments.add(environment);
             ownerIds.add(ownerId);
             ttls.add(leaseTtl);
+            acquireAction.run();
             return acquireWorker == null
                     ? Optional.empty()
                     : Optional.of(new WorkerLeaseGrant(acquireWorker, ownerId, 1_000));
@@ -234,6 +267,7 @@ class WorkerLeaseManagerTest {
                 Duration leaseTtl,
                 long lastIssuedTimestamp) {
             renewCalls++;
+            renewAction.run();
             return switch (renewMode) {
                 case SUCCESS -> Optional.of(new WorkerLeaseGrant(workerId, ownerId, 2_000));
                 case EMPTY -> Optional.empty();

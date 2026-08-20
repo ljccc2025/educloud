@@ -64,25 +64,36 @@ class RedisIdentifierConcurrencyIT {
     @Test
     void redisInterruptionCausesGenerationToFailClosedAtTheLocalDeadline() {
         var redis = redisContainer();
-        redis.start();
-        var connection = connection(redis);
-        var repository = new RedisWorkerLeaseRepository(template(connection));
-        var manager = new WorkerLeaseManager(
-                repository,
-                environment(),
-                Duration.ofMillis(500),
-                Duration.ofMillis(100));
-        manager.start();
-        var generator = generator(manager);
-        assertThat(generator.nextId()).isPositive();
+        LettuceConnectionFactory connection = null;
+        WorkerLeaseManager manager = null;
+        try {
+            redis.start();
+            connection = connection(redis);
+            var repository = new RedisWorkerLeaseRepository(template(connection));
+            manager = new WorkerLeaseManager(
+                    repository,
+                    environment(),
+                    Duration.ofMillis(500),
+                    Duration.ofMillis(100));
+            manager.start();
+            var generator = generator(manager);
+            assertThat(generator.nextId()).isPositive();
 
-        redis.stop();
+            redis.stop();
 
-        org.awaitility.Awaitility.await()
-                .atMost(Duration.ofSeconds(3))
-                .untilAsserted(() -> assertThatThrownBy(generator::nextId)
-                        .isInstanceOf(IdentifierUnavailableException.class));
-        connection.destroy();
+            org.awaitility.Awaitility.await()
+                    .atMost(Duration.ofSeconds(3))
+                    .untilAsserted(() -> assertThatThrownBy(generator::nextId)
+                            .isInstanceOf(IdentifierUnavailableException.class));
+        } finally {
+            if (manager != null) {
+                manager.close();
+            }
+            if (connection != null) {
+                connection.destroy();
+            }
+            redis.stop();
+        }
     }
 
     private static WorkerLeaseIdentifierGenerator generator(WorkerLeaseManager manager) {

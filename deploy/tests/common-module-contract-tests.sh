@@ -50,11 +50,23 @@ else
 fi
 
 if [[ -d "$main_source" ]]; then
-  forbidden_source_pattern='main[[:space:]]*\(|@SpringBootApplication|@RestController|@Controller|@Entity|(^|[^[:alnum:]_])(Mapper|Repository)([^[:alnum:]_]|$)'
+  forbidden_source_pattern='main[[:space:]]*\(|@SpringBootApplication([^[:alnum:]_]|$)|@RestController([^[:alnum:]_]|$)|@Controller([^[:alnum:]_]|$)|@Entity([^[:alnum:]_]|$)'
   if grep -REn "$forbidden_source_pattern" "$main_source"; then
-    fail 'Common contains forbidden application, web, domain, or data-access source'
+    fail 'Common contains a forbidden application, controller, or entity declaration'
   else
-    pass 'Common main sources stay inside the approved library boundary'
+    pass 'Common has no application, controller, or entity declaration'
+  fi
+
+  unexpected_data_types="$(find "$main_source" -type f \
+    \( -name '*Mapper.java' -o -name '*Repository.java' \) \
+    ! -path "$main_source/com/educloud/common/id/WorkerLeaseRepository.java" \
+    ! -path "$main_source/com/educloud/common/id/RedisWorkerLeaseRepository.java" \
+    -print)"
+  if [[ -n "$unexpected_data_types" ]]; then
+    printf '%s\n' "$unexpected_data_types" >&2
+    fail 'Common contains an unapproved Mapper or Repository type'
+  else
+    pass 'Common contains only the approved worker-lease repository boundary'
   fi
 else
   pass 'Common has no main source yet'

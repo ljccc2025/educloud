@@ -82,12 +82,18 @@ public final class WorkerLeaseManager implements WorkerLeaseGuard, SmartLifecycl
                 throw new IdentifierUnavailableException("worker lease manager cannot be restarted");
             }
 
+            long acquisitionStartedNanos = nanoTime.getAsLong();
             WorkerLeaseGrant grant;
             try {
                 grant = repository.tryAcquire(environment, ownerId, leaseTtl)
                         .orElseThrow(() -> new IdentifierUnavailableException(
                                 "no worker lease slot is available"));
                 validateGrant(grant, null);
+                confirmedUntilNanos = acquisitionStartedNanos + leaseTtl.toNanos();
+                if (deadlineReached()) {
+                    throw new IdentifierUnavailableException(
+                            "worker lease acquisition confirmation arrived after its local deadline");
+                }
             } catch (RuntimeException exception) {
                 state = LeaseState.INACTIVE;
                 scheduler.shutdownNow();
@@ -95,7 +101,6 @@ public final class WorkerLeaseManager implements WorkerLeaseGuard, SmartLifecycl
             }
 
             workerId = grant.workerId();
-            confirmedUntilNanos = nanoTime.getAsLong() + leaseTtl.toNanos();
             state = LeaseState.ACTIVE;
             try {
                 renewalTask = scheduler.scheduleWithFixedDelay(
@@ -210,6 +215,7 @@ public final class WorkerLeaseManager implements WorkerLeaseGuard, SmartLifecycl
             leasedWorker = workerId;
         }
 
+        long renewalStartedNanos = nanoTime.getAsLong();
         WorkerLeaseGrant renewed;
         try {
             renewed = repository.renew(
@@ -232,7 +238,17 @@ public final class WorkerLeaseManager implements WorkerLeaseGuard, SmartLifecycl
 
         synchronized (lifecycleMonitor) {
             if (state == LeaseState.ACTIVE && workerId == leasedWorker) {
-                confirmedUntilNanos = nanoTime.getAsLong() + leaseTtl.toNanos();
+                long renewedUntilNanos = renewalStartedNanos + leaseTtl.toNanos();
+                if (nanoTime.getAsLong() - renewedUntilNanos >= 0) {
+                    LOGGER.error(
+                            "Worker lease renewal confirmation arrived too late; identifier generation is now disabled for environment {}",
+                            environment);
+                    state = LeaseState.INACTIVE;
+                    confirmedUntilNanos = 0;
+                    cancelRenewal();
+                } else {
+                    confirmedUntilNanos = renewedUntilNanos;
+                }
             }
         }
     }
@@ -264,6 +280,10 @@ public final class WorkerLeaseManager implements WorkerLeaseGuard, SmartLifecycl
             renewalTask.cancel(false);
             renewalTask = null;
         }
+    }
+
+    private boolean deadlineReached() {
+        return nanoTime.getAsLong() - confirmedUntilNanos >= 0;
     }
 
     private void tryReleaseAfterFailedStart(int acquiredWorkerId) {

@@ -128,6 +128,8 @@ class CommonAutoConfigurationTest {
                             .isSameAs(UserOverrides.SECURITY_CONTEXT);
                     assertThat(context.getBean(IdentifierGenerator.class))
                             .isSameAs(UserOverrides.IDENTIFIER_GENERATOR);
+                    assertThat(context).doesNotHaveBean(WorkerLeaseManager.class);
+                    assertThat(context).doesNotHaveBean(RedisWorkerLeaseRepository.class);
                 });
     }
 

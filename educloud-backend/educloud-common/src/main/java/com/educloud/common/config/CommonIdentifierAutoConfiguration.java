@@ -25,6 +25,7 @@ public class CommonIdentifierAutoConfiguration {
 
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnBean(StringRedisTemplate.class)
+    @ConditionalOnMissingBean(IdentifierGenerator.class)
     static class RedisAvailableConfiguration {
 
         @Bean
