@@ -1,0 +1,199 @@
+name: educloud
+
+services:
+  mysql:
+    image: mysql:8.0.36
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+      EDUCLOUD_USER_DB_PASSWORD: ${EDUCLOUD_USER_DB_PASSWORD:?set EDUCLOUD_USER_DB_PASSWORD}
+      EDUCLOUD_USER_MIGRATION_PASSWORD: ${EDUCLOUD_USER_MIGRATION_PASSWORD:?set EDUCLOUD_USER_MIGRATION_PASSWORD}
+      EDUCLOUD_COURSE_DB_PASSWORD: ${EDUCLOUD_COURSE_DB_PASSWORD:?set EDUCLOUD_COURSE_DB_PASSWORD}
+      EDUCLOUD_COURSE_MIGRATION_PASSWORD: ${EDUCLOUD_COURSE_MIGRATION_PASSWORD:?set EDUCLOUD_COURSE_MIGRATION_PASSWORD}
+      EDUCLOUD_CONTENT_DB_PASSWORD: ${EDUCLOUD_CONTENT_DB_PASSWORD:?set EDUCLOUD_CONTENT_DB_PASSWORD}
+      EDUCLOUD_CONTENT_MIGRATION_PASSWORD: ${EDUCLOUD_CONTENT_MIGRATION_PASSWORD:?set EDUCLOUD_CONTENT_MIGRATION_PASSWORD}
+      EDUCLOUD_ORDER_DB_PASSWORD: ${EDUCLOUD_ORDER_DB_PASSWORD:?set EDUCLOUD_ORDER_DB_PASSWORD}
+      EDUCLOUD_ORDER_MIGRATION_PASSWORD: ${EDUCLOUD_ORDER_MIGRATION_PASSWORD:?set EDUCLOUD_ORDER_MIGRATION_PASSWORD}
+      EDUCLOUD_PAYMENT_DB_PASSWORD: ${EDUCLOUD_PAYMENT_DB_PASSWORD:?set EDUCLOUD_PAYMENT_DB_PASSWORD}
+      EDUCLOUD_PAYMENT_MIGRATION_PASSWORD: ${EDUCLOUD_PAYMENT_MIGRATION_PASSWORD:?set EDUCLOUD_PAYMENT_MIGRATION_PASSWORD}
+      EDUCLOUD_LIVE_DB_PASSWORD: ${EDUCLOUD_LIVE_DB_PASSWORD:?set EDUCLOUD_LIVE_DB_PASSWORD}
+      EDUCLOUD_LIVE_MIGRATION_PASSWORD: ${EDUCLOUD_LIVE_MIGRATION_PASSWORD:?set EDUCLOUD_LIVE_MIGRATION_PASSWORD}
+      EDUCLOUD_FILE_DB_PASSWORD: ${EDUCLOUD_FILE_DB_PASSWORD:?set EDUCLOUD_FILE_DB_PASSWORD}
+      EDUCLOUD_FILE_MIGRATION_PASSWORD: ${EDUCLOUD_FILE_MIGRATION_PASSWORD:?set EDUCLOUD_FILE_MIGRATION_PASSWORD}
+      EDUCLOUD_NOTIFICATION_DB_PASSWORD: ${EDUCLOUD_NOTIFICATION_DB_PASSWORD:?set EDUCLOUD_NOTIFICATION_DB_PASSWORD}
+      EDUCLOUD_NOTIFICATION_MIGRATION_PASSWORD: ${EDUCLOUD_NOTIFICATION_MIGRATION_PASSWORD:?set EDUCLOUD_NOTIFICATION_MIGRATION_PASSWORD}
+      EDUCLOUD_ANALYTICS_DB_PASSWORD: ${EDUCLOUD_ANALYTICS_DB_PASSWORD:?set EDUCLOUD_ANALYTICS_DB_PASSWORD}
+      EDUCLOUD_ANALYTICS_MIGRATION_PASSWORD: ${EDUCLOUD_ANALYTICS_MIGRATION_PASSWORD:?set EDUCLOUD_ANALYTICS_MIGRATION_PASSWORD}
+      EDUCLOUD_SEARCH_DB_PASSWORD: ${EDUCLOUD_SEARCH_DB_PASSWORD:?set EDUCLOUD_SEARCH_DB_PASSWORD}
+      EDUCLOUD_SEARCH_MIGRATION_PASSWORD: ${EDUCLOUD_SEARCH_MIGRATION_PASSWORD:?set EDUCLOUD_SEARCH_MIGRATION_PASSWORD}
+      EDUCLOUD_RECOMMENDATION_DB_PASSWORD: ${EDUCLOUD_RECOMMENDATION_DB_PASSWORD:?set EDUCLOUD_RECOMMENDATION_DB_PASSWORD}
+      EDUCLOUD_RECOMMENDATION_MIGRATION_PASSWORD: ${EDUCLOUD_RECOMMENDATION_MIGRATION_PASSWORD:?set EDUCLOUD_RECOMMENDATION_MIGRATION_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init/001-create-databases.sh:/docker-entrypoint-initdb.d/001-create-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping --host=127.0.0.1 --user=root --password=\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - educloud-infra
+
+  redis:
+    image: redis:7.2.5-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    command: ["/bin/sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning --pass \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - educloud-infra
+
+  rabbitmq:
+    image: rabbitmq:3.13.7-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?set RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?set RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST:-educloud}
+    ports:
+      - "${RABBITMQ_AMQP_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - educloud-infra
+
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:?set NACOS_AUTH_IDENTITY_KEY}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:?set NACOS_AUTH_IDENTITY_VALUE}
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?set NACOS_AUTH_TOKEN}
+      JVM_XMS: ${NACOS_JVM_XMS:-512m}
+      JVM_XMX: ${NACOS_JVM_XMX:-512m}
+      JVM_XMN: ${NACOS_JVM_XMN:-256m}
+    ports:
+      - "${NACOS_HTTP_PORT:-8848}:8848"
+      - "${NACOS_GRPC_PORT:-9848}:9848"
+      - "${NACOS_GRPC_TLS_PORT:-9849}:9849"
+    volumes:
+      - nacos-data:/home/nacos/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --show-error http://127.0.0.1:8848/nacos/v1/console/health/readiness >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    networks:
+      - educloud-infra
+
+  minio:
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - educloud-infra
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: ${ELASTICSEARCH_JAVA_OPTS:--Xms1g -Xmx1g}
+    ports:
+      - "${ELASTICSEARCH_HTTP_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    networks:
+      - educloud-infra
+
+  zipkin:
+    image: openzipkin/zipkin:3.6.1
+    restart: unless-stopped
+    ports:
+      - "${ZIPKIN_PORT:-9411}:9411"
+    networks:
+      - educloud-infra
+
+  prometheus:
+    image: prom/prometheus:v2.53.5
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    networks:
+      - educloud-infra
+
+  grafana:
+    image: grafana/grafana:11.6.14-security-04
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:?set GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:?set GF_SECURITY_ADMIN_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - educloud-infra
+
+networks:
+  educloud-infra:
+    name: educloud-infra
+
+volumes:
+  mysql-data:
+  redis-data:
+  rabbitmq-data:
+  nacos-data:
+  minio-data:
+  elasticsearch-data:
+  prometheus-data:
+  grafana-data:
