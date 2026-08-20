@@ -8,6 +8,8 @@
 
 **技术栈：** Git worktree、Java 17 字节码目标、Maven 3.9+、Rocky Linux 8.9、Bash、Docker Engine、Docker Compose 插件（`docker compose`，主版本 2+）、MySQL 8.0.36、Redis 7.2、RabbitMQ 3.13、Nacos 2.3.2、MinIO、Elasticsearch 8.14、Zipkin、Prometheus、Grafana。
 
+**执行状态（2026-08-20）：** 当前环境可执行的构建、脚本测试、契约测试和范围审查已通过。目标 Rocky Linux 8.9 前置检查与 Docker Compose `config/up/health/down` 尚未执行，等待具备该目标环境后补验；在此之前不得宣称共享基础设施已经实际运行。
+
 ---
 
 ## 范围边界
@@ -38,7 +40,7 @@
 - 创建：`docs/superpowers/specs/2026-08-20-educloud-backend-module-execution.md`
 - 修改：`docs/superpowers/specs/2026-08-18-educloud-backend-index.md`
 
-- [ ] **步骤 1：写入明确边界和顺序**
+- [x] **步骤 1：写入明确边界和顺序**
 
 新规格必须完整列出：
 
@@ -62,11 +64,11 @@ M13 educloud-recommendation
 
 同时写明：Gateway 在 M02 只完成安全入口基线，M03 完成后再次联调真实登录；M06 内部按章节课件、学习进度、作业、考试、社区顺序交付。
 
-- [ ] **步骤 2：更新总索引**
+- [x] **步骤 2：更新总索引**
 
 在文档地图中新增“模块执行顺序与准备门禁”和“后端准备阶段实现计划”，并说明 2026-08-20 的执行顺序覆盖旧路线图的批量空服务步骤，但不覆盖领域、安全和数据契约。
 
-- [ ] **步骤 3：验证文档契约**
+- [x] **步骤 3：验证文档契约**
 
 运行：
 
@@ -82,7 +84,7 @@ git diff --check
 
 预期：13 个编号均存在，边界声明存在，`git diff --check` 无输出并返回 0。
 
-- [ ] **步骤 4：提交**
+- [x] **步骤 4：提交**
 
 ```bash
 git add -- docs/superpowers/specs/2026-08-20-educloud-backend-module-execution.md docs/superpowers/specs/2026-08-18-educloud-backend-index.md
@@ -96,7 +98,7 @@ git commit -m "docs(backend): lock module execution order"
 - 创建：`educloud-backend/pom.xml`
 - 创建：`educloud-backend/README.md`
 
-- [ ] **步骤 1：运行红灯命令**
+- [x] **步骤 1：运行红灯命令**
 
 运行：
 
@@ -106,7 +108,7 @@ mvn -f educloud-backend/pom.xml help:effective-pom
 
 预期：失败，原因是 `educloud-backend/pom.xml` 不存在。
 
-- [ ] **步骤 2：创建最小父 POM**
+- [x] **步骤 2：创建最小父 POM**
 
 父 POM必须包含以下不可变约束：
 
@@ -126,7 +128,7 @@ mvn -f educloud-backend/pom.xml help:effective-pom
 
 使用 Spring Boot、Spring Cloud 和 Spring Cloud Alibaba BOM；启用 Maven Enforcer，要求 Maven 3.9+、Java 17+；配置 Compiler Plugin 使用 `release=17`、Surefire 使用 JUnit Platform。准备阶段不得出现 `<modules>` 或任何服务 POM。
 
-- [ ] **步骤 3：创建 README**
+- [x] **步骤 3：创建 README**
 
 README 明确写出当前状态为“准备阶段”，记录 M01～M13 的增量加入规则，并提供：
 
@@ -135,7 +137,7 @@ mvn -f educloud-backend/pom.xml help:effective-pom
 mvn -f educloud-backend/pom.xml verify
 ```
 
-- [ ] **步骤 4：运行绿灯验证**
+- [x] **步骤 4：运行绿灯验证**
 
 运行：
 
@@ -146,7 +148,7 @@ mvn -f educloud-backend/pom.xml verify
 
 预期：两个命令返回 0；输出只包含父项目，不包含尚未实现的服务模块。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add -- educloud-backend/pom.xml educloud-backend/README.md
@@ -161,7 +163,7 @@ git commit -m "chore(backend): establish parent build"
 - 创建：`deploy/scripts/check-prerequisites.sh`
 - 创建：`deploy/runbooks/rocky-linux-8.9-bootstrap.md`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 测试使用 `mktemp -d` 建立 Java、Maven、Git、Docker 命令桩，并通过 `EDUCLOUD_OS_RELEASE_FILE` 注入系统信息，至少覆盖：
 
@@ -180,7 +182,7 @@ bash deploy/tests/check-prerequisites-tests.sh
 
 预期：失败，原因是被测脚本尚不存在。
 
-- [ ] **步骤 2：实现检查脚本**
+- [x] **步骤 2：实现检查脚本**
 
 脚本使用 `set -euo pipefail`，依次检查：
 
@@ -195,7 +197,7 @@ docker compose version 可执行且主版本至少为 2
 
 允许测试通过 `EDUCLOUD_OS_RELEASE_FILE` 替换 `/etc/os-release`、通过 `EDUCLOUD_SKIP_DOCKER_DAEMON=1` 跳过 daemon 探测；生产运行手册不得设置跳过变量。
 
-- [ ] **步骤 3：运行测试验证通过**
+- [x] **步骤 3：运行测试验证通过**
 
 运行：
 
@@ -205,11 +207,11 @@ bash deploy/tests/check-prerequisites-tests.sh
 
 预期：4 个场景全部通过，退出 0。
 
-- [ ] **步骤 4：编写 Rocky Linux 运行手册**
+- [x] **步骤 4：编写 Rocky Linux 运行手册**
 
 只引用 Rocky Linux、Docker 和 Maven 官方来源；手册依次给出：系统确认、Java 17、Maven 3.9、Docker 官方仓库、`docker compose` 插件、当前用户 Docker 权限、服务启动、版本检查和前置脚本运行命令。所有命令使用 Bash，不包含 PowerShell。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add -- deploy/scripts/check-prerequisites.sh deploy/tests/check-prerequisites-tests.sh deploy/runbooks/rocky-linux-8.9-bootstrap.md
@@ -225,7 +227,7 @@ git commit -m "chore(ops): add rocky linux preflight"
 - 创建：`deploy/docker-compose/mysql/init/001-create-databases.sh`
 - 创建：`deploy/tests/compose-contract-tests.sh`
 
-- [ ] **步骤 1：编写失败契约测试**
+- [x] **步骤 1：编写失败契约测试**
 
 测试必须断言 Compose 文本包含且仅在共享依赖层出现以下服务：
 
@@ -243,7 +245,7 @@ bash deploy/tests/compose-contract-tests.sh
 
 预期：失败，原因是 `compose.yml` 尚不存在。
 
-- [ ] **步骤 2：创建环境变量示例和数据库初始化**
+- [x] **步骤 2：创建环境变量示例和数据库初始化**
 
 `.env.example` 提供本地开发示例值，至少包含 MySQL root 密码、11 个服务账号密码、RabbitMQ 管理账号、MinIO 管理账号和 Nacos 鉴权值；文件顶部注明不得用于共享或生产环境。
 
@@ -265,7 +267,7 @@ educloud_recommendation/recommendation_app
 
 每个账号只获得自己数据库的权限，不授予 `*.*`。
 
-- [ ] **步骤 3：创建 Compose 配置**
+- [x] **步骤 3：创建 Compose 配置**
 
 使用路线图锁定的主版本或精确版本；所有端口通过环境变量映射，所有持久化数据使用项目命名卷，所有容器加入 `educloud-infra` 网络。Compose 不包含后端业务镜像，也不声明功能已经可用。
 
@@ -280,7 +282,9 @@ docker compose --env-file deploy/docker-compose/.env.example -f deploy/docker-co
 
 预期：契约测试通过；具备 `docker compose` 插件（主版本 2+）的环境中 `config` 返回 0。当前机器没有 Docker CLI 时，只记录第二条未验证，不以文本检查替代。
 
-- [ ] **步骤 5：提交**
+状态：契约测试已通过；当前机器未安装 Docker CLI，因此 `docker compose config` 未执行。
+
+- [x] **步骤 5：提交**
 
 ```bash
 git add -- deploy/docker-compose/compose.yml deploy/docker-compose/.env.example deploy/docker-compose/mysql/init/001-create-databases.sh deploy/tests/compose-contract-tests.sh
@@ -293,7 +297,7 @@ git commit -m "chore(deploy): add shared infrastructure baseline"
 
 - 不创建新的生产文件；只验证前四项提交。
 
-- [ ] **步骤 1：验证工作区和提交边界**
+- [x] **步骤 1：验证工作区和提交边界**
 
 运行：
 
@@ -305,7 +309,7 @@ git diff HEAD~4..HEAD --name-only
 
 预期：工作区干净；变更仅位于本计划列出的后端文档、`educloud-backend` 和 `deploy` 路径，没有任何 `educloud-frontend` 变更。
 
-- [ ] **步骤 2：运行可在当前环境执行的验证**
+- [x] **步骤 2：运行可在当前环境执行的验证**
 
 运行：
 
@@ -332,7 +336,9 @@ docker compose --env-file deploy/docker-compose/.env.example -f deploy/docker-co
 
 预期：前置检查通过，所有共享依赖健康，`down` 不使用 `-v`。如果没有目标机访问能力，必须逐条标记为“未执行”，准备阶段不能宣称 Rocky/Docker 运行验证通过。
 
-- [ ] **步骤 4：两阶段审查**
+状态：当前机器不是 Rocky Linux 8.9 且没有 Docker CLI；本步骤五条命令均未在目标环境执行。
+
+- [x] **步骤 4：两阶段审查**
 
 先审查是否完全符合准备范围和 M01～M13 边界，再审查 Maven、Bash、Compose、安全和文档质量；任何问题修复并重新验证后才允许进入 M01。
 
