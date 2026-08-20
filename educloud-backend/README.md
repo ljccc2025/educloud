@@ -1,6 +1,6 @@
 # EduCloud Backend
 
-当前状态：`【M01 代码已实现并完成本地审查，等待 Rocky 集成验证】`。
+当前状态：`【M01 已实现并验证，等待用户验收】`。
 
 父 Maven 工程用于锁定 Java 17 字节码目标、依赖版本和统一构建插件。构建 JDK 只接受 17 或 21；使用 JDK 21 构建时仍通过 `--release 17` 生成 Java 17 字节码。当前只声明 `educloud-common`：它是不可独立运行的公共 JAR，不是后端服务，不提供端口、Controller、领域模型或数据库。M02～M13 仍未实现。
 
@@ -37,7 +37,7 @@ mvn -f educloud-backend/pom.xml verify
 
 当前构建只验证父工程和已加入的 Common 库，不代表任何后端服务已经实现或可以启动。
 
-M01 收口前还必须在 Rocky Docker 环境执行真实 Redis Testcontainers 门禁；测试使用独立容器和随机环境命名空间，不连接当前共享 Redis：
+M01 已在 Rocky Linux 8.9、JDK 21 和 Docker 环境通过真实 Redis Testcontainers 门禁：两个集成测试类共执行 5 个测试，失败、错误、跳过均为 0。测试使用独立容器和随机环境命名空间，不连接当前共享 Redis。需要复验时运行：
 
 ```bash
 bash deploy/tests/common-module-contract-tests.sh

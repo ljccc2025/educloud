@@ -697,7 +697,7 @@ educloud:{<environment>:id-workers}:watermark:<0..31>
 
 `RedisWorkerLeaseRepository` 用 `DefaultRedisScript<List>` 执行脚本，严格校验返回元素数量、worker 范围和数值类型；脚本或返回协议异常统一抛 `IdentifierUnavailableException`，不吞 Redis 错误。
 
-- [ ] **步骤 4：写脚本文本契约测试并运行绿灯**
+- [x] **步骤 4：写脚本文本契约测试并运行绿灯**
 
 文本契约至少断言三个脚本都校验 owner；acquire 使用 `TIME`、`NX`、`PX` 和 32 槽循环；renew/release 更新水位；不存在 `math.random`。
 
@@ -792,7 +792,7 @@ git commit -m "feat(common): add conditional auto configuration"
 - 修改：`docs/superpowers/specs/2026-08-20-educloud-common-design.md`
 - 修改：`docs/superpowers/plans/2026-08-20-educloud-common.md`
 
-- [ ] **步骤 1：运行 M01 全部验证**
+- [x] **步骤 1：运行 M01 全部验证**
 
 依次运行并保存退出码与测试摘要：
 
@@ -808,7 +808,7 @@ git status --short
 
 预期：所有命令返回 0；`-Pintegration` 明确显示两个 `*IT` 被执行；默认 `verify` 不启动容器；依赖边界无违规；没有任何服务启动或数据库迁移。
 
-- [ ] **步骤 2：执行 JDK 17/21 构建矩阵和 Rocky 目标机复核**
+- [x] **步骤 2：执行 JDK 17/21 构建矩阵和 Rocky 目标机复核**
 
 分别显式切换到 JDK 17 和 JDK 21，两个 JDK 都运行 `-am verify`；在当前已验证的 Rocky 工作目录至少使用 JDK 21 再跑单元和集成门禁：
 
@@ -825,7 +825,7 @@ mvn -f educloud-backend/pom.xml -pl educloud-common -am verify -Pintegration
 
 先逐条对照批准规格检查完整性和禁止项，再检查 API 可用性、并发安全、Redis Lua 原子性、异常信息泄露、自动配置条件、测试确定性和资源释放。修复任何问题后重跑步骤 1 和步骤 2 的相关命令；不得以“测试未运行”代替通过。
 
-- [ ] **步骤 4：更新事实状态**
+- [x] **步骤 4：更新事实状态**
 
 只有步骤 1～3 都通过后：
 
@@ -834,7 +834,7 @@ mvn -f educloud-backend/pom.xml -pl educloud-common -am verify -Pintegration
 - 本计划所有实际完成项勾选；在末尾记录验证日期、命令、退出码、测试数量和 N/A 门禁。
 - 不把 M02 Gateway 标记为开始或已实现。
 
-- [ ] **步骤 5：提交 M01 收口**
+- [x] **步骤 5：提交 M01 收口**
 
 ```bash
 git add -- educloud-backend/README.md docs/superpowers/specs/2026-08-20-educloud-common-design.md docs/superpowers/plans/2026-08-20-educloud-common.md
@@ -864,5 +864,6 @@ M01 只有同时满足以下条件才算完成：
 - Git Bash 实际执行模块契约脚本并返回 0；正式运行时依赖未出现 Web/WebFlux/JDBC/MySQL/MyBatis-Plus/AMQP/Nacos Starter 禁止项。
 - `educloud-common` 产物 class major version 为 61（Java 17），默认 verify 明确跳过 `*IT`，不会启动容器。
 - 已按中文代码审查顺序检查架构、正确性、安全、性能、可维护性和风格；发现的租约截止计算、自动配置退让和门禁误报问题已修复并回归通过。
-- 本机无 Docker；`-Pintegration` 已确认 Failsafe 发现 `RedisWorkerLeaseRepositoryIT` 与 `RedisIdentifierConcurrencyIT`，但因找不到 Docker 环境失败。任务 8 步骤 4、任务 10 步骤 1～2、4～5保持未完成，必须等待 Rocky 真实 Redis 集成结果。
+- Rocky Linux 8.9 / JDK 21.0.10 / Maven 3.9.16 / Docker 环境已运行 `-Pintegration`：`RedisIdentifierConcurrencyIT` 2 个测试、`RedisWorkerLeaseRepositoryIT` 3 个测试，共 5 个测试，失败、错误、跳过均为 0，Maven 报告 `BUILD SUCCESS`。两个测试类均启动独立的 `redis:7.2.5-alpine` 容器，不修改共享 Redis。
+- 随后的重复 `tee` 流水线被 SIGINT 中断并返回 130，不计入验收结果；Rocky 目录的 `.git` 文件仍指向 Windows worktree 绝对路径，因此 Rocky 上的 `git status` 不可用。权威 Windows worktree 在最终提交前后均由本地 Git 验证为干净。
 - 数据库迁移、服务启动：`N/A`（Common 是普通 JAR，不拥有数据库或端口）。
