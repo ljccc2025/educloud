@@ -8,7 +8,7 @@
 
 **技术栈：** Git worktree、JDK 17 或 21、Java 17 字节码目标、Maven 3.9+、Rocky Linux 8.9、Bash、Docker Engine、Docker Compose 插件（`docker compose`，主版本 2+）、MySQL 8.0.36、Redis 7.2、RabbitMQ 3.13、Nacos 2.3.2、MinIO、Elasticsearch 8.14、Zipkin、Prometheus、Grafana。
 
-**执行状态（2026-08-20）：** 当前环境可执行的构建、脚本测试、契约测试和范围审查已通过。目标 Rocky Linux 8.9 前置检查与 Docker Compose `config/up/health/down` 尚未执行，等待具备该目标环境后补验；在此之前不得宣称共享基础设施已经实际运行。
+**执行状态（2026-08-20）：** 本地构建、脚本测试、契约测试和范围审查已通过；目标 Rocky Linux 8.9 前置检查、Java 21 Maven 构建、Compose `config`、九个容器 `up --wait`、HTTP/Redis/RabbitMQ 探针及 MySQL 数据库和账号验证均已通过。共享基础设施保持运行以供 M01 使用，停止环境的 `docker compose down` 尚未执行。
 
 ---
 
@@ -272,7 +272,7 @@ educloud_recommendation/recommendation_app
 
 使用路线图锁定的主版本或精确版本；所有端口通过环境变量映射，所有持久化数据使用项目命名卷，所有容器加入 `educloud-infra` 网络。Compose 不包含后端业务镜像，也不声明功能已经可用。
 
-- [ ] **步骤 4：运行静态和 Compose 验证**
+- [x] **步骤 4：运行静态和 Compose 验证**
 
 运行：
 
@@ -283,7 +283,7 @@ docker compose --env-file deploy/docker-compose/.env.example -f deploy/docker-co
 
 预期：契约测试通过；具备 `docker compose` 插件（主版本 2+）的环境中 `config` 返回 0。当前机器没有 Docker CLI 时，只记录第二条未验证，不以文本检查替代。
 
-状态：契约测试已通过；当前机器未安装 Docker CLI，因此 `docker compose config` 未执行。
+状态：契约测试已通过；目标 Rocky Linux 8.9 主机上的 `docker compose config --quiet` 已返回成功。
 
 - [x] **步骤 5：提交**
 
@@ -337,7 +337,7 @@ docker compose --env-file deploy/docker-compose/.env.example -f deploy/docker-co
 
 预期：前置检查通过，所有共享依赖健康，`down` 不使用 `-v`。如果没有目标机访问能力，必须逐条标记为“未执行”，准备阶段不能宣称 Rocky/Docker 运行验证通过。
 
-状态：当前机器不是 Rocky Linux 8.9 且没有 Docker CLI；本步骤五条命令均未在目标环境执行。
+状态：目标机前置检查、`config`、`up -d --wait` 和 `ps` 已通过，九个容器均为 healthy。Nacos、MinIO、Elasticsearch、Zipkin、Prometheus、Grafana HTTP 探针通过，Redis 返回 `PONG`，RabbitMQ 返回 `Ping succeeded`；MySQL 验证为 11 个业务库、11 个应用账号、11 个迁移账号和 0 个应用账号库级授权。为保留 M01 运行环境，`down` 有意暂缓，因此本步骤保持未勾选。
 
 - [x] **步骤 4：两阶段审查**
 
