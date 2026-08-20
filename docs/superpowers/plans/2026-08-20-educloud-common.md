@@ -65,7 +65,7 @@ deploy/tests/common-module-contract-tests.sh
 - 创建：`deploy/tests/common-module-contract-tests.sh`
 - 修改：`educloud-backend/README.md`
 
-- [ ] **步骤 1：先写模块契约测试**
+- [x] **步骤 1：先写模块契约测试**
 
 脚本必须使用 `set -euo pipefail`，并检查：父 POM 的 `<modules>` 精确为 `educloud-common`；子模块 packaging 为 JAR；主源码没有 `main(`、`@SpringBootApplication`、`@Controller`、`@RestController`、`@Entity`、`Mapper`；依赖树的 compile/runtime 范围不含下列坐标：
 
@@ -96,7 +96,7 @@ bash deploy/tests/common-module-contract-tests.sh
 
 预期：失败并明确指出父 POM 尚未声明 `educloud-common` 或子 POM 不存在。
 
-- [ ] **步骤 2：创建最小模块 POM**
+- [x] **步骤 2：创建最小模块 POM**
 
 父 POM 只加入：
 
@@ -178,11 +178,11 @@ bash deploy/tests/common-module-contract-tests.sh
 
 测试作用域加入 `spring-boot-starter-test`、`spring-boot-starter-web`、`spring-boot-starter-security`、`spring-boot-starter-data-redis`、`org.testcontainers:junit-jupiter`、`org.testcontainers:testcontainers` 和 `org.awaitility:awaitility`。Mockito 和 Testcontainers 使用上面的锁定版本。配置 Surefire 跑 `*Test`，Failsafe 跑 `*IT`；属性 `skipITs=true`，`integration` profile 将其改为 `false`。
 
-- [ ] **步骤 3：更新 README 的事实状态**
+- [x] **步骤 3：更新 README 的事实状态**
 
 把当前状态改为 `【M01 计划已批准，实施中】`，明确 Common 是库而非服务；保留 M02～M13 尚未实现的说明，不写“后端已完成”。
 
-- [ ] **步骤 4：运行绿灯**
+- [x] **步骤 4：运行绿灯**
 
 ```bash
 mvn -f educloud-backend/pom.xml -pl educloud-common help:effective-pom
@@ -193,7 +193,7 @@ git diff --check
 
 预期：全部返回 0；测试输出为 `No tests to run` 或 0 tests，模块仅产生普通 JAR 生命周期，不出现可运行应用。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add -- educloud-backend/pom.xml educloud-backend/educloud-common/pom.xml educloud-backend/README.md deploy/tests/common-module-contract-tests.sh
@@ -209,7 +209,7 @@ git commit -m "build(common): add module boundary"
 - 创建：`educloud-backend/educloud-common/src/main/java/com/educloud/common/api/ApiResponse.java`
 - 创建：`educloud-backend/educloud-common/src/main/java/com/educloud/common/api/PageResponse.java`
 
-- [ ] **步骤 1：写失败测试**
+- [x] **步骤 1：写失败测试**
 
 测试必须固定以下调用和断言：
 
@@ -238,7 +238,7 @@ mvn -f educloud-backend/pom.xml -pl educloud-common \
 
 预期：测试编译失败，缺少两个生产类型。
 
-- [ ] **步骤 2：实现不可变记录**
+- [x] **步骤 2：实现不可变记录**
 
 公共 API 固定为：
 
@@ -284,7 +284,7 @@ public record PageResponse<T>(
 
 `requireText` 是各 record 内部的私有静态方法，不新增万能字符串工具类。
 
-- [ ] **步骤 3：运行绿灯并提交**
+- [x] **步骤 3：运行绿灯并提交**
 
 ```bash
 mvn -f educloud-backend/pom.xml -pl educloud-common \
@@ -310,7 +310,7 @@ git commit -m "feat(common): add response contracts"
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/web/RequestContextFilterTest.java`
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/api/ApiResponseFactoryTest.java`
 
-- [ ] **步骤 1：写请求 ID 和 MDC 红灯测试**
+- [x] **步骤 1：写请求 ID 和 MDC 红灯测试**
 
 覆盖合法值保留、非法字符/空/超长值替换、生成值符合 UUID；过滤器测试覆盖正常和抛异常两条路径：
 
@@ -326,7 +326,7 @@ assertThat(MDC.get("requestId")).isNull();
 
 运行目标测试，预期因类型缺失编译失败。
 
-- [ ] **步骤 2：实现上下文契约和过滤器**
+- [x] **步骤 2：实现上下文契约和过滤器**
 
 固定接口：
 
@@ -346,7 +346,7 @@ public interface RequestContextAccessor {
 
 `ServletRequestContextAccessor` 只从当前请求属性读取 requestId；无请求时返回由 policy 生成的值但不保存到静态变量。Trace 通过可选的 Micrometer `Tracer` 读取 `currentSpan().context().traceId()`；无 Tracer 或无当前 Span 时返回空。测试用 mock Tracer 固定真实 trace 值，禁止回退到 requestId。
 
-- [ ] **步骤 3：实现响应工厂**
+- [x] **步骤 3：实现响应工厂**
 
 ```java
 public final class ApiResponseFactory {
@@ -367,7 +367,7 @@ public final class ApiResponseFactory {
 
 构造器参数非空；错误消息必须由调用方显式传入安全消息。
 
-- [ ] **步骤 4：运行绿灯并提交**
+- [x] **步骤 4：运行绿灯并提交**
 
 ```bash
 mvn -f educloud-backend/pom.xml -pl educloud-common \
@@ -391,7 +391,7 @@ git commit -m "feat(common): add request context"
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/error/BusinessExceptionTest.java`
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/web/GlobalExceptionHandlerTest.java`
 
-- [ ] **步骤 1：先写异常映射红灯测试**
+- [x] **步骤 1：先写异常映射红灯测试**
 
 使用 `@WebMvcTest` 的测试 Controller 触发 Bean Validation、不可读 JSON、七类 `BusinessException` 和未知异常。必须断言 HTTP 状态、业务码、`X-Request-Id` 与响应体 requestId 一致；500 的 JSON 不含原异常消息、类名、SQL、主机名或堆栈。使用测试 Logback appender 断言未知异常恰好记录一次 ERROR。
 
@@ -409,7 +409,7 @@ git commit -m "feat(common): add request context"
 
 运行目标测试，预期编译失败。
 
-- [ ] **步骤 2：实现错误类型**
+- [x] **步骤 2：实现错误类型**
 
 ```java
 public interface ErrorCode {
@@ -432,7 +432,7 @@ public record ValidationErrorDetails(List<FieldViolation> violations)
 
 `CommonErrorCode` 枚举实现上表。`BusinessException` 只保存 `ErrorCode`、面向客户端的安全 message 和 `@Nullable ErrorDetails`；不得把 arbitrary Object、Throwable 字段或堆栈放进响应详情。cause 只保留在异常链供日志使用。
 
-- [ ] **步骤 3：实现异常处理器**
+- [x] **步骤 3：实现异常处理器**
 
 `GlobalExceptionHandler` 使用 `@RestControllerAdvice`：
 
@@ -442,7 +442,7 @@ public record ValidationErrorDetails(List<FieldViolation> violations)
 - `Exception` 只调用一次 `log.error("Unhandled request failure requestId={}", requestId, exception)`，客户端固定 `INTERNAL_ERROR/Internal server error`。
 - 所有分支以 `ResponseEntity.status(code.httpStatus())` 返回，并写相同 `X-Request-Id`。
 
-- [ ] **步骤 4：运行绿灯并提交**
+- [x] **步骤 4：运行绿灯并提交**
 
 ```bash
 mvn -f educloud-backend/pom.xml -pl educloud-common \
@@ -462,11 +462,11 @@ git commit -m "feat(common): add error contracts"
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/security/AuthenticatedUserTest.java`
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/security/SpringSecurityContextFacadeTest.java`
 
-- [ ] **步骤 1：写红灯测试**
+- [x] **步骤 1：写红灯测试**
 
 测试防御性复制、不可修改、空白字段拒绝；认证 principal 为 `AuthenticatedUser` 时返回该值，匿名、未认证、字符串 principal 均返回 `Optional.empty()`。带伪造 `X-User-Id`/`X-Role` 的 Mock request 不能影响结果。
 
-- [ ] **步骤 2：实现最小接口**
+- [x] **步骤 2：实现最小接口**
 
 ```java
 public record AuthenticatedUser(
@@ -489,7 +489,7 @@ public interface SecurityContextFacade {
 
 `SpringSecurityContextFacade` 只读取 `SecurityContextHolderStrategy.getContext().getAuthentication()`，要求 `isAuthenticated()`、不是 `AnonymousAuthenticationToken` 且 principal 类型为 `AuthenticatedUser`。它不解析 JWT、请求头或权限字符串。
 
-- [ ] **步骤 3：运行绿灯并提交**
+- [x] **步骤 3：运行绿灯并提交**
 
 ```bash
 mvn -f educloud-backend/pom.xml -pl educloud-common \
@@ -508,13 +508,13 @@ git commit -m "feat(common): add security context"
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/messaging/EventEnvelopeTest.java`
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/idempotency/IdempotencyKeyTest.java`
 
-- [ ] **步骤 1：写红灯测试**
+- [x] **步骤 1：写红灯测试**
 
 `EventEnvelopeTest` 固定 JSON 字段名和顺序，验证必填文本、`eventVersion>=1`、`sourceSequence>=0`、`aggregateVersion>=0`、非空 data 和 UTC Instant。另证明确保三个版本字段互不推导。
 
 `IdempotencyKeyTest` 验证：完全相同为同一请求；actor/operation/key 相同但 digest 不同为冲突；任一 scope 字段不同不冲突；所有字段 trim 后仍不能为空。
 
-- [ ] **步骤 2：实现纯值对象**
+- [x] **步骤 2：实现纯值对象**
 
 ```java
 public record EventEnvelope<T>(
@@ -548,7 +548,7 @@ public record IdempotencyKey(
 
 两个类型不得依赖 Spring、Redis、RabbitMQ、Repository 或 I/O。
 
-- [ ] **步骤 3：运行绿灯并提交**
+- [x] **步骤 3：运行绿灯并提交**
 
 ```bash
 mvn -f educloud-backend/pom.xml -pl educloud-common \
@@ -569,7 +569,7 @@ git commit -m "feat(common): add message value contracts"
 - 创建：`educloud-backend/educloud-common/src/main/java/com/educloud/common/id/WorkerLeaseIdentifierGenerator.java`
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/id/WorkerLeaseIdentifierGeneratorTest.java`
 
-- [ ] **步骤 1：写算法红灯测试**
+- [x] **步骤 1：写算法红灯测试**
 
 用可变 `Clock`、记录等待时间的 fake `Sleeper` 和 fake guard 覆盖：
 
@@ -583,7 +583,7 @@ git commit -m "feat(common): add message value contracts"
 
 运行目标测试，预期编译失败。
 
-- [ ] **步骤 2：实现接口和位布局**
+- [x] **步骤 2：实现接口和位布局**
 
 ```java
 public interface IdentifierGenerator {
@@ -614,7 +614,7 @@ static final int TIMESTAMP_SHIFT = SEQUENCE_BITS + WORKER_BITS;
 
 同步区内先 `requireActiveWorkerId()`，再读取 clock。小幅回拨调用 sleeper 逐毫秒等待；中断时恢复中断标记并失败关闭。组合前校验 timestamp 未早于 epoch、未溢出 41 位。成功组合后调用 `recordIssuedTimestamp(currentMillis)`；禁止用随机 worker 或本地 fallback。
 
-- [ ] **步骤 3：运行绿灯并提交**
+- [x] **步骤 3：运行绿灯并提交**
 
 ```bash
 mvn -f educloud-backend/pom.xml -pl educloud-common \
@@ -640,7 +640,7 @@ git commit -m "feat(common): add lease aware identifiers"
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/id/RedisWorkerLeaseRepositoryIT.java`
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/id/RedisIdentifierConcurrencyIT.java`
 
-- [ ] **步骤 1：写 Manager 红灯测试**
+- [x] **步骤 1：写 Manager 红灯测试**
 
 使用 fake repository、可控 `LongSupplier nanoTime` 和直接执行的 fake scheduler，覆盖：获取 0～31、无槽位时 start 失败、10 秒续租、30 秒本地截止、续租失败立即失效、owner 变化失效、每次发号前截止检查、正常 stop 带最后发号水位释放、未启动和 stop 后拒绝发号。断言 owner 是每实例唯一 UUID。
 
@@ -658,7 +658,7 @@ mvn -f educloud-backend/pom.xml -pl educloud-common \
 
 预期：测试编译失败，缺少租约仓储和 Manager 类型；必须确认 Failsafe 列出了两个 IT，不能把 skip 当成红灯。
 
-- [ ] **步骤 2：定义仓储边界**
+- [x] **步骤 2：定义仓储边界**
 
 ```java
 public record WorkerLeaseGrant(
@@ -680,7 +680,7 @@ public interface WorkerLeaseRepository {
 
 `WorkerLeaseManager` 实现 `WorkerLeaseGuard`、`SmartLifecycle`、`AutoCloseable`。成功获取或续租时把本地确认截止设为 `nanoTime + ttl`；每次发号读取 monotonic time，不以可回拨 wall clock 判断租约。任何 Redis 异常、空续租结果或截止超时都原子切换为失效状态。正常 stop 尝试 owner-checked release；释放异常只记录告警且本地立即失效。
 
-- [ ] **步骤 3：实现 Lua 原子语义**
+- [x] **步骤 3：实现 Lua 原子语义**
 
 所有 key 使用同一 Redis Cluster hash tag：
 
@@ -726,7 +726,7 @@ git commit -m "feat(common): add redis worker leases"
 - 创建：`educloud-backend/educloud-common/src/main/resources/META-INF/additional-spring-configuration-metadata.json`
 - 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/config/CommonAutoConfigurationTest.java`
 
-- [ ] **步骤 1：写 ApplicationContextRunner 红灯测试**
+- [x] **步骤 1：写 ApplicationContextRunner 红灯测试**
 
 用 `ApplicationContextRunner`、`WebApplicationContextRunner` 和 `ReactiveWebApplicationContextRunner` 覆盖：
 
@@ -739,7 +739,7 @@ git commit -m "feat(common): add redis worker leases"
 - environment 空白、TTL 非正、续租间隔不小于 TTL、回拨容忍为负时 context 启动失败。
 - Imports 文件四个配置类各出现一次且能被 `AutoConfigurations.of(...)` 发现。
 
-- [ ] **步骤 2：实现属性和自动配置**
+- [x] **步骤 2：实现属性和自动配置**
 
 属性绑定固定为：
 
@@ -774,7 +774,7 @@ public class CommonIdentifierProperties {
 
 不得用 `@ComponentScan`；所有 bean 显式声明。Imports 文件每行一个全限定类名。元数据为五个属性提供类型、默认值和说明，并明确 environment 是 Redis ID 命名空间而不是租户。
 
-- [ ] **步骤 3：运行绿灯并提交**
+- [x] **步骤 3：运行绿灯并提交**
 
 ```bash
 mvn -f educloud-backend/pom.xml -pl educloud-common \
@@ -821,7 +821,7 @@ mvn -f educloud-backend/pom.xml -pl educloud-common -am verify -Pintegration
 
 预期：JDK 17 和 JDK 21 的版本证据及构建退出码均为 0；Rocky 使用 JDK 21、Maven 3.9+。Testcontainers 启动独立随机命名 Redis，不修改现有 `educloud-redis-1`。若任一 JDK 尚不可用，明确标记未验证且不得完成 M01。数据库迁移和服务启动门禁标记 `N/A（Common 为普通 JAR 且无数据库）`。
 
-- [ ] **步骤 3：范围审查和质量审查**
+- [x] **步骤 3：范围审查和质量审查**
 
 先逐条对照批准规格检查完整性和禁止项，再检查 API 可用性、并发安全、Redis Lua 原子性、异常信息泄露、自动配置条件、测试确定性和资源释放。修复任何问题后重跑步骤 1 和步骤 2 的相关命令；不得以“测试未运行”代替通过。
 
@@ -857,3 +857,12 @@ M01 只有同时满足以下条件才算完成：
 7. 默认和 integration Maven 门禁、依赖契约、范围审查、质量审查全部通过。
 8. Rocky Linux 8.9 / JDK 21 证据通过，或被明确标记为尚未验证；后者不得宣称 M01 完成。
 9. 变更仅限 M01，工作区干净，用户确认后才允许开始 M02。
+
+## 当前验证进度（2026-08-20）
+
+- 本地 JDK 17.0.19 与 JDK 21.0.11 的 `-am verify` 均返回 0；每次执行 63 个单元测试，失败、错误、跳过均为 0。
+- Git Bash 实际执行模块契约脚本并返回 0；正式运行时依赖未出现 Web/WebFlux/JDBC/MySQL/MyBatis-Plus/AMQP/Nacos Starter 禁止项。
+- `educloud-common` 产物 class major version 为 61（Java 17），默认 verify 明确跳过 `*IT`，不会启动容器。
+- 已按中文代码审查顺序检查架构、正确性、安全、性能、可维护性和风格；发现的租约截止计算、自动配置退让和门禁误报问题已修复并回归通过。
+- 本机无 Docker；`-Pintegration` 已确认 Failsafe 发现 `RedisWorkerLeaseRepositoryIT` 与 `RedisIdentifierConcurrencyIT`，但因找不到 Docker 环境失败。任务 8 步骤 4、任务 10 步骤 1～2、4～5保持未完成，必须等待 Rocky 真实 Redis 集成结果。
+- 数据库迁移、服务启动：`N/A`（Common 是普通 JAR，不拥有数据库或端口）。
