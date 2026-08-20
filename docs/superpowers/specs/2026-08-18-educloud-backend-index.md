@@ -49,6 +49,10 @@
 10. [开发、编码与测试规范](./2026-08-18-educloud-development-and-testing.md)
 11. [页面—接口—服务追踪矩阵](./2026-08-18-educloud-traceability-matrix.md)
 12. [后端实施路线图](../plans/2026-08-18-educloud-backend-roadmap.md)
+13. [模块执行顺序与准备门禁](./2026-08-20-educloud-backend-module-execution.md)
+14. [后端准备阶段实现计划](../plans/2026-08-20-educloud-backend-preparation.md)
+
+2026-08-20 的模块执行顺序与准备门禁覆盖旧路线图中批量创建空服务的步骤，但不覆盖本索引所指向的领域、安全和数据契约；这些契约仍以本 2026-08-18 文档集为准。
 
 ## 4. 已锁定的架构决策
 
