@@ -5,6 +5,7 @@
 **/dist/
 **/build/
 **/.vite/
+**/target/
 
 # Local environment and secrets
 .env
