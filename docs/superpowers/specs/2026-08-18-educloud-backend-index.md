@@ -51,6 +51,7 @@
 12. [后端实施路线图](../plans/2026-08-18-educloud-backend-roadmap.md)
 13. [模块执行顺序与准备门禁](./2026-08-20-educloud-backend-module-execution.md)
 14. [后端准备阶段实现计划](../plans/2026-08-20-educloud-backend-preparation.md)
+15. [M01 Common 模块设计规格](./2026-08-20-educloud-common-design.md)
 
 2026-08-20 的模块执行顺序与准备门禁覆盖旧路线图中批量创建空服务的步骤，但不覆盖本索引所指向的领域、安全和数据契约；这些契约仍以本 2026-08-18 文档集为准。
 

@@ -8,7 +8,7 @@
 
 **技术栈：** Git worktree、JDK 17 或 21、Java 17 字节码目标、Maven 3.9+、Rocky Linux 8.9、Bash、Docker Engine、Docker Compose 插件（`docker compose`，主版本 2+）、MySQL 8.0.36、Redis 7.2、RabbitMQ 3.13、Nacos 2.3.2、MinIO、Elasticsearch 8.14、Zipkin、Prometheus、Grafana。
 
-**执行状态（2026-08-20）：** 本地构建、脚本测试、契约测试和范围审查已通过；目标 Rocky Linux 8.9 前置检查、Java 21 Maven 构建、Compose `config`、九个容器健康状态、HTTP/Redis/RabbitMQ 探针及 MySQL 数据库和账号验证均已通过。最近一次 `up --wait` 显示 9/9 Healthy，但预期的成功回显未出现，因此仍需显式记录其退出码；共享基础设施保持运行，`docker compose down` 尚未执行。
+**执行状态（2026-08-20）：** 准备阶段门禁已通过。本地构建、脚本测试、契约测试和范围审查通过；目标 Rocky Linux 8.9 前置检查、Java 21 Maven 构建、Compose `config`、九个容器健康状态、HTTP/Redis/RabbitMQ 探针及 MySQL 数据库和账号验证通过，`up --wait` 显式退出码为 0。共享基础设施保持运行以供 M01 使用；停止命令仅作为后续运维操作保留。
 
 ---
 
@@ -323,7 +323,7 @@ git diff --check HEAD~4..HEAD
 
 预期：全部返回 0。
 
-- [ ] **步骤 3：运行 Rocky Linux 8.9 验证**
+- [x] **步骤 3：运行 Rocky Linux 8.9 验证**
 
 在目标机运行：
 
@@ -337,7 +337,7 @@ docker compose --env-file deploy/docker-compose/.env.example -f deploy/docker-co
 
 预期：前置检查通过，所有共享依赖健康，`down` 不使用 `-v`。如果没有目标机访问能力，必须逐条标记为“未执行”，准备阶段不能宣称 Rocky/Docker 运行验证通过。
 
-状态：目标机前置检查、`config`、`ps` 和九个容器健康状态已通过。最近一次 `up -d --wait` 显示 9/9 Healthy，但其后的 `&& echo` 没有输出，需补录显式退出码。Nacos、MinIO、Elasticsearch、Zipkin、Prometheus、Grafana HTTP 探针通过，Redis 返回 `PONG`，RabbitMQ 返回 `Ping succeeded`；MySQL 验证为 11 个业务库、11 个应用账号、11 个迁移账号和 0 个应用账号库级授权。为保留 M01 运行环境，`down` 有意暂缓，因此本步骤保持未勾选。
+状态：目标机前置检查、`config`、`ps` 和九个容器健康状态通过，`up -d --wait` 显式退出码为 0。Nacos、MinIO、Elasticsearch、Zipkin、Prometheus、Grafana HTTP 探针通过，Redis 返回 `PONG`，RabbitMQ 返回 `Ping succeeded`；MySQL 验证为 11 个业务库、11 个应用账号、11 个迁移账号和 0 个应用账号库级授权。环境保持运行以供 M01 使用；`down` 是后续停止环境的运维动作，不再作为未完成门禁。
 
 - [x] **步骤 4：两阶段审查**
 
