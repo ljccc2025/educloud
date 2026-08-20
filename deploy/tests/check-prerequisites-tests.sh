@@ -84,14 +84,16 @@ run_case() {
 }
 
 success_fixture="$(create_fixture success 8.9 17.0.12 3.9.16 yes 5.4.0)"
-java_fixture="$(create_fixture java-21 8.9 21.0.8 3.9.16 yes 5.4.0)"
+java_21_fixture="$(create_fixture java-21 8.9 21.0.8 3.9.16 yes 5.4.0)"
+unsupported_java_fixture="$(create_fixture java-18 8.9 18.0.2 3.9.16 yes 5.4.0)"
 missing_docker_fixture="$(create_fixture missing-docker 8.9 17.0.12 3.9.16 no 5.4.0)"
 wrong_os_fixture="$(create_fixture rocky-9 9.0 17.0.12 3.9.16 yes 5.4.0)"
 old_compose_fixture="$(create_fixture compose-1 8.9 17.0.12 3.9.16 yes 1.29.2)"
 space_path_fixture="$(create_fixture 'space path' 8.9 17.0.12 3.9.16 yes 5.4.0)"
 
 run_case 'accepts Rocky 8.9 with the required toolchain' "$success_fixture" 0 'Prerequisite check passed'
-run_case 'rejects Java versions other than 17' "$java_fixture" 1 'Java 17 is required'
+run_case 'accepts Java 21 as a supported build JDK' "$java_21_fixture" 0 'Prerequisite check passed'
+run_case 'rejects Java versions other than 17 or 21' "$unsupported_java_fixture" 1 'Java 17 or 21 is required'
 run_case 'rejects a missing Docker command' "$missing_docker_fixture" 1 'docker command not found'
 run_case 'rejects Rocky Linux versions other than 8.9' "$wrong_os_fixture" 1 'Rocky Linux 8.9 is required'
 run_case 'rejects the legacy Compose v1 command line' "$old_compose_fixture" 1 'Docker Compose plugin version 2 or newer is required'

@@ -21,7 +21,7 @@ test "$VERSION_ID" = "8.9"
 
 不要在需要保持 8.9 的机器上直接运行无版本约束的 `dnf upgrade`；该命令可能把系统推进到 8.10。由于 8.9 已不受支持，这台机器必须限制在测试用途并记录该风险。
 
-## 2. 安装基础工具和 Java 17
+## 2. 安装基础工具和 Java 21（也接受 Java 17）
 
 ```bash
 sudo dnf -y install \
@@ -30,7 +30,7 @@ sudo dnf -y install \
   dnf-plugins-core \
   git \
   gzip \
-  java-17-openjdk-devel \
+  java-21-openjdk-devel \
   tar
 
 java -version
@@ -38,7 +38,7 @@ javac -version
 git --version
 ```
 
-期望 `java -version` 和 `javac -version` 的主版本均为 17。
+期望 `java -version` 和 `javac -version` 的主版本均为 21。前置检查也接受 Java 17；如需使用 Java 17，把安装包名改为 `java-17-openjdk-devel`。两种构建 JDK 都生成 Java 17 目标字节码。Spring Boot 3.2.5 官方支持 Java 17 至 Java 22，见 [Spring Boot 3.2.5 System Requirements](https://docs.spring.io/spring-boot/docs/3.2.5/reference/htmlsingle/#getting-started.system-requirements)。
 
 ## 3. 安装并校验 Maven 3.9.16
 
@@ -72,7 +72,7 @@ source /etc/profile.d/educloud-java-maven.sh
 mvn --version
 ```
 
-期望 Maven 为 3.9.16，并且 Maven 输出中的 Java 主版本为 17。
+期望 Maven 为 3.9.16，并且 Maven 输出中的 Java 主版本为 17 或 21。
 
 ## 4. 安装 Docker Engine 和 Compose 插件
 
@@ -141,7 +141,7 @@ Prerequisite check passed
 脚本会检查：
 
 - 操作系统严格为 Rocky Linux 8.9；
-- Java 主版本严格为 17；
+- Java 主版本为 17 或 21；
 - Maven 版本不低于 3.9；
 - Git、Docker CLI 可执行；
 - `docker compose` 插件主版本不低于 2；
@@ -152,7 +152,7 @@ Prerequisite check passed
 前置检查通过后，再执行准备阶段的 Compose 验证：
 
 ```bash
-cp deploy/docker-compose/.env.example deploy/docker-compose/.env
+bash deploy/scripts/generate-local-env.sh
 
 docker compose \
   --env-file deploy/docker-compose/.env \
@@ -160,4 +160,4 @@ docker compose \
   config
 ```
 
-复制后必须先修改 `.env` 中的本地密码。`.env` 已被 Git 忽略，不得提交。只有 Compose 文件在后续准备任务中创建完成后，本节命令才可执行。
+生成器使用 `/dev/urandom` 为每项凭据生成独立随机值，把文件权限限制为 `600`，且不会在终端打印密码。`.env` 已被 Git 忽略，不得提交。已有 `.env` 时生成器默认拒绝覆盖；确认其中只有示例占位值后，可显式执行 `bash deploy/scripts/generate-local-env.sh --force`。

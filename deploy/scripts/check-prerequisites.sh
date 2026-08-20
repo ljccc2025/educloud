@@ -53,7 +53,13 @@ if [[ "$java_output" =~ version[[:space:]]+\"([0-9]+)(\.[0-9]+)* ]]; then
 else
   fail "Unable to determine Java version"
 fi
-[[ "$java_major" == "17" ]] || fail "Java 17 is required; detected Java $java_major"
+case "$java_major" in
+  17|21)
+    ;;
+  *)
+    fail "Java 17 or 21 is required; detected Java $java_major"
+    ;;
+esac
 
 maven_output="$("$maven_bin" -version 2>&1)"
 if [[ "$maven_output" =~ Apache[[:space:]]+Maven[[:space:]]+([0-9]+)\.([0-9]+) ]]; then

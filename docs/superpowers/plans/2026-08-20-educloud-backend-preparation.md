@@ -6,7 +6,7 @@
 
 **架构：** 准备阶段只提供“开始 M01 所需的跑道”：父 POM 不声明尚未实现的服务模块，Docker Compose 只承载共享依赖，11 个业务数据库按独立账号初始化。所有 Linux 操作由 Bash 脚本和 Rocky Linux 运行手册描述；Windows 当前机器只能做静态与构建验证，不能替代 Rocky Linux 8.9 和真实 Docker 运行证据。
 
-**技术栈：** Git worktree、Java 17 字节码目标、Maven 3.9+、Rocky Linux 8.9、Bash、Docker Engine、Docker Compose 插件（`docker compose`，主版本 2+）、MySQL 8.0.36、Redis 7.2、RabbitMQ 3.13、Nacos 2.3.2、MinIO、Elasticsearch 8.14、Zipkin、Prometheus、Grafana。
+**技术栈：** Git worktree、JDK 17 或 21、Java 17 字节码目标、Maven 3.9+、Rocky Linux 8.9、Bash、Docker Engine、Docker Compose 插件（`docker compose`，主版本 2+）、MySQL 8.0.36、Redis 7.2、RabbitMQ 3.13、Nacos 2.3.2、MinIO、Elasticsearch 8.14、Zipkin、Prometheus、Grafana。
 
 **执行状态（2026-08-20）：** 当前环境可执行的构建、脚本测试、契约测试和范围审查已通过。目标 Rocky Linux 8.9 前置检查与 Docker Compose `config/up/health/down` 尚未执行，等待具备该目标环境后补验；在此之前不得宣称共享基础设施已经实际运行。
 
@@ -26,6 +26,7 @@
 - `educloud-backend/pom.xml`：只定义父工程坐标、Java 17 编译目标、依赖版本和构建插件；准备阶段不声明子模块。
 - `educloud-backend/README.md`：记录当前完成度、模块增量加入规则和验证命令。
 - `deploy/scripts/check-prerequisites.sh`：在 Rocky Linux 8.9 上检查 OS、Java、Maven、Git、Docker 和 Compose。
+- `deploy/scripts/generate-local-env.sh`：在目标机本地生成不进入 Git 的随机 Compose 凭据。
 - `deploy/tests/check-prerequisites-tests.sh`：使用临时命令桩验证成功、错误 Java、缺失 Docker 和错误系统版本。
 - `deploy/runbooks/rocky-linux-8.9-bootstrap.md`：给出从干净 Rocky Linux 8.9 安装依赖并运行检查的 Bash 流程。
 - `deploy/docker-compose/compose.yml`：共享基础设施编排，不包含后端业务容器。
@@ -126,7 +127,7 @@ mvn -f educloud-backend/pom.xml help:effective-pom
 </properties>
 ```
 
-使用 Spring Boot、Spring Cloud 和 Spring Cloud Alibaba BOM；启用 Maven Enforcer，要求 Maven 3.9+、Java 17+；配置 Compiler Plugin 使用 `release=17`、Surefire 使用 JUnit Platform。准备阶段不得出现 `<modules>` 或任何服务 POM。
+使用 Spring Boot、Spring Cloud 和 Spring Cloud Alibaba BOM；启用 Maven Enforcer，要求 Maven 3.9+、构建 JDK 为 17 或 21；配置 Compiler Plugin 使用 `release=17`、Surefire 使用 JUnit Platform。准备阶段不得出现 `<modules>` 或任何服务 POM。
 
 - [x] **步骤 3：创建 README**
 
@@ -168,8 +169,8 @@ git commit -m "chore(backend): establish parent build"
 测试使用 `mktemp -d` 建立 Java、Maven、Git、Docker 命令桩，并通过 `EDUCLOUD_OS_RELEASE_FILE` 注入系统信息，至少覆盖：
 
 ```text
-Rocky Linux 8.9 + Java 17 + Maven 3.9 + Docker + Compose 插件 2+ => 退出 0
-Java 21 => 退出非 0，并输出 "Java 17 is required"
+Rocky Linux 8.9 + Java 17 或 21 + Maven 3.9 + Docker + Compose 插件 2+ => 退出 0
+Java 18 => 退出非 0，并输出 "Java 17 or 21 is required"
 缺少 docker => 退出非 0，并输出 "docker command not found"
 Rocky Linux 9 => 退出非 0，并输出 "Rocky Linux 8.9 is required"
 ```
@@ -188,7 +189,7 @@ bash deploy/tests/check-prerequisites-tests.sh
 
 ```text
 /etc/os-release 的 ID=rocky 且 VERSION_ID=8.9
-java 主版本等于 17
+java 主版本等于 17 或 21
 Maven 主版本至少为 3，次版本至少为 9
 git 可执行
 docker 可执行且 daemon 可连接
@@ -209,7 +210,7 @@ bash deploy/tests/check-prerequisites-tests.sh
 
 - [x] **步骤 4：编写 Rocky Linux 运行手册**
 
-只引用 Rocky Linux、Docker 和 Maven 官方来源；手册依次给出：系统确认、Java 17、Maven 3.9、Docker 官方仓库、`docker compose` 插件、当前用户 Docker 权限、服务启动、版本检查和前置脚本运行命令。所有命令使用 Bash，不包含 PowerShell。
+只引用 Rocky Linux、Spring Boot、Docker 和 Maven 官方来源；手册依次给出：系统确认、Java 17/21、Maven 3.9、Docker 官方仓库、`docker compose` 插件、当前用户 Docker 权限、服务启动、版本检查和前置脚本运行命令。所有命令使用 Bash，不包含 PowerShell。
 
 - [x] **步骤 5：提交**
 
