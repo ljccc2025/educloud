@@ -6,7 +6,7 @@
 
 **架构：** 准备阶段只提供“开始 M01 所需的跑道”：父 POM 不声明尚未实现的服务模块，Docker Compose 只承载共享依赖，11 个业务数据库按独立账号初始化。所有 Linux 操作由 Bash 脚本和 Rocky Linux 运行手册描述；Windows 当前机器只能做静态与构建验证，不能替代 Rocky Linux 8.9 和真实 Docker 运行证据。
 
-**技术栈：** Git worktree、Java 17 字节码目标、Maven 3.9+、Rocky Linux 8.9、Bash、Docker Engine、Docker Compose v2、MySQL 8.0.36、Redis 7.2、RabbitMQ 3.13、Nacos 2.3.2、MinIO、Elasticsearch 8.14、Zipkin、Prometheus、Grafana。
+**技术栈：** Git worktree、Java 17 字节码目标、Maven 3.9+、Rocky Linux 8.9、Bash、Docker Engine、Docker Compose 插件（`docker compose`，主版本 2+）、MySQL 8.0.36、Redis 7.2、RabbitMQ 3.13、Nacos 2.3.2、MinIO、Elasticsearch 8.14、Zipkin、Prometheus、Grafana。
 
 ---
 
@@ -166,7 +166,7 @@ git commit -m "chore(backend): establish parent build"
 测试使用 `mktemp -d` 建立 Java、Maven、Git、Docker 命令桩，并通过 `EDUCLOUD_OS_RELEASE_FILE` 注入系统信息，至少覆盖：
 
 ```text
-Rocky Linux 8.9 + Java 17 + Maven 3.9 + Docker + Compose v2 => 退出 0
+Rocky Linux 8.9 + Java 17 + Maven 3.9 + Docker + Compose 插件 2+ => 退出 0
 Java 21 => 退出非 0，并输出 "Java 17 is required"
 缺少 docker => 退出非 0，并输出 "docker command not found"
 Rocky Linux 9 => 退出非 0，并输出 "Rocky Linux 8.9 is required"
@@ -190,7 +190,7 @@ java 主版本等于 17
 Maven 主版本至少为 3，次版本至少为 9
 git 可执行
 docker 可执行且 daemon 可连接
-docker compose version 可执行且为 v2
+docker compose version 可执行且主版本至少为 2
 ```
 
 允许测试通过 `EDUCLOUD_OS_RELEASE_FILE` 替换 `/etc/os-release`、通过 `EDUCLOUD_SKIP_DOCKER_DAEMON=1` 跳过 daemon 探测；生产运行手册不得设置跳过变量。
@@ -207,7 +207,7 @@ bash deploy/tests/check-prerequisites-tests.sh
 
 - [ ] **步骤 4：编写 Rocky Linux 运行手册**
 
-只引用 Rocky Linux、Docker 和 Maven 官方来源；手册依次给出：系统确认、Java 17、Maven 3.9、Docker 官方仓库、Compose v2 插件、当前用户 Docker 权限、服务启动、版本检查和前置脚本运行命令。所有命令使用 Bash，不包含 PowerShell。
+只引用 Rocky Linux、Docker 和 Maven 官方来源；手册依次给出：系统确认、Java 17、Maven 3.9、Docker 官方仓库、`docker compose` 插件、当前用户 Docker 权限、服务启动、版本检查和前置脚本运行命令。所有命令使用 Bash，不包含 PowerShell。
 
 - [ ] **步骤 5：提交**
 
@@ -278,7 +278,7 @@ bash deploy/tests/compose-contract-tests.sh
 docker compose --env-file deploy/docker-compose/.env.example -f deploy/docker-compose/compose.yml config
 ```
 
-预期：契约测试通过；具备 Docker Compose v2 的环境中 `config` 返回 0。当前机器没有 Docker CLI 时，只记录第二条未验证，不以文本检查替代。
+预期：契约测试通过；具备 `docker compose` 插件（主版本 2+）的环境中 `config` 返回 0。当前机器没有 Docker CLI 时，只记录第二条未验证，不以文本检查替代。
 
 - [ ] **步骤 5：提交**
 
