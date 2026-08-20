@@ -1,0 +1,34 @@
+{
+  "properties": [
+    {
+      "name": "educloud.common.environment",
+      "type": "java.lang.String",
+      "defaultValue": "local",
+      "description": "Redis ID lease namespace for one deployment environment; this is not a tenant identifier."
+    },
+    {
+      "name": "educloud.common.id.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": false,
+      "description": "Whether Redis-backed distributed identifier generation is enabled."
+    },
+    {
+      "name": "educloud.common.id.lease-ttl",
+      "type": "java.time.Duration",
+      "defaultValue": "30s",
+      "description": "Redis worker lease time to live."
+    },
+    {
+      "name": "educloud.common.id.renewal-interval",
+      "type": "java.time.Duration",
+      "defaultValue": "10s",
+      "description": "Worker lease renewal interval; it must be less than the lease TTL."
+    },
+    {
+      "name": "educloud.common.id.clock-backward-tolerance",
+      "type": "java.time.Duration",
+      "defaultValue": "5ms",
+      "description": "Maximum wall-clock rollback that identifier generation may wait through."
+    }
+  ]
+}

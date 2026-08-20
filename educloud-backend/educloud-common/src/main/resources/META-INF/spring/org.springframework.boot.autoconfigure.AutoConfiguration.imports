@@ -1,0 +1,4 @@
+com.educloud.common.config.CommonCoreAutoConfiguration
+com.educloud.common.config.CommonServletWebAutoConfiguration
+com.educloud.common.config.CommonSecurityAutoConfiguration
+com.educloud.common.config.CommonIdentifierAutoConfiguration
