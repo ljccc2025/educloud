@@ -37,6 +37,12 @@ class MeControllerTest {
     private ProfileService profileService;
 
     @MockBean
+    private org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+
+    @MockBean
+    private com.educloud.user.config.InternalProperties internalProperties;
+
+    @MockBean
     private com.educloud.common.api.ApiResponseFactory responses;
 
     @BeforeEach
