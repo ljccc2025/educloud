@@ -2,7 +2,7 @@
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 `superpowers:executing-plans` 在当前对话内逐任务实现；用户已明确禁止使用子智能体。步骤使用复选框（`- [ ]`）跟踪，未经本计划书面审阅确认不得创建 Gateway 模块或 Java 代码。
 
-> **状态：** 详细实施计划待用户书面审阅；M02 Java 实施尚未开始。
+> **状态：** M02 已实施至 Rocky 验收阶段；任务 13A 私有 Testcontainers 镜像覆盖计划待执行。
 
 **目标：** 交付可独立运行的 `educloud-gateway` Reactive Spring Cloud Gateway，为 11 个未来业务服务建立静态路由、安全 JWT 消费、Redis 权威会话撤销、分布式入口限流、Web 防护、统一 Gateway 错误和可观测性基线。
 
@@ -1548,6 +1548,374 @@ git add -- educloud-backend/educloud-gateway
 git commit -m "test(gateway): verify redis nacos security flow"
 ```
 
+## 任务 13A：让 Testcontainers 支持 Rocky 私有 Redis/Nacos 镜像
+
+> **执行约束：** 用户已选择内联执行且明确禁止子智能体。本任务使用 `executing-plans` 和 `test-driven-development` 在当前对话内完成。
+
+**目标：** 保留官方镜像作为可移植默认值，同时让 Rocky 的 Common/Gateway 集成测试通过两个非秘密环境变量使用用户现有的私有 Redis、Nacos 镜像。
+
+**架构：** Common 与 Gateway 各自拥有只存在于 `src/test` 的小型镜像解析器，避免测试工具进入生产 JAR或建立跨模块 test-jar 依赖。解析器读取环境变量、验证显式非 `latest` 标签并返回 `DockerImageName`；所有相关 IT 只依赖解析器，不再直接解析镜像字符串。
+
+**文件：**
+
+- 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/testcontainers/TestContainerImages.java`
+- 创建：`educloud-backend/educloud-common/src/test/java/com/educloud/common/testcontainers/TestContainerImagesTest.java`
+- 修改：`educloud-backend/educloud-common/src/test/java/com/educloud/common/id/RedisIdentifierConcurrencyIT.java`
+- 修改：`educloud-backend/educloud-common/src/test/java/com/educloud/common/id/RedisWorkerLeaseRepositoryIT.java`
+- 创建：`educloud-backend/educloud-gateway/src/test/java/com/educloud/gateway/integration/TestContainerImages.java`
+- 创建：`educloud-backend/educloud-gateway/src/test/java/com/educloud/gateway/integration/TestContainerImagesTest.java`
+- 修改：`educloud-backend/educloud-gateway/src/test/java/com/educloud/gateway/integration/GatewaySecurityIT.java`
+- 修改：`educloud-backend/educloud-gateway/src/test/java/com/educloud/gateway/integration/NacosGatewayRoutingIT.java`
+- 修改：`educloud-backend/educloud-gateway/src/test/java/com/educloud/gateway/integration/RedisSessionVerifierIT.java`
+- 修改：`educloud-backend/educloud-gateway/src/test/java/com/educloud/gateway/integration/RedisTokenBucketLimiterIT.java`
+- 修改：`deploy/tests/common-module-contract-tests.sh`
+- 修改：`deploy/tests/gateway-module-contract-tests.sh`
+
+- [ ] **步骤 1：为 Common 镜像解析器编写失败测试**
+
+创建 `TestContainerImagesTest`，使用 `Map<String, String>::get` 注入受控环境，不修改真实进程环境。测试必须覆盖默认值、私有镜像、空值、无标签、`latest` 和非法引用：
+
+```java
+package com.educloud.common.testcontainers;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
+class TestContainerImagesTest {
+
+    private static final String PRIVATE_REDIS =
+            "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:7.2.5-alpine";
+
+    @Test
+    void usesPinnedOfficialRedisImageWhenOverrideIsAbsent() {
+        assertThat(TestContainerImages.redis(Map.<String, String>of()::get).asCanonicalNameString())
+                .isEqualTo("redis:7.2.5-alpine");
+    }
+
+    @Test
+    void acceptsPinnedPrivateRedisImage() {
+        var environment = Map.of(TestContainerImages.REDIS_IMAGE_ENV, PRIVATE_REDIS);
+        assertThat(TestContainerImages.redis(environment::get).asCanonicalNameString())
+                .isEqualTo(PRIVATE_REDIS);
+    }
+
+    @Test
+    void rejectsBlankTaglessLatestAndInvalidOverrides() {
+        for (String value : new String[] {" ", "private.example/redis", "private.example/redis:latest",
+                "https://private.example/redis:7.2.5"}) {
+            var environment = Map.of(TestContainerImages.REDIS_IMAGE_ENV, value);
+            assertThatThrownBy(() -> TestContainerImages.redis(environment::get))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining(TestContainerImages.REDIS_IMAGE_ENV);
+        }
+    }
+}
+```
+
+- [ ] **步骤 2：为 Gateway Redis/Nacos 镜像解析器编写失败测试**
+
+创建同包的 `TestContainerImagesTest`，分别锁定两个默认值和两个 Rocky 私有覆盖值，并对 Redis/Nacos 都验证非法覆盖失败：
+
+```java
+package com.educloud.gateway.integration;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
+class TestContainerImagesTest {
+
+    @Test
+    void resolvesDefaultAndPrivateImagesIndependently() {
+        var environment = Map.of(
+                TestContainerImages.REDIS_IMAGE_ENV,
+                "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:7.2.5-alpine",
+                TestContainerImages.NACOS_IMAGE_ENV,
+                "swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nacos/nacos-server:v2.3.2");
+
+        assertThat(TestContainerImages.redis(Map.<String, String>of()::get).asCanonicalNameString())
+                .isEqualTo("redis:7.2.5-alpine");
+        assertThat(TestContainerImages.nacos(Map.<String, String>of()::get).asCanonicalNameString())
+                .isEqualTo("nacos/nacos-server:v2.3.2");
+        assertThat(TestContainerImages.redis(environment::get).asCanonicalNameString())
+                .isEqualTo(environment.get(TestContainerImages.REDIS_IMAGE_ENV));
+        assertThat(TestContainerImages.nacos(environment::get).asCanonicalNameString())
+                .isEqualTo(environment.get(TestContainerImages.NACOS_IMAGE_ENV));
+    }
+
+    @Test
+    void rejectsInvalidRedisAndNacosOverridesBeforeContainerCreation() {
+        for (String variable : new String[] {
+                TestContainerImages.REDIS_IMAGE_ENV, TestContainerImages.NACOS_IMAGE_ENV}) {
+            for (String value : new String[] {"", "private.example/image", "private.example/image:latest",
+                    "https://private.example/image:1"}) {
+                var environment = Map.of(variable, value);
+                assertThatThrownBy(() -> TestContainerImages.resolve(variable, "safe/image:1", environment::get))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining(variable);
+            }
+        }
+    }
+}
+```
+
+- [ ] **步骤 3：运行红灯并确认缺少解析器**
+
+```bash
+mvn -f educloud-backend/pom.xml \
+  -pl educloud-common,educloud-gateway \
+  -am \
+  -Dtest='com.educloud.common.testcontainers.TestContainerImagesTest,com.educloud.gateway.integration.TestContainerImagesTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+预期：编译失败，明确报告 `TestContainerImages` 不存在；失败原因只能是尚未实现解析器，而不是现有测试失败。
+
+- [ ] **步骤 4：实现两个模块内解析器的最小代码**
+
+Common 解析器公开 `redis()` 供 `com.educloud.common.id` 使用；Gateway 解析器保持 package-private。两者的核心解析逻辑一致：
+
+```java
+package com.educloud.common.testcontainers;
+
+import java.util.function.Function;
+import org.testcontainers.utility.DockerImageName;
+
+public final class TestContainerImages {
+
+    public static final String REDIS_IMAGE_ENV = "EDUCLOUD_TEST_REDIS_IMAGE";
+    private static final String DEFAULT_REDIS_IMAGE = "redis:7.2.5-alpine";
+
+    private TestContainerImages() {
+    }
+
+    public static DockerImageName redis() {
+        return redis(System::getenv);
+    }
+
+    static DockerImageName redis(Function<String, String> environment) {
+        return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment);
+    }
+
+    private static DockerImageName resolve(
+            String variable, String defaultImage, Function<String, String> environment) {
+        String override = environment.apply(variable);
+        String candidate = override == null ? defaultImage : override;
+        if (override != null && (override.isBlank() || !override.equals(override.trim()))) {
+            throw invalid(variable, "must be a non-blank image reference without surrounding whitespace", null);
+        }
+        try {
+            DockerImageName image = DockerImageName.parse(candidate);
+            image.assertValid();
+            if ("latest".equalsIgnoreCase(image.getVersionPart())) {
+                throw invalid(variable, "must use an explicit non-latest tag", null);
+            }
+            return image;
+        } catch (IllegalArgumentException exception) {
+            if (exception.getMessage() != null && exception.getMessage().startsWith(variable + " ")) {
+                throw exception;
+            }
+            throw invalid(variable, "contains an invalid Docker image reference", exception);
+        }
+    }
+
+    private static IllegalArgumentException invalid(String variable, String detail, Exception cause) {
+        return new IllegalArgumentException(variable + " " + detail, cause);
+    }
+}
+```
+
+Gateway 版本的完整实现为：
+
+```java
+package com.educloud.gateway.integration;
+
+import java.util.function.Function;
+import org.testcontainers.utility.DockerImageName;
+
+final class TestContainerImages {
+
+static final String REDIS_IMAGE_ENV = "EDUCLOUD_TEST_REDIS_IMAGE";
+static final String NACOS_IMAGE_ENV = "EDUCLOUD_TEST_NACOS_IMAGE";
+private static final String DEFAULT_REDIS_IMAGE = "redis:7.2.5-alpine";
+private static final String DEFAULT_NACOS_IMAGE = "nacos/nacos-server:v2.3.2";
+
+private TestContainerImages() {
+}
+
+static DockerImageName redis() {
+    return redis(System::getenv);
+}
+
+static DockerImageName nacos() {
+    return nacos(System::getenv);
+}
+
+static DockerImageName redis(Function<String, String> environment) {
+    return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment);
+}
+
+static DockerImageName nacos(Function<String, String> environment) {
+    return resolve(NACOS_IMAGE_ENV, DEFAULT_NACOS_IMAGE, environment);
+}
+
+static DockerImageName resolve(
+        String variable, String defaultImage, Function<String, String> environment) {
+    String override = environment.apply(variable);
+    String candidate = override == null ? defaultImage : override;
+    if (override != null && (override.isBlank() || !override.equals(override.trim()))) {
+        throw invalid(variable, "must be a non-blank image reference without surrounding whitespace", null);
+    }
+    try {
+        DockerImageName image = DockerImageName.parse(candidate);
+        image.assertValid();
+        if ("latest".equalsIgnoreCase(image.getVersionPart())) {
+            throw invalid(variable, "must use an explicit non-latest tag", null);
+        }
+        return image;
+    } catch (IllegalArgumentException exception) {
+        if (exception.getMessage() != null && exception.getMessage().startsWith(variable + " ")) {
+            throw exception;
+        }
+        throw invalid(variable, "contains an invalid Docker image reference", exception);
+    }
+}
+
+private static IllegalArgumentException invalid(String variable, String detail, Exception cause) {
+    return new IllegalArgumentException(variable + " " + detail, cause);
+}
+}
+```
+
+- [ ] **步骤 5：运行解析器测试确认绿灯**
+
+```bash
+mvn -f educloud-backend/pom.xml \
+  -pl educloud-common,educloud-gateway \
+  -am \
+  -Dtest='com.educloud.common.testcontainers.TestContainerImagesTest,com.educloud.gateway.integration.TestContainerImagesTest' \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+预期：两个 `TestContainerImagesTest` 全部通过，Failures=0、Errors=0。
+
+- [ ] **步骤 6：替换全部六个 IT 中的硬编码镜像**
+
+Common 两个 IT 导入 `com.educloud.common.testcontainers.TestContainerImages` 并使用：
+
+```java
+new GenericContainer<>(TestContainerImages.redis()).withExposedPorts(6379)
+```
+
+Gateway 四个 IT 的常量改为：
+
+```java
+private static final DockerImageName REDIS_IMAGE = TestContainerImages.redis();
+```
+
+`NacosGatewayRoutingIT` 额外改为：
+
+```java
+private static final DockerImageName NACOS_IMAGE = TestContainerImages.nacos();
+```
+
+完成后搜索所有 `*IT.java`，必须不存在 `DockerImageName.parse("redis:7.2.5-alpine")` 或 `DockerImageName.parse("nacos/nacos-server:v2.3.2")`。
+
+- [ ] **步骤 7：强化模块契约脚本**
+
+两个脚本分别确认测试辅助类存在、变量名和默认版本固定，并拒绝 IT 重新散落硬编码解析。Common 增加：
+
+```bash
+test_source="$module_dir/src/test/java"
+image_helper="$test_source/com/educloud/common/testcontainers/TestContainerImages.java"
+
+if [[ -f "$image_helper" ]] \
+    && grep -Fq 'EDUCLOUD_TEST_REDIS_IMAGE' "$image_helper" \
+    && grep -Fq 'redis:7.2.5-alpine' "$image_helper"; then
+  pass 'Common Testcontainers Redis image has a pinned overridable source'
+else
+  fail 'Common Testcontainers Redis image override contract is missing'
+fi
+
+if grep -REn --include='*IT.java' -- 'DockerImageName.parse\("redis:7.2.5-alpine"\)' "$test_source"; then
+  fail 'Common integration tests contain a scattered Redis image reference'
+else
+  pass 'Common integration tests use the shared test image resolver'
+fi
+```
+
+Gateway 增加完整的双镜像契约：
+
+```bash
+test_source="$module_dir/src/test/java"
+image_helper="$test_source/com/educloud/gateway/integration/TestContainerImages.java"
+
+if [[ -f "$image_helper" ]] \
+    && grep -Fq 'EDUCLOUD_TEST_REDIS_IMAGE' "$image_helper" \
+    && grep -Fq 'EDUCLOUD_TEST_NACOS_IMAGE' "$image_helper" \
+    && grep -Fq 'redis:7.2.5-alpine' "$image_helper" \
+    && grep -Fq 'nacos/nacos-server:v2.3.2' "$image_helper"; then
+  pass 'Gateway Testcontainers images have pinned overridable sources'
+else
+  fail 'Gateway Testcontainers image override contract is missing'
+fi
+
+if grep -REn --include='*IT.java' -E \
+    'DockerImageName.parse\("(redis:7.2.5-alpine|nacos/nacos-server:v2.3.2)"\)' \
+    "$test_source"; then
+  fail 'Gateway integration tests contain scattered image references'
+else
+  pass 'Gateway integration tests use the shared test image resolver'
+fi
+```
+
+- [ ] **步骤 8：运行本地回归并提交实现**
+
+```bash
+bash deploy/tests/common-module-contract-tests.sh
+bash deploy/tests/gateway-module-contract-tests.sh
+mvn -f educloud-backend/pom.xml -pl educloud-gateway -am clean verify
+git diff --check
+git add -- \
+  educloud-backend/educloud-common/src/test/java/com/educloud/common/testcontainers \
+  educloud-backend/educloud-common/src/test/java/com/educloud/common/id/RedisIdentifierConcurrencyIT.java \
+  educloud-backend/educloud-common/src/test/java/com/educloud/common/id/RedisWorkerLeaseRepositoryIT.java \
+  educloud-backend/educloud-gateway/src/test/java/com/educloud/gateway/integration \
+  deploy/tests/common-module-contract-tests.sh \
+  deploy/tests/gateway-module-contract-tests.sh
+git commit -m "test(gateway): allow private integration images"
+```
+
+预期：两个模块契约脚本返回 0；默认 `clean verify` 为 `BUILD SUCCESS` 且不启动容器。不得暂存或提交 `Untitled-1.sh` 以及任务 14 尚未收口的文件。
+
+- [ ] **步骤 9：在 Rocky 使用用户私有镜像运行集成测试**
+
+用户同步任务 13A 的代码后，在项目根目录执行：
+
+```bash
+export EDUCLOUD_TEST_REDIS_IMAGE='swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:7.2.5-alpine'
+export EDUCLOUD_TEST_NACOS_IMAGE='swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nacos/nacos-server:v2.3.2'
+
+mvn -f educloud-backend/pom.xml \
+  -pl educloud-gateway \
+  -am clean verify \
+  -Pintegration \
+  2>&1 | tee /tmp/m02-integration.log
+
+M02_INTEGRATION_EXIT=${PIPESTATUS[0]}
+printf 'M02_INTEGRATION_EXIT=%s\n' "$M02_INTEGRATION_EXIT"
+
+unset EDUCLOUD_TEST_REDIS_IMAGE
+unset EDUCLOUD_TEST_NACOS_IMAGE
+```
+
+预期：日志中 `Creating container for image:` 后出现指定私有 Redis 和 Nacos 引用；Common 2 个 Redis IT 与 Gateway 4 个 IT 全部执行；`M02_INTEGRATION_EXIT=0`、`BUILD SUCCESS`、Failures=0、Errors=0、Skipped=0。
+
 ## 任务 14：Rocky 启动验收、全量审查和文档收口
 
 **文件：**
@@ -1594,10 +1962,14 @@ bash deploy/tests/provision-gateway-nacos-tests.sh
 bash deploy/tests/generate-gateway-test-material-tests.sh
 
 mvn -f educloud-backend/pom.xml clean verify
+export EDUCLOUD_TEST_REDIS_IMAGE='swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:7.2.5-alpine'
+export EDUCLOUD_TEST_NACOS_IMAGE='swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nacos/nacos-server:v2.3.2'
 mvn -f educloud-backend/pom.xml -pl educloud-gateway -am clean verify -Pintegration
+unset EDUCLOUD_TEST_REDIS_IMAGE
+unset EDUCLOUD_TEST_NACOS_IMAGE
 ```
 
-预期：所有 shell 门禁返回 0；父 reactor 只有 Common 与 Gateway；默认和 integration 构建均 `BUILD SUCCESS`，IT 四个类显式执行且零失败/错误/跳过。
+预期：所有 shell 门禁返回 0；父 reactor 只有 Common 与 Gateway；默认和 integration 构建均 `BUILD SUCCESS`，Common 2 个 Redis IT 与 Gateway 4 个 IT 显式执行且零失败/错误/跳过，Testcontainers 日志显示两个指定的私有镜像。
 
 - [ ] **步骤 3：在 JDK 17 和 JDK 21 验证字节码**
 
