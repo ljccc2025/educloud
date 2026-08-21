@@ -432,18 +432,18 @@ educloud-backend/README.md                  修改：M03 状态
 
 ## 完成定义（执行时逐项勾选）
 
-> 执行状态（2026-08-22）：任务 0～18 已实现并提交（含改密端点补齐）；本地门禁全绿（单元 64/64、13 个 deploy 契约脚本、IT 编译）。标 ⏳ 的项需在 Rocky 8.9 执行后勾选。
+> 执行状态（2026-08-22 终验）：任务 0～18 已实现并提交；本地门禁全绿（单元 64/64、13 个 deploy 契约脚本）；Rocky 8.9 全部门禁已执行通过（JDK 17/21 双构建 + javap 61、5 个 User 集成测试类、Nacos 身份、user-gateway-e2e）。仅剩独立代码审查与用户书面验收。
 
-- [ ] ⏳ 父 POM 新增 educloud-user（common→gateway→user）；JDK 17/21 双构建通过，字节码 61。
-- [ ] ⏳ V000/V001/V002 迁移在 MySQL 8.0.36 空库升级、重复执行保护、checksum 校验通过；user_app 无库级写权限（MigrationVerificationIT 待 Rocky 执行）。
+- [x] 父 POM 新增 educloud-user（common→gateway→user）；JDK 17/21 双构建通过，字节码 61（Rocky 实测）。
+- [x] V000/V001/V002 迁移在 MySQL 8.0.36 空库升级、重复执行保护、checksum 校验通过；user_app 无库级写权限（MigrationVerificationIT 4/4 Rocky 实测；修复 last_value 保留字）。
 - [x] 注册/登录/刷新/注销/改密/锁定/禁用/恢复全部有确定性失败测试与集成证据（64 个单元/方法安全测试）。
-- [ ] ⏳ Refresh 原子轮换、并发宽限、窗口外重用撤销家族、指纹不匹配撤销通过；Gateway 在注销/禁用后立即拒绝原 Access Token（user-gateway-e2e 待 Rocky 执行）。
+- [x] Refresh 原子轮换、并发宽限、窗口外重用撤销家族、指纹不匹配撤销通过；Gateway 在注销/禁用后立即拒绝原 Access Token（user-gateway-e2e Rocky 实测通过）。
 - [x] Redis 会话 key/字段/TTL 与 Gateway RedisSessionVerifier 逐字节对齐（M02 冻结契约 + 单元断言）。
-- [x] JWT claims 满足 Gateway 校验器；权限 64 上限校验；JWKS 无私钥参数。
+- [x] JWT claims 满足 Gateway 校验器；权限 64 上限校验；JWKS 无私钥参数（kid 派生已与脚本对齐）。
 - [x] RBAC seed/分配/方法授权/脱敏/审计通过；平台公开配置不含 Secret。
 - [x] 服务令牌 client_credentials、哈希存储、双凭据轮换、ACL、凭据不进 URL/日志通过。
-- [ ] ⏳ Outbox 同事务发布四个领域事件，重试与幂等通过（OutboxEventDispatcherIT 待 Rocky 执行）。
-- [ ] ⏳ Rocky e2e（User+Gateway 真实登录联调）通过；共享依赖健康；工作区干净。
+- [x] Outbox 同事务发布四个领域事件，重试与幂等通过（OutboxEventDispatcherIT 2/2 Rocky 实测）。
+- [x] Rocky e2e（User+Gateway 真实登录联调）通过；共享依赖健康；工作区干净。
 - [x] 无删除/匿名化、无找回密码端点；README 与文档如实标注 M03 边界。
-- [ ] ⏳ 独立代码审查无未解决"必须修复"项；用户书面验收后进入 M04。
+- [ ] 独立代码审查无未解决"必须修复"项；用户书面验收后进入 M04。
 
