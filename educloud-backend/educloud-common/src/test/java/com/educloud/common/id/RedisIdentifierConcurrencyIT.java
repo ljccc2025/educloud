@@ -3,6 +3,7 @@ package com.educloud.common.id;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.educloud.common.testcontainers.TestContainerImages;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Set;
@@ -15,7 +16,6 @@ import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.utility.DockerImageName;
 
 class RedisIdentifierConcurrencyIT {
 
@@ -114,7 +114,7 @@ class RedisIdentifierConcurrencyIT {
     }
 
     private static GenericContainer<?> redisContainer() {
-        return new GenericContainer<>(DockerImageName.parse("redis:7.2.5-alpine"))
+        return new GenericContainer<>(TestContainerImages.redis())
                 .withExposedPorts(6379);
     }
 

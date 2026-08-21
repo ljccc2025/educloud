@@ -7,6 +7,8 @@ parent_pom="$repo_root/educloud-backend/pom.xml"
 module_dir="$repo_root/educloud-backend/educloud-gateway"
 module_pom="$module_dir/pom.xml"
 main_dir="$module_dir/src/main"
+test_source="$module_dir/src/test/java"
+image_helper="$test_source/com/educloud/gateway/integration/TestContainerImages.java"
 application_yml="$main_dir/resources/application.yml"
 dependency_output="$module_dir/target/runtime-dependencies.txt"
 expected_modules=$'educloud-common\neducloud-gateway'
@@ -98,6 +100,25 @@ if [[ -f "$application_yml" ]] \
   pass 'Gateway discovery locator is explicitly disabled'
 else
   fail 'Gateway discovery locator is not explicitly disabled'
+fi
+
+if [[ -f "$image_helper" ]] \
+    && grep -Fq 'EDUCLOUD_TEST_REDIS_IMAGE' "$image_helper" \
+    && grep -Fq 'EDUCLOUD_TEST_NACOS_IMAGE' "$image_helper" \
+    && grep -Fq 'redis:7.2.5-alpine' "$image_helper" \
+    && grep -Fq 'nacos/nacos-server:v2.3.2' "$image_helper"; then
+  pass 'Gateway Testcontainers images have pinned overridable sources'
+else
+  fail 'Gateway Testcontainers image override contract is missing'
+fi
+
+if grep -RFn --include='*IT.java' \
+    -e 'DockerImageName.parse("redis:7.2.5-alpine")' \
+    -e 'DockerImageName.parse("nacos/nacos-server:v2.3.2")' \
+    "$test_source"; then
+  fail 'Gateway integration tests contain scattered image references'
+else
+  pass 'Gateway integration tests use the shared test image resolver'
 fi
 
 mvn -q -f "$parent_pom" -pl educloud-gateway dependency:tree \

@@ -7,6 +7,8 @@ parent_pom="$repo_root/educloud-backend/pom.xml"
 module_dir="$repo_root/educloud-backend/educloud-common"
 module_pom="$module_dir/pom.xml"
 main_source="$module_dir/src/main/java"
+test_source="$module_dir/src/test/java"
+image_helper="$test_source/com/educloud/common/testcontainers/TestContainerImages.java"
 dependency_output="$module_dir/target/runtime-dependencies.txt"
 expected_modules=$'educloud-common\neducloud-gateway'
 failed=0
@@ -71,6 +73,21 @@ if [[ -d "$main_source" ]]; then
   fi
 else
   pass 'Common has no main source yet'
+fi
+
+if [[ -f "$image_helper" ]] \
+    && grep -Fq 'EDUCLOUD_TEST_REDIS_IMAGE' "$image_helper" \
+    && grep -Fq 'redis:7.2.5-alpine' "$image_helper"; then
+  pass 'Common Testcontainers Redis image has a pinned overridable source'
+else
+  fail 'Common Testcontainers Redis image override contract is missing'
+fi
+
+if grep -RFn --include='*IT.java' \
+    'DockerImageName.parse("redis:7.2.5-alpine")' "$test_source"; then
+  fail 'Common integration tests contain a scattered Redis image reference'
+else
+  pass 'Common integration tests use the shared test image resolver'
 fi
 
 mvn -q -f "$parent_pom" \

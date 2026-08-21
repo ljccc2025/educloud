@@ -3,6 +3,7 @@ package com.educloud.common.id;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.educloud.common.testcontainers.TestContainerImages;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.UUID;
@@ -15,14 +16,13 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
 class RedisWorkerLeaseRepositoryIT {
 
     @Container
     private static final GenericContainer<?> REDIS = new GenericContainer<>(
-                    DockerImageName.parse("redis:7.2.5-alpine"))
+                    TestContainerImages.redis())
             .withExposedPorts(6379);
 
     private static LettuceConnectionFactory connectionFactory;

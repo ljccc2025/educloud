@@ -58,8 +58,8 @@ import static org.awaitility.Awaitility.await;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class NacosGatewayRoutingIT {
 
-    private static final DockerImageName NACOS_IMAGE = DockerImageName.parse("nacos/nacos-server:v2.3.2");
-    private static final DockerImageName REDIS_IMAGE = DockerImageName.parse("redis:7.2.5-alpine");
+    private static final DockerImageName NACOS_IMAGE = TestContainerImages.nacos();
+    private static final DockerImageName REDIS_IMAGE = TestContainerImages.redis();
     private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(5);
     private static final String CONFIG_GROUP = "EDUCLOUD_GATEWAY";
     private static final String DISCOVERY_GROUP = "EDUCLOUD_SERVICES";

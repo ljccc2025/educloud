@@ -80,7 +80,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GatewaySecurityIT {
 
-    private static final DockerImageName REDIS_IMAGE = DockerImageName.parse("redis:7.2.5-alpine");
+    private static final DockerImageName REDIS_IMAGE = TestContainerImages.redis();
     private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(5);
     private static final String ISSUER = "https://issuer.educloud.local";
     private static final String AUDIENCE = "educloud-api";

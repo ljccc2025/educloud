@@ -26,7 +26,7 @@ import static org.awaitility.Awaitility.await;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RedisSessionVerifierIT {
 
-    private static final DockerImageName REDIS_IMAGE = DockerImageName.parse("redis:7.2.5-alpine");
+    private static final DockerImageName REDIS_IMAGE = TestContainerImages.redis();
     private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(5);
     private static final String SUBJECT = "user-redis-it";
     private static final long TOKEN_VERSION = 7L;
