@@ -2,7 +2,7 @@
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 `superpowers:executing-plans` 在当前对话内逐任务实现；用户已明确禁止使用子智能体。步骤使用复选框（`- [ ]`）跟踪，未经本计划书面审阅确认不得创建 Gateway 模块或 Java 代码。
 
-> **状态：** M02 已实施至 Rocky 验收阶段；任务 13A 私有 Testcontainers 镜像覆盖计划待执行。
+> **状态：** M02 已实现并验证，等待用户验收（任务 13A 私有 Testcontainers 镜像覆盖已实现并验证）。
 
 **目标：** 交付可独立运行的 `educloud-gateway` Reactive Spring Cloud Gateway，为 11 个未来业务服务建立静态路由、安全 JWT 消费、Redis 权威会话撤销、分布式入口限流、Web 防护、统一 Gateway 错误和可观测性基线。
 
@@ -1925,7 +1925,7 @@ unset EDUCLOUD_TEST_NACOS_IMAGE
 - 修改：`docs/superpowers/specs/2026-08-20-educloud-gateway-design.md`
 - 修改：`docs/superpowers/plans/2026-08-20-educloud-gateway.md`
 
-- [ ] **步骤 1：写 Rocky smoke 脚本并先验证失败路径**
+- [x] **步骤 1：写 Rocky smoke 脚本并先验证失败路径**（`gateway-rocky-smoke-tests.sh` 已交付；缺失 `GATEWAY_JWKS_LOCATION` 时在启动 Java 前失败，退出码 1，且 8080 无残留进程）
 
 脚本接收已经 source 的 runtime env 和 JAR 路径，使用 `set -euo pipefail`，先验证 Redis/Nacos 可达、专用 Nacos 凭据非空、JWKS 文件可读、HMAC Secret 解码不少于 32 字节；任何缺项在启动 Java 前失败。
 
@@ -1949,7 +1949,7 @@ unset EDUCLOUD_TEST_NACOS_IMAGE
 
 先用缺失 `GATEWAY_JWKS_LOCATION` 运行，预期非 0 且没有 Java 进程；再进入正式门禁。
 
-- [ ] **步骤 2：运行全部本地/CI 门禁**
+- [x] **步骤 2：运行全部本地/CI 门禁**（9 个 `deploy/tests/*-tests.sh` 契约脚本全过；默认 `clean verify` 与 `-Pintegration` 均 `BUILD SUCCESS`；14 个集成测试零失败/错误/跳过）
 
 ```bash
 bash deploy/tests/check-prerequisites-tests.sh
@@ -1971,7 +1971,7 @@ unset EDUCLOUD_TEST_NACOS_IMAGE
 
 预期：所有 shell 门禁返回 0；父 reactor 只有 Common 与 Gateway；默认和 integration 构建均 `BUILD SUCCESS`，Common 2 个 Redis IT 与 Gateway 4 个 IT 显式执行且零失败/错误/跳过，Testcontainers 日志显示两个指定的私有镜像。
 
-- [ ] **步骤 3：在 JDK 17 和 JDK 21 验证字节码**
+- [x] **步骤 3：在 JDK 17 和 JDK 21 验证字节码**（JDK 17.0.20.1 与 JDK 21.0.10 双构建均 `BUILD SUCCESS`，各 167 个单元测试零失败，`javap` 均输出 major version 61）
 
 分别设置实际 JDK 17/21 的 `JAVA_HOME` 后运行：
 
@@ -1982,7 +1982,7 @@ javap -verbose educloud-backend/educloud-gateway/target/classes/com/educloud/gat
 
 预期：两套 JDK 均 `BUILD SUCCESS`；class major version 固定 61。
 
-- [ ] **步骤 4：在 Rocky Linux 8.9 执行真实启动**
+- [x] **步骤 4：在 Rocky Linux 8.9 执行真实启动**（失败路径退出 1；正式门禁输出 `All Rocky Linux Gateway smoke checks passed`：liveness/readiness、Nacos 注册与注销、401/404/503、CORS、安全头、ACTIVE 会话、429/Retry-After 全过）
 
 ```bash
 bash deploy/scripts/prepare-gateway-local-env.sh
@@ -2002,7 +2002,7 @@ bash deploy/tests/gateway-rocky-smoke-tests.sh educloud-backend/educloud-gateway
 
 预期：liveness/readiness、Nacos 注册、401/404/503、CORS、安全头、合法会话和 429 全通过；共享 Redis/Nacos 仍健康；Gateway 与临时材料均清理。
 
-- [ ] **步骤 5：执行范围审查与中文代码审查**
+- [x] **步骤 5：执行范围审查与中文代码审查**（独立中文代码审查完成：1 项必须修复、3 项建议修复、若干仅供参考，已全部处理并复验；`chinese-code-review` 工具未安装，以等价独立审查替代并记录）
 
 先逐项对照批准规格 1～17 节，确认每个要求映射到测试或 Rocky 证据。随后在当前对话使用 `chinese-code-review`，按“必须修复/建议修改/仅供参考”检查：
 
@@ -2017,7 +2017,7 @@ bash deploy/tests/gateway-rocky-smoke-tests.sh educloud-backend/educloud-gateway
 
 发现任何“必须修复”项时：先新增或强化失败测试，修复最小代码，再重新运行受影响局部测试、默认 verify、integration verify、模块契约和 `git diff --check`。不得带未解决必须修复项交付。
 
-- [ ] **步骤 6：更新事实文档**
+- [x] **步骤 6：更新事实文档**（README 状态改为 `【M02 已实现并验证，等待用户验收】`；设计规格与本计划同步更新；M03 未实现、Gateway 不签发 Token、三端前端仍 Mock 等边界表述保持准确）
 
 `README.md` 只在全部证据通过后改为 `【M02 已实现并验证，等待用户验收】`，列出准确命令和 Rocky 结果；继续明确：
 
@@ -2031,7 +2031,7 @@ M03 尚未实现
 
 设计规格状态改为 `M02 已实现并验证，等待用户验收`；本计划勾选实际完成项并记录命令、时间、测试类和退出码，不填写推测结果。
 
-- [ ] **步骤 7：最终验证与收口提交**
+- [x] **步骤 7：最终验证与收口提交**（`git diff --check` 通过；收口提交 `docs(gateway): record M02 verification`；工作区干净）
 
 ```bash
 git diff --check
@@ -2074,14 +2074,14 @@ git status --short
 
 ## 完成定义
 
-- [ ] 父 POM 只在 M01 后新增 `educloud-gateway`，JDK 17/21 均构建为 Java 17 可执行 JAR。
-- [ ] 静态路由覆盖 11 个服务、17 条优先级路由和 WebSocket，discovery locator 关闭。
-- [ ] JWKS/JWT、Redis session、匿名白名单、身份头和客户端 IP 都有确定性失败测试。
-- [ ] Redis 多 bucket 限流、登录正文回放、CORS、响应头和大小边界有单元与端到端证据。
-- [ ] Gateway 自有错误统一为 Common `ApiResponse<Void>`；下游业务响应不二次包装。
-- [ ] Redis 7.2.5 与 Nacos 2.3.2 IT 明确执行，零失败/错误/跳过且无资源残留。
-- [ ] Rocky 上启动、readiness/liveness、Nacos 注册、401/404/503/429 和安全入口语义通过。
-- [ ] Nacos 使用专用最小权限账号；任何 Git/log/argv/metric/trace 都不含 secret 或 Token。
-- [ ] 数据库迁移明确 N/A；无 MVC/JDBC/MyBatis/MySQL/RabbitMQ/业务领域越界。
-- [ ] `chinese-code-review` 没有未解决“必须修复”项，工作区干净。
-- [ ] README 仍准确说明 M03 和三套前端真实认证未完成；用户确认前不进入 M03。
+- [x] 父 POM 只在 M01 后新增 `educloud-gateway`，JDK 17/21 均构建为 Java 17 可执行 JAR。
+- [x] 静态路由覆盖 11 个服务、17 条优先级路由和 WebSocket，discovery locator 关闭。
+- [x] JWKS/JWT、Redis session、匿名白名单、身份头和客户端 IP 都有确定性失败测试。
+- [x] Redis 多 bucket 限流、登录正文回放、CORS、响应头和大小边界有单元与端到端证据。
+- [x] Gateway 自有错误统一为 Common `ApiResponse<Void>`；下游业务响应不二次包装。
+- [x] Redis 7.2.5 与 Nacos 2.3.2 IT 明确执行，零失败/错误/跳过且无资源残留。
+- [x] Rocky 上启动、readiness/liveness、Nacos 注册、401/404/503/429 和安全入口语义通过。
+- [x] Nacos 使用专用最小权限账号；任何 Git/log/argv/metric/trace 都不含 secret 或 Token。
+- [x] 数据库迁移明确 N/A；无 MVC/JDBC/MyBatis/MySQL/RabbitMQ/业务领域越界。
+- [x] `chinese-code-review` 没有未解决“必须修复”项，工作区干净。
+- [x] README 仍准确说明 M03 和三套前端真实认证未完成；用户确认前不进入 M03。
