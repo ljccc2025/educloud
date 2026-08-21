@@ -211,7 +211,7 @@ class GatewaySecurityIT {
         }
         last.expectStatus().isEqualTo(429)
                 .expectHeader().exists(HttpHeaders.RETRY_AFTER)
-                .expectBody().jsonPath("$.code").isEqualTo("GATEWAY_RATE_LIMITED");
+                .expectBody().jsonPath("$.code").isEqualTo("RATE_LIMITED");
     }
 
     @Test

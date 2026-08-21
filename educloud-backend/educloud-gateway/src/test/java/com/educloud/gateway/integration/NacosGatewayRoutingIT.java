@@ -287,7 +287,7 @@ class NacosGatewayRoutingIT {
     }
 
     private ConfigurableApplicationContext startGatewayContext(String serverAddr) {
-        Map<String, Object> properties = new HashMap<>();
+        Map<String, String> properties = new HashMap<>();
         properties.put("server.port", "0");
         properties.put("management.server.address", "127.0.0.1");
         properties.put("management.server.port", "0");
@@ -323,8 +323,7 @@ class NacosGatewayRoutingIT {
         properties.put("spring.data.redis.port", redisContainer.getMappedPort(6379).toString());
         properties.put("management.tracing.sampling.probability", "0.0");
         return new SpringApplicationBuilder(GatewayApplication.class)
-                .properties(properties)
-                .run();
+                .run(GatewayIntegrationTestProperties.asArguments(properties));
     }
 
     private SafeHttpResponse authorizedGet(String path) {
