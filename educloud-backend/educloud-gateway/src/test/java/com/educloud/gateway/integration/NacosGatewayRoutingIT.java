@@ -146,11 +146,15 @@ class NacosGatewayRoutingIT {
                     "DELETE", "/v1/auth/roles",
                     Map.of("role", gatewayUsername, "username", gatewayUsername)));
 
-            addPermission("r", namespace + ":" + CONFIG_GROUP + ":" + CONFIG_DATA_ID);
-            addPermission("r", namespace + ":" + DISCOVERY_GROUP + ":" + GATEWAY_SERVICE);
-            addPermission("w", namespace + ":" + DISCOVERY_GROUP + ":" + GATEWAY_SERVICE);
+            addPermission("r", NacosPermissionResources.config(
+                    namespace, CONFIG_GROUP, CONFIG_DATA_ID));
+            addPermission("r", NacosPermissionResources.naming(
+                    namespace, DISCOVERY_GROUP, GATEWAY_SERVICE));
+            addPermission("w", NacosPermissionResources.naming(
+                    namespace, DISCOVERY_GROUP, GATEWAY_SERVICE));
             for (String service : SERVICES) {
-                addPermission("r", namespace + ":" + DISCOVERY_GROUP + ":" + service);
+                addPermission("r", NacosPermissionResources.naming(
+                        namespace, DISCOVERY_GROUP, service));
             }
 
             String configContent = "educloud:\n  gateway:\n    integration-marker: " + resourceId + "\n";
