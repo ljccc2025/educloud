@@ -100,6 +100,11 @@ class OutboxEventDispatcherIT {
         rabbitTemplate.setMessageConverter(new Jackson2JsonMessageConverter());
         rabbitTemplate.setExchange(EXCHANGE);
 
+        declareInfrastructure();
+    }
+
+    /** 幂等声明交换机/队列/绑定（供测试自恢复；exchange 被投递失败用例删除后重建）。 */
+    private static void declareInfrastructure() throws Exception {
         try (com.rabbitmq.client.Connection rabbitConnection = rabbitConnectionFactory().newConnection();
                 Channel channel = rabbitConnection.createChannel()) {
             channel.exchangeDeclare(EXCHANGE, "direct", true);
@@ -154,6 +159,7 @@ class OutboxEventDispatcherIT {
 
     @Test
     void pendingEventIsPublishedToRabbitMqAndMarkedPublished() throws Exception {
+        declareInfrastructure();
         String eventId = UUID.randomUUID().toString();
         insertOutboxEvent(eventId, 1, "{\"userId\":90002}", 0);
 
@@ -181,20 +187,30 @@ class OutboxEventDispatcherIT {
     }
 
     @Test
-    void poisonedPayloadBacksOffAndHitsRetryLimitAsFailed() throws Exception {
+    void unreachableBrokerDeliveryBacksOffAndHitsRetryLimitAsFailed() throws Exception {
+        // 注入"投递失败"：连一个不可达地址的 RabbitTemplate（连接失败是同步异常，真实对应 broker 不可用）。
+        // 不注入无效 JSON：MySQL JSON 列会直接拒绝无效文本。
+        CachingConnectionFactory deadFactory = new CachingConnectionFactory();
+        deadFactory.setHost("127.0.0.1");
+        deadFactory.setPort(1);
+        deadFactory.setConnectionTimeout(500);
+        RabbitTemplate deadTemplate = new RabbitTemplate(deadFactory);
+        deadTemplate.setMessageConverter(new Jackson2JsonMessageConverter());
+        deadTemplate.setExchange(EXCHANGE);
+
         String backingOff = UUID.randomUUID().toString();
-        insertOutboxEvent(backingOff, 2, "not-json", 0);
+        insertOutboxEvent(backingOff, 2, "{\"userId\":90002}", 0);
         String exhausted = UUID.randomUUID().toString();
-        insertOutboxEvent(exhausted, 3, "not-json", 9);
+        insertOutboxEvent(exhausted, 3, "{\"userId\":90002}", 9);
 
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
             OutboxEventMapper mapper = session.getMapper(OutboxEventMapper.class);
-            new OutboxEventDispatcher(mapper, rabbitTemplate, new ObjectMapper()).dispatchPending();
+            new OutboxEventDispatcher(mapper, deadTemplate, new ObjectMapper()).dispatchPending();
         }
 
         // 退避：attempt 0 -> 1，仍 PENDING，且 next_attempt_at 被排程（5s * 1）。
         assertThat(outboxStatus(backingOff)).isEqualTo("PENDING|1|scheduled|");
-        // 达阈值：attempt 9 -> 10 >= MAX_ATTEMPTS(10)，标记 FAILED。
-        assertThat(outboxStatus(exhausted)).isEqualTo("FAILED|10||");
+        // 达阈值：attempt 9 -> 10 >= MAX_ATTEMPTS(10)，标记 FAILED（重试计划 next_attempt_at 一并保留）。
+        assertThat(outboxStatus(exhausted)).isEqualTo("FAILED|10|scheduled|");
     }
 }

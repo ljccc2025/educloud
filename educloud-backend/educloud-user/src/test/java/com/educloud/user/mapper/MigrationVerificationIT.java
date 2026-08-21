@@ -2,7 +2,10 @@ package com.educloud.user.mapper;
 
 import com.educloud.user.testcontainers.TestContainerImages;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.testcontainers.containers.MySQLContainer;
@@ -29,9 +32,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 依据：M03 计划任务 16 与数据设计第 17 节「迁移规则 / 迁移历史与并发保护」：
  * 空库按序升级、重复执行保护（checksum 一致跳过）、已发布脚本 checksum 篡改拒绝、
  * schema_migration_history 记录完整、FAILED 状态必须先审计处理。
- * VM/CI 上以 -Pintegration 执行。
+ * VM/CI 上以 -Pintegration 执行。测试共享同一容器状态，按 @Order 顺序执行：
+ * 先全量应用，再验证幂等/篡改/FAILED 语义（避免 JUnit 默认无序导致 history 表未就绪）。
  */
 @Testcontainers
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class MigrationVerificationIT {
 
     private static final List<String> SCRIPTS = List.of(
@@ -57,6 +62,11 @@ class MigrationVerificationIT {
         sqlDir = candidate;
         url = "jdbc:mysql://" + MYSQL.getHost() + ":" + MYSQL.getMappedPort(3306)
                 + "/educloud_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+        try (Connection root = connect(); Statement statement = root.createStatement()) {
+            // V000 内含 GRANT 给 user_app/user_migration：MySQL 8 不会为 GRANT 自动建用户，须先创建（幂等）。
+            statement.execute("CREATE USER IF NOT EXISTS 'user_app'@'%' IDENTIFIED BY 'UserApp_Test_Password_123'");
+            statement.execute("CREATE USER IF NOT EXISTS 'user_migration'@'%' IDENTIFIED BY 'Migration_Test_Password_123'");
+        }
     }
 
     private static Connection connect() throws SQLException {
@@ -81,6 +91,12 @@ class MigrationVerificationIT {
                             + "WHERE version = '" + version + "' AND status = 'SUCCESS'")) {
                 return rows.next() ? rows.getString(1) : null;
             }
+        } catch (SQLException exception) {
+            // 空库：history 表由 V000 引导创建，首个版本应用前该表尚不存在（等价脚本先引导建表）。
+            if (exception.getMessage() != null && exception.getMessage().contains("doesn't exist")) {
+                return null;
+            }
+            throw exception;
         }
     }
 
@@ -131,6 +147,7 @@ class MigrationVerificationIT {
     }
 
     @Test
+    @Order(1)
     void migrationsApplyInOrderSeedDataSurvivesAndHistoryIsComplete() throws Exception {
         // 空库（或已应用）按序升级：V000、V001 先行，V001 后带代表性数据再升 V002（任务 16 步骤 1）。
         try (Connection connection = connect()) {
@@ -184,6 +201,7 @@ class MigrationVerificationIT {
     }
 
     @Test
+    @Order(2)
     void reapplicationWithUnchangedChecksumsIsANoOp() throws Exception {
         try (Connection connection = connect()) {
             assertThat(applyPending(connection, SCRIPTS)).isZero();
@@ -192,6 +210,7 @@ class MigrationVerificationIT {
     }
 
     @Test
+    @Order(3)
     void tamperedChecksumOfAppliedMigrationIsRejected() throws Exception {
         try (Connection connection = connect()) {
             try (Statement statement = connection.createStatement()) {
@@ -216,6 +235,7 @@ class MigrationVerificationIT {
     }
 
     @Test
+    @Order(4)
     void failedStatusCannotBeSilentlySuperseded() throws Exception {
         try (Connection connection = connect()) {
             try (Statement statement = connection.createStatement()) {
