@@ -6,6 +6,7 @@ import jakarta.validation.Validator;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.cloud.gateway.config.HttpClientProperties;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.util.unit.DataSize;
 
@@ -146,6 +147,30 @@ class GatewayConfigurationPropertiesTest {
         assertThatThrownBy(() -> GatewayConfigurationValidator.validate(
                 new GatewayRuntimeProperties("local"), validWeb(), "8.8.8.8"))
                 .hasMessageContaining("internal management address");
+    }
+
+    @Test
+    void requiresTheValidatedTimeoutsToMatchTheActualGatewayHttpClient() {
+        GatewayWebProperties web = validWeb();
+        HttpClientProperties matching = new HttpClientProperties();
+        matching.setConnectTimeout(2000);
+        matching.setResponseTimeout(Duration.ofSeconds(15));
+
+        GatewayConfigurationValidator.validateHttpClient(web, matching);
+
+        HttpClientProperties mismatchedConnect = new HttpClientProperties();
+        mismatchedConnect.setConnectTimeout(3000);
+        mismatchedConnect.setResponseTimeout(Duration.ofSeconds(15));
+        assertThatThrownBy(() -> GatewayConfigurationValidator.validateHttpClient(
+                web, mismatchedConnect))
+                .hasMessageContaining("connect timeout");
+
+        HttpClientProperties mismatchedResponse = new HttpClientProperties();
+        mismatchedResponse.setConnectTimeout(2000);
+        mismatchedResponse.setResponseTimeout(Duration.ofSeconds(30));
+        assertThatThrownBy(() -> GatewayConfigurationValidator.validateHttpClient(
+                web, mismatchedResponse))
+                .hasMessageContaining("response timeout");
     }
 
     private static GatewaySecurityProperties validSecurity() {

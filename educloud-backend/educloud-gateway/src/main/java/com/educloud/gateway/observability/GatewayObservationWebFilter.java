@@ -50,7 +50,7 @@ public final class GatewayObservationWebFilter implements WebFilter, Ordered {
             Tracer tracer) {
         this.metrics = Objects.requireNonNull(metrics, "metrics");
         this.environment = Objects.requireNonNull(runtimeProperties, "runtimeProperties").environment();
-        this.instance = instance == null || instance.isBlank() ? "unknown" : instance;
+        this.instance = safeInstance(instance);
         this.tracer = tracer;
     }
 
@@ -122,5 +122,11 @@ public final class GatewayObservationWebFilter implements WebFilter, Ordered {
             return GatewayMetrics.RequestCategory.CLIENT_ERROR;
         }
         return GatewayMetrics.RequestCategory.SUCCESS;
+    }
+
+    private static String safeInstance(String candidate) {
+        return candidate != null && candidate.matches("[A-Za-z0-9._-]{1,128}")
+                ? candidate
+                : "unknown";
     }
 }

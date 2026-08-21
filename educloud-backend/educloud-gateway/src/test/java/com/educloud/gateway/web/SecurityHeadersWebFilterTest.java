@@ -40,16 +40,46 @@ class SecurityHeadersWebFilterTest {
     void preservesExistingPoliciesInsteadOfWeakeningThem() {
         MockServerWebExchange exchange = exchange("https://gateway.example/api/v1/courses");
         String stricter = "default-src 'none'; frame-ancestors 'none'; sandbox";
+        String stricterPermissions = "camera=(), microphone=(), geolocation=(), usb=()";
+        String stricterHsts = "max-age=63072000; includeSubDomains; preload";
 
         filter("prod").filter(exchange, filtered -> {
             filtered.getResponse().getHeaders().set("Content-Security-Policy", stricter);
+            filtered.getResponse().getHeaders().set("Permissions-Policy", stricterPermissions);
+            filtered.getResponse().getHeaders().set(HSTS, stricterHsts);
             return filtered.getResponse().setComplete();
         }).block();
 
         assertThat(exchange.getResponse().getHeaders().getFirst("Content-Security-Policy"))
                 .isEqualTo(stricter);
-        assertThat(exchange.getResponse().getHeaders().getFirst(HSTS))
-                .isEqualTo("max-age=31536000; includeSubDomains");
+        assertThat(exchange.getResponse().getHeaders().getFirst("Permissions-Policy"))
+                .isEqualTo(stricterPermissions);
+        assertThat(exchange.getResponse().getHeaders().getFirst(HSTS)).isEqualTo(stricterHsts);
+    }
+
+    @Test
+    void replacesWeakerDownstreamPoliciesWithTheGatewayBaseline() {
+        MockServerWebExchange exchange = exchange("https://gateway.example/api/v1/courses");
+
+        filter("prod").filter(exchange, filtered -> {
+            filtered.getResponse().getHeaders().set("X-Content-Type-Options", "off");
+            filtered.getResponse().getHeaders().set("X-Frame-Options", "SAMEORIGIN");
+            filtered.getResponse().getHeaders().set("Referrer-Policy", "unsafe-url");
+            filtered.getResponse().getHeaders().set("Permissions-Policy", "camera=*");
+            filtered.getResponse().getHeaders().set("Content-Security-Policy", "default-src *");
+            filtered.getResponse().getHeaders().set(HSTS, "max-age=0");
+            return filtered.getResponse().setComplete();
+        }).block();
+
+        HttpHeaders headers = exchange.getResponse().getHeaders();
+        assertThat(headers.getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+        assertThat(headers.getFirst("X-Frame-Options")).isEqualTo("DENY");
+        assertThat(headers.getFirst("Referrer-Policy")).isEqualTo("no-referrer");
+        assertThat(headers.getFirst("Permissions-Policy"))
+                .isEqualTo("camera=(), microphone=(), geolocation=()");
+        assertThat(headers.getFirst("Content-Security-Policy"))
+                .isEqualTo("default-src 'none'; frame-ancestors 'none'");
+        assertThat(headers.getFirst(HSTS)).isEqualTo("max-age=31536000; includeSubDomains");
     }
 
     @Test

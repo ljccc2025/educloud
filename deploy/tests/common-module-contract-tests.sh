@@ -8,6 +8,7 @@ module_dir="$repo_root/educloud-backend/educloud-common"
 module_pom="$module_dir/pom.xml"
 main_source="$module_dir/src/main/java"
 dependency_output="$module_dir/target/runtime-dependencies.txt"
+expected_modules=$'educloud-common\neducloud-gateway'
 failed=0
 
 pass() {
@@ -37,8 +38,8 @@ actual_modules="$({
   ' "$parent_pom"
 })"
 
-if [[ "$actual_modules" == 'educloud-common' ]]; then
-  pass 'parent POM declares only educloud-common'
+if [[ "$actual_modules" == "$expected_modules" ]]; then
+  pass 'parent POM declares educloud-common then educloud-gateway'
 else
   fail "unexpected parent modules: ${actual_modules:-<none>}"
 fi

@@ -46,6 +46,7 @@ public final class GatewayErrorWriter {
                 null,
                 requestId,
                 clock.instant());
+        exchange.getResponse().setStatusCode(HttpStatusCode.valueOf(failure.code().httpStatus()));
 
         byte[] payload;
         try {
@@ -56,7 +57,6 @@ public final class GatewayErrorWriter {
             return exchange.getResponse().setComplete();
         }
 
-        exchange.getResponse().setStatusCode(HttpStatusCode.valueOf(failure.code().httpStatus()));
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         exchange.getResponse().getHeaders().set(RequestContext.REQUEST_ID_HEADER, requestId);
         failure.retryAfter().ifPresent(retryAfter -> exchange.getResponse().getHeaders()

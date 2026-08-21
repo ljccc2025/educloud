@@ -111,6 +111,7 @@ class GatewayErrorWriterTest {
                 .block();
 
         assertThat(exchange.getResponse().isCommitted()).isTrue();
+        assertThat(exchange.getResponse().getStatusCode().value()).isEqualTo(500);
         assertThat(exchange.getResponse().getBodyAsString().block()).isEmpty();
     }
 

@@ -14,8 +14,8 @@ spring:
   cloud:
     gateway:
       httpclient:
-        connect-timeout: 2000
-        response-timeout: 15s
+        connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MILLIS:2000}
+        response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:15s}
       routes:
         - id: user-core
           uri: lb://educloud-user
@@ -142,6 +142,8 @@ educloud:
       allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175}
       trusted-proxy-cidrs: []
       trusted-proxy-hops: 1
+      connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MILLIS:2000}ms
+      response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:15s}
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
       namespace: ${NACOS_GATEWAY_NAMESPACE:}

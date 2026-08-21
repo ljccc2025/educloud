@@ -44,7 +44,7 @@ public final class GatewayWebExceptionHandler implements WebExceptionHandler, Or
         if (code == GatewayErrorCode.INTERNAL_ERROR) {
             LOGGER.error(
                     "Unhandled gateway exception requestId={} category=internal exceptionType={}",
-                    requestId(exchange), failure.getClass().getName());
+                    requestId(exchange), safeType(failure), sanitizedStack(failure));
         }
         return errorWriter.write(exchange, GatewayFailure.of(code));
     }
@@ -95,5 +95,42 @@ public final class GatewayWebExceptionHandler implements WebExceptionHandler, Or
     private static String requestId(ServerWebExchange exchange) {
         Object requestId = exchange.getAttribute(GatewayExchangeAttributes.REQUEST_ID);
         return requestId instanceof String value && !value.isBlank() ? value : "unavailable";
+    }
+
+    private static Throwable sanitizedStack(Throwable failure) {
+        return sanitizedStack(failure, new IdentityHashMap<>(), 0);
+    }
+
+    private static Throwable sanitizedStack(
+            Throwable failure,
+            IdentityHashMap<Throwable, Throwable> seen,
+            int depth) {
+        if (depth >= 32) {
+            return new SanitizedGatewayException("cause-depth-limit");
+        }
+        if (seen.containsKey(failure)) {
+            return new SanitizedGatewayException("cause-cycle");
+        }
+        SanitizedGatewayException sanitized = new SanitizedGatewayException(safeType(failure));
+        seen.put(failure, sanitized);
+        sanitized.setStackTrace(failure.getStackTrace());
+        if (failure.getCause() != null) {
+            sanitized.initCause(sanitizedStack(failure.getCause(), seen, depth + 1));
+        }
+        for (Throwable suppressed : failure.getSuppressed()) {
+            sanitized.addSuppressed(sanitizedStack(suppressed, seen, depth + 1));
+        }
+        return sanitized;
+    }
+
+    private static String safeType(Throwable failure) {
+        return failure.getClass().getName().replaceAll("[^A-Za-z0-9.$_-]", "?");
+    }
+
+    private static final class SanitizedGatewayException extends RuntimeException {
+
+        private SanitizedGatewayException(String originalType) {
+            super("originalType=" + originalType);
+        }
     }
 }

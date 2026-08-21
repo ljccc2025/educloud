@@ -94,7 +94,11 @@ class GatewayWebExceptionHandlerTest {
 
             assertThat(appender.list).singleElement().satisfies(event -> {
                 assertThat(event.getFormattedMessage()).doesNotContain("sensitive-token");
-                assertThat(event.getThrowableProxy()).isNull();
+                assertThat(event.getThrowableProxy()).isNotNull();
+                assertThat(event.getThrowableProxy().getMessage())
+                        .contains("java.lang.IllegalStateException")
+                        .doesNotContain("sensitive-token");
+                assertThat(event.getThrowableProxy().getStackTraceElementProxyArray()).isNotEmpty();
             });
         } finally {
             logger.detachAppender(appender);
