@@ -5,13 +5,17 @@ import java.util.function.Function;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * 测试镜像解析器：支持 `EDUCLOUD_TEST_MYSQL_IMAGE` 私有镜像覆盖（沿用 M01/M02 的 TestContainerImages 模式）。
+ * 测试镜像解析器：支持 `EDUCLOUD_TEST_MYSQL_IMAGE` / `EDUCLOUD_TEST_RABBITMQ_IMAGE` 私有镜像覆盖
+ * （沿用 M01/M02 的 TestContainerImages 模式）。
  * 依据：M02 提交 ab01feb「allow private integration images」与模块契约「Testcontainers 镜像固定可覆盖来源」。
  */
 public final class TestContainerImages {
 
     static final String MYSQL_IMAGE_ENV = "EDUCLOUD_TEST_MYSQL_IMAGE";
     private static final String DEFAULT_MYSQL_IMAGE = "mysql:8.0.36";
+
+    static final String RABBITMQ_IMAGE_ENV = "EDUCLOUD_TEST_RABBITMQ_IMAGE";
+    private static final String DEFAULT_RABBITMQ_IMAGE = "rabbitmq:3.13-management-alpine";
 
     private TestContainerImages() {
     }
@@ -22,6 +26,14 @@ public final class TestContainerImages {
 
     static DockerImageName mysql(Function<String, String> environment) {
         return resolve(MYSQL_IMAGE_ENV, DEFAULT_MYSQL_IMAGE, environment);
+    }
+
+    public static DockerImageName rabbitmq() {
+        return rabbitmq(System::getenv);
+    }
+
+    static DockerImageName rabbitmq(Function<String, String> environment) {
+        return resolve(RABBITMQ_IMAGE_ENV, DEFAULT_RABBITMQ_IMAGE, environment);
     }
 
     static DockerImageName resolve(
