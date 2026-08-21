@@ -12,6 +12,7 @@ public final class GatewayExchangeAttributes {
 
     public static final String REQUEST_ID = RequestContext.REQUEST_ID_ATTRIBUTE;
     public static final String REACTOR_CONTEXT_REQUEST_ID = "requestId";
+    public static final String ACCESS_DECISION = GatewayExchangeAttributes.class.getName() + ".accessDecision";
 
     private static final Set<String> ROUTE_IDS = Set.of(
             "user-core",
