@@ -4,6 +4,7 @@ import com.educloud.common.web.RequestContext;
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.web.server.ServerWebExchange;
 
+import java.util.Optional;
 import java.util.Set;
 
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR;
@@ -14,6 +15,9 @@ public final class GatewayExchangeAttributes {
     public static final String REACTOR_CONTEXT_REQUEST_ID = "requestId";
     public static final String ACCESS_DECISION = GatewayExchangeAttributes.class.getName() + ".accessDecision";
     public static final String CLIENT_IP = GatewayExchangeAttributes.class.getName() + ".clientIp";
+
+    private static final String CACHED_REQUEST_BODY =
+            GatewayExchangeAttributes.class.getName() + ".cachedRequestBody";
 
     private static final Set<String> ROUTE_IDS = Set.of(
             "user-core",
@@ -51,5 +55,24 @@ public final class GatewayExchangeAttributes {
             return route.getId();
         }
         return "unmatched";
+    }
+
+    public static void cacheRequestBody(ServerWebExchange exchange, byte[] body) {
+        if (body == null || body.length == 0) {
+            throw new IllegalArgumentException("cached request body must not be empty");
+        }
+        exchange.getAttributes().put(CACHED_REQUEST_BODY, body.clone());
+    }
+
+    public static Optional<byte[]> cachedRequestBody(ServerWebExchange exchange) {
+        Object value = exchange.getAttribute(CACHED_REQUEST_BODY);
+        if (value instanceof byte[] body) {
+            return Optional.of(body.clone());
+        }
+        return Optional.empty();
+    }
+
+    public static void clearCachedRequestBody(ServerWebExchange exchange) {
+        exchange.getAttributes().remove(CACHED_REQUEST_BODY);
     }
 }
