@@ -10,6 +10,92 @@ spring:
     import: "optional:nacos:educloud-gateway.yaml?group=${NACOS_GATEWAY_CONFIG_GROUP:EDUCLOUD_GATEWAY}&refreshEnabled=false"
   cloud:
     gateway:
+      routes:
+        - id: user-core
+          uri: lb://educloud-user
+          order: 10
+          predicates:
+            - Path=/api/v1/auth/**,/api/v1/users/**,/api/v1/roles/**,/api/v1/permissions/**,/api/v1/platform-config/**,/api/v1/security/**
+        - id: user-me
+          uri: lb://educloud-user
+          order: 20
+          predicates:
+            - Path=/api/v1/me,/api/v1/me/profile
+        - id: content-me
+          uri: lb://educloud-content
+          order: 30
+          predicates:
+            - Path=/api/v1/me/assignments,/api/v1/me/exams,/api/v1/me/course-progress,/api/v1/me/courses/*/progress
+        - id: course-enrollments
+          uri: lb://educloud-course
+          order: 40
+          predicates:
+            - Path=/api/v1/me/enrollments
+        - id: content-course-scoped
+          uri: lb://educloud-content
+          order: 50
+          predicates:
+            - Path=/api/v1/courses/*/chapters/**,/api/v1/courses/*/assignments/**,/api/v1/courses/*/exams/**
+        - id: content-core
+          uri: lb://educloud-content
+          order: 60
+          predicates:
+            - Path=/api/v1/chapters/**,/api/v1/coursewares/**,/api/v1/content-revisions/**,/api/v1/assignments/**,/api/v1/submissions/**,/api/v1/exams/**,/api/v1/exam-attempts/**,/api/v1/community/**,/api/v1/content-audits/**
+        - id: content-drafts
+          uri: lb://educloud-content
+          order: 65
+          predicates:
+            - Path=/api/v1/teacher/courses/*/content-draft,/api/v1/courses/*/content-drafts
+        - id: course-core
+          uri: lb://educloud-course
+          order: 70
+          predicates:
+            - Path=/api/v1/categories/**,/api/v1/course-drafts/**,/api/v1/course-audits/**,/api/v1/courses/**,/api/v1/teacher/courses/*/draft
+        - id: order-core
+          uri: lb://educloud-order
+          order: 80
+          predicates:
+            - Path=/api/v1/cart/**,/api/v1/orders/**,/api/v1/refund-requests/**
+        - id: payment-core
+          uri: lb://educloud-payment
+          order: 90
+          predicates:
+            - Path=/api/v1/payments/**,/api/v1/payment-callbacks/**,/api/v1/payment-refunds/**,/api/v1/reconciliations/**
+        - id: live-http
+          uri: lb://educloud-live
+          order: 100
+          predicates:
+            - Path=/api/v1/live-rooms/**
+        - id: live-ws
+          uri: "lb:ws://educloud-live"
+          order: 101
+          predicates:
+            - Path=/ws/v1/live/**
+        - id: file-core
+          uri: lb://educloud-file
+          order: 110
+          predicates:
+            - Path=/api/v1/files/**,/api/v1/file-upload-sessions/**
+        - id: notification-core
+          uri: lb://educloud-notification
+          order: 120
+          predicates:
+            - Path=/api/v1/notifications/**,/api/v1/notification-channels/**
+        - id: analytics-core
+          uri: lb://educloud-analytics
+          order: 130
+          predicates:
+            - Path=/api/v1/analytics/**,/api/v1/audit-events/**
+        - id: search-core
+          uri: lb://educloud-search
+          order: 140
+          predicates:
+            - Path=/api/v1/search/**
+        - id: recommendation-core
+          uri: lb://educloud-recommendation
+          order: 150
+          predicates:
+            - Path=/api/v1/recommendations/**,/api/v1/assistant/**
       discovery:
         locator:
           enabled: false
