@@ -115,6 +115,12 @@ class UserApplicationContextTest {
         }
 
         @Bean
+        com.educloud.user.observability.UserDependenciesHealthIndicator userDependenciesHealthIndicator() {
+            return mock(com.educloud.user.observability.UserDependenciesHealthIndicator.class);
+        }
+
+
+        @Bean
         SysUserMapper sysUserMapper() {
             return mock(SysUserMapper.class);
         }

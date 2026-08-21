@@ -83,6 +83,7 @@ class RefreshSessionServiceTest {
                 new ClaimsFactory(jwtProperties),
                 jwtEncoder,
                 sessionProperties,
+                org.mockito.Mockito.mock(com.educloud.user.observability.UserMetrics.class),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

@@ -72,7 +72,8 @@ class RegistrationServiceTest {
                 sysUserRoleMapper,
                 outboxWriter,
                 auditWriter,
-                new ObjectMapper());
+                new ObjectMapper(),
+                org.mockito.Mockito.mock(com.educloud.user.observability.UserMetrics.class));
     }
 
     private RegisterStudentRequest request() {
@@ -91,7 +92,8 @@ class RegistrationServiceTest {
                 sysUserRoleMapper,
                 outboxWriter,
                 auditWriter,
-                new ObjectMapper());
+                new ObjectMapper(),
+                org.mockito.Mockito.mock(com.educloud.user.observability.UserMetrics.class));
 
         assertThatThrownBy(() -> service.register(request(), "127.0.0.1", "ua", "req-1"))
                 .isInstanceOf(BusinessException.class)

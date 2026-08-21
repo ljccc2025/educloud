@@ -94,6 +94,7 @@ class AuthenticationServiceTest {
                 auditWriter,
                 sessionProperties,
                 loginProperties,
+                org.mockito.Mockito.mock(com.educloud.user.observability.UserMetrics.class),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

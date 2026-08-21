@@ -24,6 +24,7 @@ import com.educloud.user.session.SessionFactory;
 import com.educloud.user.session.SessionStore;
 import com.educloud.user.support.AuditWriter;
 import com.educloud.user.support.ClientFingerprint;
+import com.educloud.user.observability.UserMetrics;
 import com.educloud.user.support.Masking;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -55,6 +56,7 @@ public final class AuthenticationService {
     private final AuditWriter auditWriter;
     private final SessionProperties sessionProperties;
     private final LoginProperties loginProperties;
+    private final UserMetrics userMetrics;
     private final Clock clock;
 
     private final String dummyHash;
@@ -74,6 +76,7 @@ public final class AuthenticationService {
             AuditWriter auditWriter,
             SessionProperties sessionProperties,
             LoginProperties loginProperties,
+            UserMetrics userMetrics,
             Clock clock) {
         this.sysUserMapper = Objects.requireNonNull(sysUserMapper, "sysUserMapper");
         this.userProfileMapper = Objects.requireNonNull(userProfileMapper, "userProfileMapper");
@@ -89,6 +92,7 @@ public final class AuthenticationService {
         this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
         this.sessionProperties = Objects.requireNonNull(sessionProperties, "sessionProperties");
         this.loginProperties = Objects.requireNonNull(loginProperties, "loginProperties");
+        this.userMetrics = Objects.requireNonNull(userMetrics, "userMetrics");
         this.clock = Objects.requireNonNull(clock, "clock");
         // 账号不存在时也执行一次 BCrypt 比较，避免时序枚举（安全设计第 3.1 节）。
         this.dummyHash = passwordEncoder.encode(java.util.UUID.randomUUID().toString());
@@ -176,6 +180,7 @@ public final class AuthenticationService {
                         .eq("user_id", user.getId()));
         String displayName = profile == null ? user.getUsername() : profile.getDisplayName();
 
+        userMetrics.loginSuccess();
         return new LoginResult(
                 created.rawToken(),
                 new LoginResponse(
@@ -224,6 +229,7 @@ public final class AuthenticationService {
     }
 
     private void auditFailure(Long userId, String maskedLoginName, String failureCode, String ip, String userAgent, String requestId) {
+        userMetrics.loginFailure();
         LoginAuditEntity audit = new LoginAuditEntity();
         audit.setUserId(userId);
         audit.setLoginNameMasked(maskedLoginName);

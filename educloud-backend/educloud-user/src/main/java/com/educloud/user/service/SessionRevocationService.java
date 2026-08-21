@@ -2,6 +2,7 @@ package com.educloud.user.service;
 
 import com.educloud.user.config.SessionProperties;
 import com.educloud.user.mapper.RefreshSessionMapper;
+import com.educloud.user.observability.UserMetrics;
 import com.educloud.user.session.SessionStore;
 import com.educloud.user.support.AuditWriter;
 import org.springframework.stereotype.Service;
@@ -23,18 +24,21 @@ public final class SessionRevocationService {
     private final SessionProperties sessionProperties;
     private final Clock clock;
     private final AuditWriter auditWriter;
+    private final UserMetrics userMetrics;
 
     public SessionRevocationService(
             RefreshSessionMapper refreshSessionMapper,
             SessionStore sessionStore,
             SessionProperties sessionProperties,
             Clock clock,
-            AuditWriter auditWriter) {
+            AuditWriter auditWriter,
+            UserMetrics userMetrics) {
         this.refreshSessionMapper = Objects.requireNonNull(refreshSessionMapper, "refreshSessionMapper");
         this.sessionStore = Objects.requireNonNull(sessionStore, "sessionStore");
         this.sessionProperties = Objects.requireNonNull(sessionProperties, "sessionProperties");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
+        this.userMetrics = Objects.requireNonNull(userMetrics, "userMetrics");
     }
 
     @Transactional
@@ -42,6 +46,7 @@ public final class SessionRevocationService {
         Instant now = clock.instant();
         refreshSessionMapper.revokeFamily(familyId, now, reason);
         sessionStore.markRevoked(familyId, sessionProperties.accessTokenTtl());
+        userMetrics.sessionRevoked();
         auditWriter.write(new AuditWriter.AuditEntry(
                 "SYSTEM",
                 "unknown",

@@ -279,6 +279,12 @@ class MethodSecurityAndAdminEndpointsTest {
         }
 
         @Bean
+        com.educloud.user.observability.UserDependenciesHealthIndicator userDependenciesHealthIndicator() {
+            return mock(com.educloud.user.observability.UserDependenciesHealthIndicator.class);
+        }
+
+
+        @Bean
         com.educloud.user.mapper.SysUserMapper sysUserMapper() {
             return mock(com.educloud.user.mapper.SysUserMapper.class);
         }

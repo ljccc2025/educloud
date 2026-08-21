@@ -14,6 +14,7 @@ import com.educloud.user.mapper.SysUserMapper;
 import com.educloud.user.mapper.SysUserRoleMapper;
 import com.educloud.user.mapper.UserProfileMapper;
 import com.educloud.user.messaging.OutboxWriter;
+import com.educloud.user.observability.UserMetrics;
 import com.educloud.user.support.AuditWriter;
 import com.educloud.user.support.Masking;
 import com.educloud.user.support.PasswordPolicy;
@@ -48,6 +49,7 @@ public final class RegistrationService {
     private final OutboxWriter outboxWriter;
     private final AuditWriter auditWriter;
     private final ObjectMapper objectMapper;
+    private final UserMetrics userMetrics;
 
     public RegistrationService(
             RegistrationProperties registrationProperties,
@@ -59,7 +61,8 @@ public final class RegistrationService {
             SysUserRoleMapper sysUserRoleMapper,
             OutboxWriter outboxWriter,
             AuditWriter auditWriter,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            UserMetrics userMetrics) {
         this.registrationProperties = Objects.requireNonNull(registrationProperties, "registrationProperties");
         this.passwordPolicy = Objects.requireNonNull(passwordPolicy, "passwordPolicy");
         this.passwordEncoder = Objects.requireNonNull(passwordEncoder, "passwordEncoder");
@@ -70,6 +73,7 @@ public final class RegistrationService {
         this.outboxWriter = Objects.requireNonNull(outboxWriter, "outboxWriter");
         this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+        this.userMetrics = Objects.requireNonNull(userMetrics, "userMetrics");
     }
 
     @Transactional
@@ -166,6 +170,7 @@ public final class RegistrationService {
                 null,
                 "AUTH"));
 
+        userMetrics.userRegistered();
         return user.getId();
     }
 

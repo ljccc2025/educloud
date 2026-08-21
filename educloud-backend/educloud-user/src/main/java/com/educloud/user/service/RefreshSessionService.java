@@ -16,6 +16,7 @@ import com.educloud.user.mapper.UserProfileMapper;
 import com.educloud.user.security.ClaimsFactory;
 import com.educloud.user.security.UserJwtEncoder;
 import com.educloud.user.session.SessionFactory;
+import com.educloud.user.observability.UserMetrics;
 import com.educloud.user.session.SessionStore;
 import com.educloud.user.support.AuditWriter;
 import org.springframework.stereotype.Service;
@@ -46,6 +47,7 @@ public final class RefreshSessionService {
     private final ClaimsFactory claimsFactory;
     private final UserJwtEncoder jwtEncoder;
     private final SessionProperties sessionProperties;
+    private final UserMetrics userMetrics;
     private final Clock clock;
 
     public RefreshSessionService(
@@ -60,6 +62,7 @@ public final class RefreshSessionService {
             ClaimsFactory claimsFactory,
             UserJwtEncoder jwtEncoder,
             SessionProperties sessionProperties,
+            UserMetrics userMetrics,
             Clock clock) {
         this.refreshSessionMapper = Objects.requireNonNull(refreshSessionMapper, "refreshSessionMapper");
         this.sysUserMapper = Objects.requireNonNull(sysUserMapper, "sysUserMapper");
@@ -72,6 +75,7 @@ public final class RefreshSessionService {
         this.claimsFactory = Objects.requireNonNull(claimsFactory, "claimsFactory");
         this.jwtEncoder = Objects.requireNonNull(jwtEncoder, "jwtEncoder");
         this.sessionProperties = Objects.requireNonNull(sessionProperties, "sessionProperties");
+        this.userMetrics = Objects.requireNonNull(userMetrics, "userMetrics");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -98,10 +102,12 @@ public final class RefreshSessionService {
                 throw new BusinessException(UserErrorCode.REFRESH_ALREADY_ROTATED);
             }
             revocationService.revokeFamily(row.getFamilyId(), "SESSION_REUSE_DETECTED", requestId);
+            userMetrics.sessionReuseDetected();
             throw new BusinessException(UserErrorCode.SESSION_REUSE_DETECTED);
         }
         if (!row.getClientFingerprintHash().equals(clientFingerprintHash)) {
             revocationService.revokeFamily(row.getFamilyId(), "CLIENT_FINGERPRINT_MISMATCH", requestId);
+            userMetrics.sessionReuseDetected();
             throw new BusinessException(UserErrorCode.SESSION_REUSE_DETECTED);
         }
 
@@ -135,6 +141,7 @@ public final class RefreshSessionService {
         child.setIssuedAt(now);
         child.setExpiresAt(now.plus(sessionProperties.refreshTokenTtl()));
         refreshSessionMapper.insert(child);
+        userMetrics.refreshRotated();
 
         sessionStore.writeActive(
                 row.getFamilyId(),
