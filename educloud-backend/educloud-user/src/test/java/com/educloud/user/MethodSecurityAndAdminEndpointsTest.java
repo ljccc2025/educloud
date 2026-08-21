@@ -274,6 +274,11 @@ class MethodSecurityAndAdminEndpointsTest {
         }
 
         @Bean
+        org.springframework.amqp.rabbit.connection.ConnectionFactory rabbitConnectionFactory() {
+            return mock(org.springframework.amqp.rabbit.connection.ConnectionFactory.class);
+        }
+
+        @Bean
         com.educloud.user.mapper.SysUserMapper sysUserMapper() {
             return mock(com.educloud.user.mapper.SysUserMapper.class);
         }

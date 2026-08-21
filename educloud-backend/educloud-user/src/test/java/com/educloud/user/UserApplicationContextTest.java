@@ -110,6 +110,11 @@ class UserApplicationContextTest {
         }
 
         @Bean
+        org.springframework.amqp.rabbit.connection.ConnectionFactory rabbitConnectionFactory() {
+            return mock(org.springframework.amqp.rabbit.connection.ConnectionFactory.class);
+        }
+
+        @Bean
         SysUserMapper sysUserMapper() {
             return mock(SysUserMapper.class);
         }
