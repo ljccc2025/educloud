@@ -31,6 +31,8 @@ sudo dnf -y install \
   git \
   gzip \
   java-21-openjdk-devel \
+  openssl \
+  python3 \
   tar
 
 java -version
@@ -161,3 +163,51 @@ docker compose \
 ```
 
 生成器使用 `/dev/urandom` 为每项凭据生成独立随机值，把文件权限限制为 `600`，且不会在终端打印密码。`.env` 已被 Git 忽略，不得提交。已有 `.env` 时生成器默认拒绝覆盖；确认其中只有示例占位值后，可显式执行 `bash deploy/scripts/generate-local-env.sh --force`。
+
+## 8. 准备 M02 Gateway 本地身份与测试材料
+
+M02 复用已经运行的 Redis 和 Nacos，不需要数据库迁移，也不提供真实登录接口。Gateway 只校验由测试材料签发的 JWT，并校验 Redis 中的会话状态。
+
+已有 `deploy/docker-compose/.env` 时，不要再执行 `generate-local-env.sh --force`。增量脚本只补充缺失的 Gateway 专用 Nacos 变量，不覆盖 MySQL、Redis 或 Nacos 服务端秘密：
+
+```bash
+bash deploy/scripts/prepare-gateway-local-env.sh \
+  --env-file deploy/docker-compose/.env
+
+grep -E '^NACOS_GATEWAY_(NAMESPACE|CONFIG_GROUP|DISCOVERY_GROUP|USERNAME)=' \
+  deploy/docker-compose/.env
+```
+
+使用 Nacos 管理员身份创建并核对 Gateway 的 namespace、同名 user/role 和精确最小权限。管理员密码不要粘贴到命令参数、shell history 或日志；脚本会从无回显的标准输入读取：
+
+```bash
+export NACOS_ADMIN_USERNAME='nacos'
+bash deploy/scripts/provision-gateway-nacos.sh \
+  --env-file deploy/docker-compose/.env
+unset NACOS_ADMIN_USERNAME
+```
+
+如果自动化环境必须通过环境变量提供管理员密码，只在受控进程环境内短暂设置 `NACOS_ADMIN_PASSWORD`，运行后立即 `unset`。不要使用 `set -x`。
+
+创建一次性的 0700 目录并生成短期 RSA/JWKS/JWT 与 HMAC 测试材料：
+
+```bash
+GATEWAY_TEST_MATERIAL_DIR="$(mktemp -d)"
+chmod 700 "$GATEWAY_TEST_MATERIAL_DIR"
+
+bash deploy/scripts/generate-gateway-test-material.sh \
+  --output "$GATEWAY_TEST_MATERIAL_DIR"
+
+test "$(stat -c '%a' "$GATEWAY_TEST_MATERIAL_DIR/private.pem")" = '600'
+test "$(stat -c '%a' "$GATEWAY_TEST_MATERIAL_DIR/jwks.json")" = '644'
+test "$(stat -c '%a' "$GATEWAY_TEST_MATERIAL_DIR/runtime.env")" = '600'
+```
+
+测试结束后删除整个临时材料目录：
+
+```bash
+rm -rf -- "$GATEWAY_TEST_MATERIAL_DIR"
+unset GATEWAY_TEST_MATERIAL_DIR
+```
+
+不要停止共享 Redis/Nacos，也不要把 `.env`、私钥、JWT、HMAC Secret 或 Nacos 管理员凭据提交到 Git。
