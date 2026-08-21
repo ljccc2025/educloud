@@ -62,7 +62,9 @@ grep -Fq 'schema_migration_history' "$sql_dir/V000__technical_tables.sql" ||   f
 pass 'migrations exist and start with V000 technical tables'
 
 # 5) 无私钥/私钥参数提交
-if grep -rIl 'BEGIN PRIVATE KEY' "$user_dir" "$sql_dir" 2>/dev/null | grep -q .; then
+# Java 源码中对 PEM 头字符串的引用（JwtKeyProvider 解析、测试构造测试密钥）不是密钥材料，予以排除；
+# 非源码文件（配置/迁移/文档）若含 PEM 私钥块则判为违规。
+if grep -rIl --exclude='*.java' 'BEGIN PRIVATE KEY' "$user_dir" "$sql_dir" 2>/dev/null | grep -q .; then
   fail 'private key material must not be committed'
 fi
 if grep -rIn '"d"' "$sql_dir" 2>/dev/null | grep -q 'BEGIN|PRIVATE|RSA PRIVATE'; then
