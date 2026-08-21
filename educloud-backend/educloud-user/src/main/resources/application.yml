@@ -1,0 +1,103 @@
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+
+spring:
+  application:
+    name: educloud-user
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    # M03: 本地通过未提交的 .env 注入；生产由 Kubernetes Secret 注入。账号 user_app 无库级写权限（见 deploy/docker-compose/mysql/init/001-create-databases.sh）。
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_user?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    username: user_app
+    password: ${EDUCLOUD_USER_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_DEFAULT_USER:}
+    password: ${RABBITMQ_DEFAULT_PASS:}
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_USER_NACOS_USERNAME:}
+      password: ${EDUCLOUD_USER_NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
+
+educloud:
+  user:
+    # M03: 会话 Redis key 的 environment 必须与 Gateway 的 educloud.gateway.environment 同源（同一 EDUCLOUD_ENVIRONMENT）。
+    # 依据：M02 RedisSessionVerifier 使用 educloud:{environment:auth}:session:{sid}。
+    session:
+      environment: ${EDUCLOUD_ENVIRONMENT:local}
+      access-token-ttl: ${EDUCLOUD_USER_ACCESS_TOKEN_TTL:15m}
+      refresh-token-ttl: ${EDUCLOUD_USER_REFRESH_TOKEN_TTL:7d}
+      rotation-grace-window: ${EDUCLOUD_USER_ROTATION_GRACE_WINDOW:5s}
+      cookie-secure: ${EDUCLOUD_USER_COOKIE_SECURE:false}
+    jwt:
+      private-key-location: ${USER_JWT_PRIVATE_KEY_LOCATION:}
+      issuer: ${EDUCLOUD_USER_JWT_ISSUER:https://issuer.educloud.local}
+      audience: ${EDUCLOUD_USER_JWT_AUDIENCE:educloud-api}
+      service-token-ttl: ${EDUCLOUD_USER_SERVICE_TOKEN_TTL:5m}
+    registration:
+      enabled: ${EDUCLOUD_USER_REGISTRATION_ENABLED:true}
+    login:
+      max-failed-attempts: ${EDUCLOUD_USER_MAX_FAILED_ATTEMPTS:5}
+      lock-duration: ${EDUCLOUD_USER_LOCK_DURATION:15m}
+    password:
+      min-length: ${EDUCLOUD_USER_PASSWORD_MIN_LENGTH:8}
+      max-length: ${EDUCLOUD_USER_PASSWORD_MAX_LENGTH:128}
+      bcrypt-strength: ${EDUCLOUD_USER_BCRYPT_STRENGTH:10}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: isDeleted
+
+management:
+  server:
+    address: ${USER_MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${USER_MANAGEMENT_PORT:8083}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,userDependencies
+      show-details: never
+  tracing:
+    sampling:
+      probability: ${EDUCLOUD_USER_TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://127.0.0.1:9411/api/v2/spans}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.educloud.user: INFO

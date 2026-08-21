@@ -15,6 +15,7 @@
     <modules>
         <module>educloud-common</module>
         <module>educloud-gateway</module>
+        <module>educloud-user</module>
     </modules>
 
     <properties>
@@ -34,6 +35,10 @@
         <maven-failsafe-plugin.version>3.2.5</maven-failsafe-plugin.version>
         <mockito.version>5.11.0</mockito.version>
         <testcontainers.version>1.19.7</testcontainers.version>
+        <!-- M03: 版本依据：MyBatis-Plus 官方发布（https://github.com/baomidou/mybatis-plus/releases、https://baomidou.com/en/resources/changlog/）3.5.12 为官方发布版本；mybatis-plus-spring-boot3-starter 与 Spring Boot 3.x 配套。 -->
+        <mybatis-plus.version>3.5.12</mybatis-plus.version>
+        <!-- M03: 版本依据：springdoc-openapi 官方配套矩阵（https://springdoc.org/、https://github.com/springdoc/springdoc-openapi），2.5.0 为与 Spring Boot 3.2.x 配套的官方版本线；2.8.x 面向 Spring Boot 3.4+。 -->
+        <springdoc.version>2.5.0</springdoc.version>
     </properties>
 
     <dependencyManagement>
@@ -58,6 +63,16 @@
                 <version>${spring-cloud-alibaba.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>${springdoc.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
