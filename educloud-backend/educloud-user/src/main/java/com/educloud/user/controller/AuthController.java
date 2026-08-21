@@ -4,14 +4,19 @@ import com.educloud.common.api.ApiResponse;
 import com.educloud.common.api.ApiResponseFactory;
 import com.educloud.user.config.SessionProperties;
 import com.educloud.user.dto.request.LoginRequest;
+import com.educloud.user.dto.request.PasswordChangeRequest;
 import com.educloud.user.dto.request.RegisterStudentRequest;
 import com.educloud.user.dto.response.LoginResponse;
 import com.educloud.user.dto.response.RegisteredUserResponse;
+import com.educloud.user.entity.RefreshSessionEntity;
+import com.educloud.user.mapper.RefreshSessionMapper;
 import com.educloud.user.service.AuthenticationService;
 import com.educloud.user.service.IdempotencyService;
+import com.educloud.user.service.PasswordChangeService;
 import com.educloud.user.service.RefreshSessionService;
 import com.educloud.user.service.RegistrationService;
 import com.educloud.user.service.SessionRevocationService;
+import com.educloud.user.session.SessionFactory;
 import com.educloud.user.support.ClientFingerprint;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +26,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,7 +39,7 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * 认证控制器（注册/登录；刷新/注销/改密在后续任务补充）。
+ * 认证控制器（注册/登录/刷新/注销/改密）。
  * 依据：API 规范第 7 节（外部经 Gateway 访问 /api/v1/auth/**）；Refresh Token 只写 HttpOnly Cookie。
  */
 @RestController
@@ -45,6 +52,8 @@ public final class AuthController {
     private final RegistrationService registrationService;
     private final AuthenticationService authenticationService;
     private final RefreshSessionService refreshSessionService;
+    private final PasswordChangeService passwordChangeService;
+    private final RefreshSessionMapper refreshSessionMapper;
     private final SessionRevocationService revocationService;
     private final IdempotencyService idempotencyService;
     private final SessionProperties sessionProperties;
@@ -55,6 +64,8 @@ public final class AuthController {
             RegistrationService registrationService,
             AuthenticationService authenticationService,
             RefreshSessionService refreshSessionService,
+            PasswordChangeService passwordChangeService,
+            RefreshSessionMapper refreshSessionMapper,
             SessionRevocationService revocationService,
             IdempotencyService idempotencyService,
             SessionProperties sessionProperties,
@@ -63,6 +74,8 @@ public final class AuthController {
         this.registrationService = registrationService;
         this.authenticationService = authenticationService;
         this.refreshSessionService = refreshSessionService;
+        this.passwordChangeService = passwordChangeService;
+        this.refreshSessionMapper = refreshSessionMapper;
         this.revocationService = revocationService;
         this.idempotencyService = idempotencyService;
         this.sessionProperties = sessionProperties;
@@ -144,6 +157,35 @@ public final class AuthController {
         return ResponseEntity.status(HttpStatus.NO_CONTENT)
                 .header(HttpHeaders.SET_COOKIE, cleared.toString())
                 .build();
+    }
+
+    /**
+     * 修改密码（Bearer 保护）。旧 Access 全部失效；当前会话族保留可刷新（设计规格第 4.4 节撤销矩阵）。
+     * currentFamilyId 由 Refresh Token Cookie 反查；无 Cookie 时撤销该用户全部会话族。
+     */
+    @PostMapping("/password/change")
+    public ApiResponse<Void> changePassword(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody PasswordChangeRequest request,
+            @CookieValue(value = "refresh_token", required = false) String refreshToken,
+            HttpServletRequest servletRequest) {
+        String familyId = null;
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            RefreshSessionEntity session = refreshSessionMapper.selectByTokenHashForUpdate(
+                    SessionFactory.sha256Hex(refreshToken));
+            if (session != null) {
+                familyId = session.getFamilyId();
+            }
+        }
+        passwordChangeService.changePassword(
+                Long.valueOf(jwt.getSubject()),
+                request.oldPassword(),
+                request.newPassword(),
+                familyId,
+                servletRequest.getRemoteAddr(),
+                servletRequest.getHeader(HttpHeaders.USER_AGENT),
+                servletRequest.getHeader("X-Request-Id"));
+        return responses.success(null);
     }
 
     private ResponseCookie refreshCookie(String rawToken) {

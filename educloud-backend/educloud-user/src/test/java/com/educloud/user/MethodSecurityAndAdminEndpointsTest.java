@@ -166,6 +166,30 @@ class MethodSecurityAndAdminEndpointsTest {
     }
 
     @Test
+    void passwordChangeRequiresAuthenticationAndUpdatesCurrentFamily() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/password/change")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"oldPassword\":\"old-pass\",\"newPassword\":\"new-pass-123\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/auth/password/change")
+                        .with(jwt().jwt(jwt -> jwt.subject("1001")))
+                        .cookie(new jakarta.servlet.http.Cookie("refresh_token", "raw-refresh-token"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"oldPassword\":\"old-pass\",\"newPassword\":\"new-pass-123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SUCCESS"));
+        org.mockito.Mockito.verify(context.getBean(com.educloud.user.service.PasswordChangeService.class))
+                .changePassword(
+                        org.mockito.ArgumentMatchers.eq(1001L),
+                        org.mockito.ArgumentMatchers.eq("old-pass"),
+                        org.mockito.ArgumentMatchers.eq("new-pass-123"),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void signingKeyStatusRequiresSecurityAuthority() throws Exception {
         mockMvc.perform(get("/api/v1/security/signing-key-status").with(jwt()))
                 .andExpect(status().isForbidden());
@@ -241,6 +265,11 @@ class MethodSecurityAndAdminEndpointsTest {
         @Bean
         RefreshSessionService refreshSessionService() {
             return mock(RefreshSessionService.class);
+        }
+
+        @Bean
+        com.educloud.user.service.PasswordChangeService passwordChangeService() {
+            return mock(com.educloud.user.service.PasswordChangeService.class);
         }
 
         @Bean
