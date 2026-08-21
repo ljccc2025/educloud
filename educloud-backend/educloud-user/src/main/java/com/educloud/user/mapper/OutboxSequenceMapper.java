@@ -3,8 +3,17 @@ package com.educloud.user.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.educloud.user.entity.OutboxSequenceEntity;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
-/** Outbox 水位数据访问（OutboxSequenceEntity）。MyBatis-Plus 参数绑定，禁止拼接动态表名/列名（开发规范第 7 节）。 */
+/** Outbox 水位数据访问（outbox_sequence）。单条原子 UPDATE 保证 source_sequence 单调（数据设计第 14 节）。 */
 @Mapper
 public interface OutboxSequenceMapper extends BaseMapper<OutboxSequenceEntity> {
+
+    @Update("UPDATE outbox_sequence SET last_value = last_value + 1 WHERE source_name = #{sourceName}")
+    int increment(@Param("sourceName") String sourceName);
+
+    @Select("SELECT last_value FROM outbox_sequence WHERE source_name = #{sourceName}")
+    Long selectValue(@Param("sourceName") String sourceName);
 }

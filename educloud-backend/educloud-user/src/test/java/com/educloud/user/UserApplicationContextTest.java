@@ -1,10 +1,29 @@
 package com.educloud.user;
 
+import com.educloud.user.mapper.AuditEventMapper;
+import com.educloud.user.mapper.IdempotencyRecordMapper;
+import com.educloud.user.mapper.InboxEventMapper;
+import com.educloud.user.mapper.LoginAuditMapper;
+import com.educloud.user.mapper.OutboxEventMapper;
+import com.educloud.user.mapper.OutboxSequenceMapper;
+import com.educloud.user.mapper.PlatformPublicConfigMapper;
+import com.educloud.user.mapper.RefreshSessionMapper;
+import com.educloud.user.mapper.ServiceClientCredentialMapper;
+import com.educloud.user.mapper.ServiceClientMapper;
+import com.educloud.user.mapper.SysPermissionMapper;
+import com.educloud.user.mapper.SysRoleMapper;
+import com.educloud.user.mapper.SysRolePermissionMapper;
+import com.educloud.user.mapper.SysUserMapper;
+import com.educloud.user.mapper.SysUserRoleMapper;
+import com.educloud.user.mapper.UserProfileMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,12 +34,14 @@ import java.security.interfaces.RSAPrivateKey;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * M03 计划任务 0：最小上下文启动测试（禁用全部外部连接）。
  *
  * <p>依据：M03 实施计划任务 0 步骤 3（先写上下文测试，无实现时失败）。
  * 外部依赖（MySQL/Redis/RabbitMQ/Nacos）在测试中通过自动配置排除与开关关闭；
+ * 数据访问层以 mock bean 满足依赖（MyBatis-Plus Mapper 在无 DataSource 时不注册）；
  * JwtKeyProvider 需要私钥文件，测试内临时生成（与 JwtKeyProviderTest 同法）。</p>
  */
 class UserApplicationContextTest {
@@ -40,7 +61,8 @@ class UserApplicationContextTest {
     @Test
     void startsTheCompleteUserContextWithoutExternalConnections() throws Exception {
         String privateKeyLocation = writePkcs8Key();
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(UserApplication.class)
+        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(
+                UserApplication.class, ExternalDependencyConfiguration.class)
                 .web(WebApplicationType.SERVLET)
                 .run(
                         "--server.port=0",
@@ -77,5 +99,94 @@ class UserApplicationContextTest {
             wrapped.append(base64, index, Math.min(index + 64, base64.length())).append('\n');
         }
         return wrapped.toString();
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class ExternalDependencyConfiguration {
+
+        @Bean
+        StringRedisTemplate stringRedisTemplate() {
+            return mock(StringRedisTemplate.class);
+        }
+
+        @Bean
+        SysUserMapper sysUserMapper() {
+            return mock(SysUserMapper.class);
+        }
+
+        @Bean
+        UserProfileMapper userProfileMapper() {
+            return mock(UserProfileMapper.class);
+        }
+
+        @Bean
+        SysRoleMapper sysRoleMapper() {
+            return mock(SysRoleMapper.class);
+        }
+
+        @Bean
+        SysPermissionMapper sysPermissionMapper() {
+            return mock(SysPermissionMapper.class);
+        }
+
+        @Bean
+        SysUserRoleMapper sysUserRoleMapper() {
+            return mock(SysUserRoleMapper.class);
+        }
+
+        @Bean
+        SysRolePermissionMapper sysRolePermissionMapper() {
+            return mock(SysRolePermissionMapper.class);
+        }
+
+        @Bean
+        RefreshSessionMapper refreshSessionMapper() {
+            return mock(RefreshSessionMapper.class);
+        }
+
+        @Bean
+        ServiceClientMapper serviceClientMapper() {
+            return mock(ServiceClientMapper.class);
+        }
+
+        @Bean
+        ServiceClientCredentialMapper serviceClientCredentialMapper() {
+            return mock(ServiceClientCredentialMapper.class);
+        }
+
+        @Bean
+        PlatformPublicConfigMapper platformPublicConfigMapper() {
+            return mock(PlatformPublicConfigMapper.class);
+        }
+
+        @Bean
+        LoginAuditMapper loginAuditMapper() {
+            return mock(LoginAuditMapper.class);
+        }
+
+        @Bean
+        AuditEventMapper auditEventMapper() {
+            return mock(AuditEventMapper.class);
+        }
+
+        @Bean
+        OutboxEventMapper outboxEventMapper() {
+            return mock(OutboxEventMapper.class);
+        }
+
+        @Bean
+        OutboxSequenceMapper outboxSequenceMapper() {
+            return mock(OutboxSequenceMapper.class);
+        }
+
+        @Bean
+        InboxEventMapper inboxEventMapper() {
+            return mock(InboxEventMapper.class);
+        }
+
+        @Bean
+        IdempotencyRecordMapper idempotencyRecordMapper() {
+            return mock(IdempotencyRecordMapper.class);
+        }
     }
 }
