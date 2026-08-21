@@ -6,11 +6,57 @@ spring:
     name: educloud-gateway
   main:
     web-application-type: reactive
+  config:
+    import: "optional:nacos:educloud-gateway.yaml?group=${NACOS_GATEWAY_CONFIG_GROUP:EDUCLOUD_GATEWAY}&refreshEnabled=false"
   cloud:
     gateway:
       discovery:
         locator:
           enabled: false
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${NACOS_GATEWAY_USERNAME:}
+      password: ${NACOS_GATEWAY_PASSWORD:}
+      config:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:}
+        group: ${NACOS_GATEWAY_CONFIG_GROUP:EDUCLOUD_GATEWAY}
+        username: ${NACOS_GATEWAY_USERNAME:}
+        password: ${NACOS_GATEWAY_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        username: ${NACOS_GATEWAY_USERNAME:}
+        password: ${NACOS_GATEWAY_PASSWORD:}
+        register-enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+
+educloud:
+  gateway:
+    environment: ${EDUCLOUD_ENVIRONMENT:local}
+    security:
+      jwks-json: ${GATEWAY_JWKS_JSON:}
+      jwks-location: ${GATEWAY_JWKS_LOCATION:}
+      issuer: ${GATEWAY_JWT_ISSUER:}
+      audience: ${GATEWAY_JWT_AUDIENCE:educloud-api}
+      clock-skew: ${GATEWAY_JWT_CLOCK_SKEW:30s}
+    ratelimit:
+      hmac-secret-base64: ${GATEWAY_RATE_LIMIT_HMAC_SECRET:}
+    web:
+      allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175}
+      trusted-proxy-cidrs: []
+      trusted-proxy-hops: 1
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      namespace: ${NACOS_GATEWAY_NAMESPACE:}
+      config-group: ${NACOS_GATEWAY_CONFIG_GROUP:EDUCLOUD_GATEWAY}
+      discovery-group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+      username: ${NACOS_GATEWAY_USERNAME:}
+      password: ${NACOS_GATEWAY_PASSWORD:}
 
 management:
   server:

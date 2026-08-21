@@ -1,0 +1,206 @@
+{
+  "properties": [
+    {
+      "name": "educloud.gateway.environment",
+      "type": "java.lang.String",
+      "description": "部署环境标识，只允许小写字母、数字和连字符。",
+      "defaultValue": "local"
+    },
+    {
+      "name": "educloud.gateway.security.jwks-json",
+      "type": "java.lang.String",
+      "description": "用于验证 JWT 的内联公开 JWKS；与 jwks-location 必须且只能配置一个。"
+    },
+    {
+      "name": "educloud.gateway.security.jwks-location",
+      "type": "org.springframework.core.io.Resource",
+      "description": "用于验证 JWT 的公开 JWKS 资源；与 jwks-json 必须且只能配置一个。"
+    },
+    {
+      "name": "educloud.gateway.security.issuer",
+      "type": "java.lang.String",
+      "description": "JWT issuer 精确匹配值。"
+    },
+    {
+      "name": "educloud.gateway.security.audience",
+      "type": "java.lang.String",
+      "description": "JWT 必须包含的逻辑 audience。",
+      "defaultValue": "educloud-api"
+    },
+    {
+      "name": "educloud.gateway.security.clock-skew",
+      "type": "java.time.Duration",
+      "description": "JWT 时间声明允许的时钟偏差，范围为 0 到 120 秒。",
+      "defaultValue": "30s"
+    },
+    {
+      "name": "educloud.gateway.ratelimit.hmac-secret-base64",
+      "type": "java.lang.String",
+      "description": "限流维度 HMAC-SHA256 密钥，Base64 解码后至少 32 字节；仅环境变量或挂载 Secret，不写入 Nacos/Git。"
+    },
+    {
+      "name": "educloud.gateway.ratelimit.ordinary.requests",
+      "type": "java.lang.Integer",
+      "description": "普通请求每周期补充的令牌数。",
+      "defaultValue": 20
+    },
+    {
+      "name": "educloud.gateway.ratelimit.ordinary.period",
+      "type": "java.time.Duration",
+      "description": "普通请求令牌补充周期。",
+      "defaultValue": "1s"
+    },
+    {
+      "name": "educloud.gateway.ratelimit.ordinary.burst",
+      "type": "java.lang.Integer",
+      "description": "普通请求桶容量。",
+      "defaultValue": 40
+    },
+    {
+      "name": "educloud.gateway.ratelimit.login-ip.requests",
+      "type": "java.lang.Integer",
+      "description": "单登录 IP 每周期补充的令牌数。",
+      "defaultValue": 10
+    },
+    {
+      "name": "educloud.gateway.ratelimit.login-ip.period",
+      "type": "java.time.Duration",
+      "description": "单登录 IP 令牌补充周期。",
+      "defaultValue": "1m"
+    },
+    {
+      "name": "educloud.gateway.ratelimit.login-ip.burst",
+      "type": "java.lang.Integer",
+      "description": "单登录 IP 桶容量。",
+      "defaultValue": 10
+    },
+    {
+      "name": "educloud.gateway.ratelimit.login-account.requests",
+      "type": "java.lang.Integer",
+      "description": "单登录账号每周期补充的令牌数。",
+      "defaultValue": 5
+    },
+    {
+      "name": "educloud.gateway.ratelimit.login-account.period",
+      "type": "java.time.Duration",
+      "description": "单登录账号令牌补充周期。",
+      "defaultValue": "5m"
+    },
+    {
+      "name": "educloud.gateway.ratelimit.login-account.burst",
+      "type": "java.lang.Integer",
+      "description": "单登录账号桶容量。",
+      "defaultValue": 5
+    },
+    {
+      "name": "educloud.gateway.ratelimit.payment-callback.requests",
+      "type": "java.lang.Integer",
+      "description": "支付回调每周期补充的令牌数。",
+      "defaultValue": 60
+    },
+    {
+      "name": "educloud.gateway.ratelimit.payment-callback.period",
+      "type": "java.time.Duration",
+      "description": "支付回调令牌补充周期。",
+      "defaultValue": "1m"
+    },
+    {
+      "name": "educloud.gateway.ratelimit.payment-callback.burst",
+      "type": "java.lang.Integer",
+      "description": "支付回调桶容量。",
+      "defaultValue": 60
+    },
+    {
+      "name": "educloud.gateway.web.allowed-origins",
+      "type": "java.util.List<java.lang.String>",
+      "description": "允许携带凭据的精确 Web Origin 列表；非本地环境只允许 HTTPS。"
+    },
+    {
+      "name": "educloud.gateway.web.trusted-proxy-cidrs",
+      "type": "java.util.List<java.lang.String>",
+      "description": "允许提供转发客户端地址的可信代理 CIDR 列表。",
+      "defaultValue": []
+    },
+    {
+      "name": "educloud.gateway.web.trusted-proxy-hops",
+      "type": "java.lang.Integer",
+      "description": "从转发地址链右侧信任的代理跳数。",
+      "defaultValue": 1
+    },
+    {
+      "name": "educloud.gateway.web.global-body-limit",
+      "type": "org.springframework.util.unit.DataSize",
+      "description": "普通 API 请求体上限。",
+      "defaultValue": "1MB"
+    },
+    {
+      "name": "educloud.gateway.web.auth-body-limit",
+      "type": "org.springframework.util.unit.DataSize",
+      "description": "登录、注册和刷新请求体上限。",
+      "defaultValue": "16KB"
+    },
+    {
+      "name": "educloud.gateway.web.payment-callback-body-limit",
+      "type": "org.springframework.util.unit.DataSize",
+      "description": "支付回调请求体上限。",
+      "defaultValue": "256KB"
+    },
+    {
+      "name": "educloud.gateway.web.header-limit",
+      "type": "org.springframework.util.unit.DataSize",
+      "description": "HTTP 请求头总大小上限。",
+      "defaultValue": "16KB"
+    },
+    {
+      "name": "educloud.gateway.web.initial-line-limit",
+      "type": "org.springframework.util.unit.DataSize",
+      "description": "HTTP 初始请求行上限。",
+      "defaultValue": "8KB"
+    },
+    {
+      "name": "educloud.gateway.web.connect-timeout",
+      "type": "java.time.Duration",
+      "description": "下游 TCP 连接超时。",
+      "defaultValue": "2s"
+    },
+    {
+      "name": "educloud.gateway.web.response-timeout",
+      "type": "java.time.Duration",
+      "description": "下游响应超时。",
+      "defaultValue": "15s"
+    },
+    {
+      "name": "educloud.gateway.nacos.server-addr",
+      "type": "java.lang.String",
+      "description": "Gateway 专用 Nacos 服务端地址。",
+      "defaultValue": "127.0.0.1:8848"
+    },
+    {
+      "name": "educloud.gateway.nacos.namespace",
+      "type": "java.lang.String",
+      "description": "Gateway 使用的 Nacos namespace ID。"
+    },
+    {
+      "name": "educloud.gateway.nacos.config-group",
+      "type": "java.lang.String",
+      "description": "Gateway 普通配置所在的 Nacos group。",
+      "defaultValue": "EDUCLOUD_GATEWAY"
+    },
+    {
+      "name": "educloud.gateway.nacos.discovery-group",
+      "type": "java.lang.String",
+      "description": "Gateway 服务发现使用的 Nacos group。",
+      "defaultValue": "EDUCLOUD_SERVICES"
+    },
+    {
+      "name": "educloud.gateway.nacos.username",
+      "type": "java.lang.String",
+      "description": "Gateway 专用 Nacos 最小权限账号。"
+    },
+    {
+      "name": "educloud.gateway.nacos.password",
+      "type": "java.lang.String",
+      "description": "Gateway 专用 Nacos 账号密码；仅环境变量或挂载 Secret，不写入 Nacos/Git。"
+    }
+  ]
+}
