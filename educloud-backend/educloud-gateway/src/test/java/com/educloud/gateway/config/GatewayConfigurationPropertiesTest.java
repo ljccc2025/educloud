@@ -77,6 +77,31 @@ class GatewayConfigurationPropertiesTest {
         GatewayRateLimitProperties zeroRate = validRateLimit();
         zeroRate.setOrdinary(new GatewayRateLimitProperties.Bucket(0, Duration.ofSeconds(1), 1));
         assertThat(messages(zeroRate)).anyMatch(message -> message.contains("positive"));
+
+        GatewayRateLimitProperties excessiveRate = validRateLimit();
+        excessiveRate.setOrdinary(new GatewayRateLimitProperties.Bucket(
+                1_000_001, Duration.ofSeconds(1), 1_000_001));
+        assertThat(messages(excessiveRate)).anyMatch(message -> message.contains("1000000"));
+
+        GatewayRateLimitProperties excessiveBurst = validRateLimit();
+        excessiveBurst.setOrdinary(new GatewayRateLimitProperties.Bucket(
+                1, Duration.ofSeconds(1), 1_000_001));
+        assertThat(messages(excessiveBurst)).anyMatch(message -> message.contains("1000000"));
+
+        GatewayRateLimitProperties subMillisecondPeriod = validRateLimit();
+        subMillisecondPeriod.setOrdinary(new GatewayRateLimitProperties.Bucket(
+                1, Duration.ofNanos(1), 1));
+        assertThat(messages(subMillisecondPeriod)).anyMatch(message -> message.contains("1 millisecond"));
+
+        GatewayRateLimitProperties excessivePeriod = validRateLimit();
+        excessivePeriod.setOrdinary(new GatewayRateLimitProperties.Bucket(
+                1, Duration.ofDays(1).plusMillis(1), 1));
+        assertThat(messages(excessivePeriod)).anyMatch(message -> message.contains("24 hours"));
+
+        GatewayRateLimitProperties excessiveExpiry = validRateLimit();
+        excessiveExpiry.setOrdinary(new GatewayRateLimitProperties.Bucket(
+                1, Duration.ofHours(24), 8));
+        assertThat(messages(excessiveExpiry)).anyMatch(message -> message.contains("7 days"));
     }
 
     @Test

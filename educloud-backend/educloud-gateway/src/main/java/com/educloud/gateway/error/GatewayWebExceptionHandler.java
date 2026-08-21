@@ -42,7 +42,9 @@ public final class GatewayWebExceptionHandler implements WebExceptionHandler, Or
         }
         GatewayErrorCode code = map(failure);
         if (code == GatewayErrorCode.INTERNAL_ERROR) {
-            LOGGER.error("Unhandled gateway exception requestId={}", requestId(exchange), failure);
+            LOGGER.error(
+                    "Unhandled gateway exception requestId={} category=internal exceptionType={}",
+                    requestId(exchange), failure.getClass().getName());
         }
         return errorWriter.write(exchange, GatewayFailure.of(code));
     }

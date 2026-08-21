@@ -1,11 +1,15 @@
 package com.educloud.gateway.error;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.educloud.gateway.web.GatewayExchangeAttributes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.netty.handler.timeout.ReadTimeoutException;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.support.NotFoundException;
 import org.springframework.core.codec.DecodingException;
 import org.springframework.core.io.buffer.DataBufferLimitException;
@@ -77,6 +81,25 @@ class GatewayWebExceptionHandlerTest {
         assertThatThrownBy(() -> handler().handle(committed, failure).block())
                 .isSameAs(failure);
         assertThat(committed.getResponse().getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+    }
+
+    @Test
+    void unknownFailuresDoNotCopyThrowableDetailsIntoLogs() {
+        Logger logger = (Logger) LoggerFactory.getLogger(GatewayWebExceptionHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            handler().handle(exchange(), new IllegalStateException("Bearer sensitive-token")).block();
+
+            assertThat(appender.list).singleElement().satisfies(event -> {
+                assertThat(event.getFormattedMessage()).doesNotContain("sensitive-token");
+                assertThat(event.getThrowableProxy()).isNull();
+            });
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     private static GatewayWebExceptionHandler handler() {

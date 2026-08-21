@@ -17,9 +17,19 @@ for index = 1, bucketCount do
     return redis.error_reply('invalid token bucket rule')
   end
 
-  local state = redis.call('HMGET', KEYS[index], 'tokens', 'timestamp')
-  local tokens = tonumber(state[1]) or burst
-  local timestamp = tonumber(state[2]) or now
+  local exists = redis.call('EXISTS', KEYS[index])
+  local tokens = burst
+  local timestamp = now
+  if exists == 1 then
+    local state = redis.call('HMGET', KEYS[index], 'tokens', 'timestamp')
+    local storedTtl = redis.call('PTTL', KEYS[index])
+    tokens = tonumber(state[1])
+    timestamp = tonumber(state[2])
+    if not tokens or not timestamp or storedTtl < 0
+        or tokens < 0 or tokens > burst or timestamp < 0 or timestamp > now then
+      return redis.error_reply('corrupt token bucket state')
+    end
+  end
   local elapsed = math.max(0, now - timestamp)
   local available = math.min(burst, tokens + (elapsed * requests / period))
   local ttl = math.max(period, math.ceil(burst * period / requests))

@@ -2,6 +2,7 @@ package com.educloud.gateway.config;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -14,6 +15,11 @@ import java.util.Base64;
 @ConfigurationProperties("educloud.gateway.ratelimit")
 @Validated
 public final class GatewayRateLimitProperties {
+
+    private static final int MAX_BUCKET_CAPACITY = 1_000_000;
+    private static final Duration MIN_BUCKET_PERIOD = Duration.ofMillis(1);
+    private static final Duration MAX_BUCKET_PERIOD = Duration.ofHours(24);
+    private static final Duration MAX_BUCKET_EXPIRY = Duration.ofDays(7);
 
     @NotBlank
     private String hmacSecretBase64;
@@ -87,18 +93,38 @@ public final class GatewayRateLimitProperties {
     }
 
     public record Bucket(
-            @Positive(message = "requests must be positive") int requests,
+            @Positive(message = "requests must be positive")
+            @Max(value = MAX_BUCKET_CAPACITY, message = "requests must not exceed 1000000")
+            int requests,
             @NotNull Duration period,
-            @Positive(message = "burst must be positive") int burst) {
+            @Positive(message = "burst must be positive")
+            @Max(value = MAX_BUCKET_CAPACITY, message = "burst must not exceed 1000000")
+            int burst) {
 
-        @AssertTrue(message = "period must be positive")
-        public boolean isPeriodPositive() {
-            return period != null && !period.isZero() && !period.isNegative();
+        @AssertTrue(message = "period must be between 1 millisecond and 24 hours")
+        public boolean isPeriodWithinSafetyBounds() {
+            return period != null
+                    && period.compareTo(MIN_BUCKET_PERIOD) >= 0
+                    && period.compareTo(MAX_BUCKET_PERIOD) <= 0;
         }
 
         @AssertTrue(message = "burst must be greater than or equal to requests")
         public boolean isBurstCapacityValid() {
             return burst >= requests;
+        }
+
+        @AssertTrue(message = "derived bucket expiry must not exceed 7 days")
+        public boolean isExpiryWithinSafetyBounds() {
+            if (requests <= 0
+                    || burst <= 0
+                    || period == null
+                    || period.compareTo(MIN_BUCKET_PERIOD) < 0
+                    || period.compareTo(MAX_BUCKET_PERIOD) > 0) {
+                return true;
+            }
+            long periodMillis = period.toMillis();
+            long expiryMillis = (periodMillis * burst + requests - 1L) / requests;
+            return expiryMillis <= MAX_BUCKET_EXPIRY.toMillis();
         }
     }
 }

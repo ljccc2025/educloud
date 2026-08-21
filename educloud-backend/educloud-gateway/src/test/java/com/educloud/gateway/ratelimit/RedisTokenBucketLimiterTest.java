@@ -85,10 +85,36 @@ class RedisTokenBucketLimiterTest {
                 .getContentAsString(StandardCharsets.UTF_8)
                 .toUpperCase(Locale.ROOT);
 
-        assertThat(script).contains("REDIS.CALL('TIME')", "HMGET", "HSET", "PEXPIRE");
+        assertThat(script).contains(
+                "REDIS.CALL('TIME')", "EXISTS", "HMGET", "PTTL", "HSET", "PEXPIRE",
+                "CORRUPT TOKEN BUCKET STATE");
         assertThat(Pattern.compile("REDIS\\.CALL\\(['\"]KEYS['\"]").matcher(script).find()).isFalse();
         assertThat(script).doesNotContain("SYSTEM.CURRENTTIMEMILLIS", "INSTANT.NOW");
         assertThat(script.indexOf("RETURN {0")).isLessThan(script.indexOf("HSET"));
+    }
+
+    @Test
+    void rejectsProgrammaticRulesOutsideTheValidatedSafetyBounds() {
+        assertThatThrownBy(() -> new BucketRule(
+                1_000_001, Duration.ofSeconds(1), 1_000_001))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("safety bounds");
+        assertThatThrownBy(() -> new BucketRule(
+                1, Duration.ofSeconds(1), 1_000_001))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("safety bounds");
+        assertThatThrownBy(() -> new BucketRule(
+                1, Duration.ofNanos(1), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("safety bounds");
+        assertThatThrownBy(() -> new BucketRule(
+                1, Duration.ofDays(1).plusMillis(1), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("safety bounds");
+        assertThatThrownBy(() -> new BucketRule(
+                1, Duration.ofHours(24), 8))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("safety bounds");
     }
 
     private static ReactiveStringRedisTemplate redisReturning(List<?> result) {

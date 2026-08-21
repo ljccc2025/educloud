@@ -20,6 +20,7 @@ import reactor.core.publisher.Flux;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -121,6 +122,28 @@ class RedisTokenBucketLimiterIT {
         assertThat(limiter.acquire(List.of(expiring)).block(BLOCK_TIMEOUT).allowed()).isTrue();
         await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> assertThat(
                 redis.hasKey(expiring.key()).block(BLOCK_TIMEOUT)).isFalse());
+    }
+
+    @Test
+    void failsClosedForMalformedOrPersistentBucketState() {
+        BucketRequest malformed = limiter.bucket(
+                "ordinary", DIGEST_A, new BucketRule(2, Duration.ofSeconds(1), 2));
+        redis.opsForHash().putAll(malformed.key(), Map.of(
+                "tokens", "not-a-number",
+                "timestamp", "1")).block(BLOCK_TIMEOUT);
+        redis.expire(malformed.key(), Duration.ofSeconds(10)).block(BLOCK_TIMEOUT);
+
+        assertThatThrownBy(() -> limiter.acquire(List.of(malformed)).block(BLOCK_TIMEOUT))
+                .isInstanceOf(RedisTokenBucketLimiter.RateLimitDependencyException.class);
+
+        BucketRequest persistent = limiter.bucket(
+                "login-ip", DIGEST_B, new BucketRule(1, Duration.ofSeconds(1), 1));
+        redis.opsForHash().putAll(persistent.key(), Map.of(
+                "tokens", "1",
+                "timestamp", "1")).block(BLOCK_TIMEOUT);
+
+        assertThatThrownBy(() -> limiter.acquire(List.of(persistent)).block(BLOCK_TIMEOUT))
+                .isInstanceOf(RedisTokenBucketLimiter.RateLimitDependencyException.class);
     }
 
     @Test
