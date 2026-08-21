@@ -3,6 +3,7 @@ package com.educloud.gateway.security;
 import com.educloud.gateway.error.GatewayErrorCode;
 import com.educloud.gateway.error.GatewayErrorWriter;
 import com.educloud.gateway.error.GatewayFailure;
+import com.educloud.gateway.observability.GatewayMetrics;
 import com.educloud.gateway.route.AccessDecision;
 import com.educloud.gateway.route.AccessPolicy;
 import com.educloud.gateway.web.GatewayExchangeAttributes;
@@ -22,14 +23,24 @@ public final class SessionValidationWebFilter implements WebFilter {
     private final AccessPolicy accessPolicy;
     private final SessionVerifier sessionVerifier;
     private final GatewayErrorWriter errorWriter;
+    private final GatewayMetrics metrics;
 
     public SessionValidationWebFilter(
             AccessPolicy accessPolicy,
             SessionVerifier sessionVerifier,
             GatewayErrorWriter errorWriter) {
+        this(accessPolicy, sessionVerifier, errorWriter, GatewayMetrics.noOp());
+    }
+
+    public SessionValidationWebFilter(
+            AccessPolicy accessPolicy,
+            SessionVerifier sessionVerifier,
+            GatewayErrorWriter errorWriter,
+            GatewayMetrics metrics) {
         this.accessPolicy = Objects.requireNonNull(accessPolicy, "accessPolicy");
         this.sessionVerifier = Objects.requireNonNull(sessionVerifier, "sessionVerifier");
         this.errorWriter = Objects.requireNonNull(errorWriter, "errorWriter");
+        this.metrics = Objects.requireNonNull(metrics, "metrics");
     }
 
     @Override
@@ -60,6 +71,9 @@ public final class SessionValidationWebFilter implements WebFilter {
         if (subject == null || subject.isBlank()
                 || sessionId == null || sessionId.isBlank()
                 || tokenVersion == null || tokenVersion < 0) {
+            metrics.recordSessionCheck(
+                    GatewayMetrics.SessionResult.REJECTED,
+                    GatewayExchangeAttributes.routeId(exchange));
             return errorWriter.write(exchange, GatewayFailure.of(GatewayErrorCode.UNAUTHENTICATED));
         }
 
@@ -67,6 +81,8 @@ public final class SessionValidationWebFilter implements WebFilter {
                         () -> sessionVerifier.verify(subject, sessionId, tokenVersion))
                 .onErrorReturn(SessionCheckResult.DEPENDENCY_ERROR);
         return sessionCheck
+                .doOnNext(result -> metrics.recordSessionCheck(
+                        metricResult(result), GatewayExchangeAttributes.routeId(exchange)))
                 .flatMap(result -> switch (result) {
                     case ACTIVE -> chain.filter(exchange);
                     case MISSING, REVOKED, SUBJECT_MISMATCH, VERSION_MISMATCH ->
@@ -75,6 +91,16 @@ public final class SessionValidationWebFilter implements WebFilter {
                             errorWriter.write(exchange,
                                     GatewayFailure.of(GatewayErrorCode.DEPENDENCY_UNAVAILABLE));
                 });
+    }
+
+    private static GatewayMetrics.SessionResult metricResult(SessionCheckResult result) {
+        return switch (result) {
+            case ACTIVE -> GatewayMetrics.SessionResult.ACTIVE;
+            case MISSING, REVOKED, SUBJECT_MISMATCH, VERSION_MISMATCH ->
+                    GatewayMetrics.SessionResult.REJECTED;
+            case CORRUPT -> GatewayMetrics.SessionResult.CORRUPT;
+            case DEPENDENCY_ERROR -> GatewayMetrics.SessionResult.DEPENDENCY_ERROR;
+        };
     }
 
     private static String stringClaim(Jwt jwt, String name) {

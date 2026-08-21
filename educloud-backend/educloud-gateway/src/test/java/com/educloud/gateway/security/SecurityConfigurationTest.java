@@ -145,7 +145,8 @@ class SecurityConfigurationTest {
         GatewayAccessDeniedHandler deniedHandler = new GatewayAccessDeniedHandler(
                 writer, beans.getBeanProvider(GatewayMetrics.class));
         SecurityWebFilterChain securityChain = new SecurityConfiguration().gatewaySecurityFilterChain(
-                ServerHttpSecurity.http(), decoder, accessPolicy, sessions, writer, entryPoint, deniedHandler);
+                ServerHttpSecurity.http(), decoder, accessPolicy, sessions, writer,
+                GatewayMetrics.noOp(), entryPoint, deniedHandler);
         AtomicInteger downstreamCalls = new AtomicInteger();
         WebHandler downstream = exchange -> {
             downstreamCalls.incrementAndGet();

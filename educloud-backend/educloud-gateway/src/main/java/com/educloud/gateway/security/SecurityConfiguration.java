@@ -3,6 +3,7 @@ package com.educloud.gateway.security;
 import com.educloud.gateway.error.GatewayAccessDeniedHandler;
 import com.educloud.gateway.error.GatewayAuthenticationEntryPoint;
 import com.educloud.gateway.error.GatewayErrorWriter;
+import com.educloud.gateway.observability.GatewayMetrics;
 import com.educloud.gateway.route.AccessDecision;
 import com.educloud.gateway.route.AccessPolicy;
 import org.springframework.context.annotation.Bean;
@@ -28,10 +29,11 @@ public class SecurityConfiguration {
             AccessPolicy accessPolicy,
             SessionVerifier sessionVerifier,
             GatewayErrorWriter errorWriter,
+            GatewayMetrics metrics,
             GatewayAuthenticationEntryPoint authenticationEntryPoint,
             GatewayAccessDeniedHandler accessDeniedHandler) {
         SessionValidationWebFilter sessionValidationWebFilter = new SessionValidationWebFilter(
-                accessPolicy, sessionVerifier, errorWriter);
+                accessPolicy, sessionVerifier, errorWriter, metrics);
         ServerWebExchangeMatcher publicAndCallbackMatcher = publicAndCallbackMatcher(accessPolicy);
 
         return http

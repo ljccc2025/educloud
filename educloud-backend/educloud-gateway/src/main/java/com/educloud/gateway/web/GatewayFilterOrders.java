@@ -3,6 +3,7 @@ package com.educloud.gateway.web;
 public final class GatewayFilterOrders {
 
     public static final int REQUEST_ID = -300;
+    public static final int OBSERVATION = -295;
     public static final int SECURITY_HEADERS = -290;
     public static final int INTERNAL_PATH = -280;
     public static final int BODY_CACHE = -270;

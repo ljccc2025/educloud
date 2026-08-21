@@ -51,10 +51,11 @@ public final class GatewayExchangeAttributes {
 
     public static String routeId(ServerWebExchange exchange) {
         Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
-        if (route != null && ROUTE_IDS.contains(route.getId())) {
-            return route.getId();
-        }
-        return "unmatched";
+        return sanitizeRouteId(route == null ? null : route.getId());
+    }
+
+    public static String sanitizeRouteId(String routeId) {
+        return routeId != null && ROUTE_IDS.contains(routeId) ? routeId : "unmatched";
     }
 
     public static void cacheRequestBody(ServerWebExchange exchange, byte[] body) {
