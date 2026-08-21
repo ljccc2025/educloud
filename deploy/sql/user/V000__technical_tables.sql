@@ -44,10 +44,10 @@ CREATE TABLE outbox_event (
 -- Outbox 水位：业务事务锁定并递增该行，保证 source_sequence 按提交顺序单调。
 CREATE TABLE outbox_sequence (
   source_name VARCHAR(64) NOT NULL,
-  last_value BIGINT NOT NULL,
+  `last_value` BIGINT NOT NULL,
   PRIMARY KEY (source_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-INSERT INTO outbox_sequence (source_name, last_value) VALUES ('educloud-user', 0);
+INSERT INTO outbox_sequence (source_name, `last_value`) VALUES ('educloud-user', 0);
 
 -- Inbox：M03 暂无上游事件源（File 事件 M04 才出现），建表作为技术模板；启用时补充消费者。
 CREATE TABLE inbox_event (

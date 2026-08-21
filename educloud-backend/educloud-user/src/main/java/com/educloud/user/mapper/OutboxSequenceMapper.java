@@ -11,9 +11,9 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface OutboxSequenceMapper extends BaseMapper<OutboxSequenceEntity> {
 
-    @Update("UPDATE outbox_sequence SET last_value = last_value + 1 WHERE source_name = #{sourceName}")
+    @Update("UPDATE outbox_sequence SET `last_value` = `last_value` + 1 WHERE source_name = #{sourceName}")
     int increment(@Param("sourceName") String sourceName);
 
-    @Select("SELECT last_value FROM outbox_sequence WHERE source_name = #{sourceName}")
+    @Select("SELECT `last_value` FROM outbox_sequence WHERE source_name = #{sourceName}")
     Long selectValue(@Param("sourceName") String sourceName);
 }
