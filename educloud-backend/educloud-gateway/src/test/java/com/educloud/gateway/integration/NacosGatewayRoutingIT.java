@@ -129,7 +129,7 @@ class NacosGatewayRoutingIT {
                             .withStartupTimeout(Duration.ofMinutes(2)));
             nacos.start();
 
-            String serverAddr = nacos.getHost() + ":" + ports.http();
+            String serverAddr = "127.0.0.1:" + ports.http();
             admin = new NacosAdminClient("http://" + serverAddr + "/nacos", new ObjectMapper());
             await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
                     assertThat(admin.login("nacos", "nacos")).isNotBlank());
@@ -236,7 +236,10 @@ class NacosGatewayRoutingIT {
 
         AtomicReference<String> websocketReply = new AtomicReference<>();
         HttpClient.create()
-                .headers(headers -> headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .headers(headers -> {
+                    headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+                    headers.set(HttpHeaders.ORIGIN, "https://gateway-it.educloud.local");
+                })
                 .websocket()
                 .uri("ws://127.0.0.1:" + gatewayPort + "/ws/v1/live/room-one")
                 .handle((inbound, outbound) -> outbound.sendString(Mono.just("ping"))
@@ -258,7 +261,8 @@ class NacosGatewayRoutingIT {
         try {
             await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(
                     adminNaming.selectInstances("educloud-recommendation", DISCOVERY_GROUP, true)).isEmpty());
-            assertThat(authorizedGet("/api/v1/recommendations/one").status()).isEqualTo(503);
+            await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> assertThat(
+                    authorizedGet("/api/v1/recommendations/one").status()).isEqualTo(503));
         } finally {
             register("educloud-recommendation", recommendation.port());
             await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(
@@ -293,6 +297,7 @@ class NacosGatewayRoutingIT {
         properties.put("management.server.port", "0");
         properties.put("spring.main.banner-mode", "off");
         properties.put("spring.cloud.gateway.discovery.locator.enabled", "false");
+        properties.put("spring.cloud.loadbalancer.cache.enabled", "false");
         properties.put("spring.cloud.nacos.server-addr", serverAddr);
         properties.put("spring.cloud.nacos.username", gatewayUsername);
         properties.put("spring.cloud.nacos.password", gatewayPassword);
@@ -312,7 +317,7 @@ class NacosGatewayRoutingIT {
         properties.put("educloud.gateway.security.issuer", ISSUER);
         properties.put("educloud.gateway.security.audience", AUDIENCE);
         properties.put("educloud.gateway.ratelimit.hmac-secret-base64", randomBase64(32));
-        properties.put("educloud.gateway.web.allowed-origins[0]", "http://localhost:5173");
+        properties.put("educloud.gateway.web.allowed-origins[0]", "https://gateway-it.educloud.local");
         properties.put("educloud.gateway.nacos.server-addr", serverAddr);
         properties.put("educloud.gateway.nacos.namespace", namespace);
         properties.put("educloud.gateway.nacos.config-group", CONFIG_GROUP);

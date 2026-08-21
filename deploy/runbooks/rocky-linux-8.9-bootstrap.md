@@ -192,7 +192,7 @@ unset NACOS_ADMIN_USERNAME
 创建一次性的 0700 目录并生成短期 RSA/JWKS/JWT 与 HMAC 测试材料：
 
 ```bash
-GATEWAY_TEST_MATERIAL_DIR="$(mktemp -d)"
+GATEWAY_TEST_MATERIAL_DIR="$(mktemp -d /tmp/educloud-gateway.XXXXXX)"
 chmod 700 "$GATEWAY_TEST_MATERIAL_DIR"
 
 bash deploy/scripts/generate-gateway-test-material.sh \
@@ -211,3 +211,69 @@ unset GATEWAY_TEST_MATERIAL_DIR
 ```
 
 不要停止共享 Redis/Nacos，也不要把 `.env`、私钥、JWT、HMAC Secret 或 Nacos 管理员凭据提交到 Git。
+
+## 9. 执行 M02 Gateway Rocky 启动门禁
+
+前置要求：smoke 脚本依赖 `redis-cli`（缺失时执行 `dnf install -y redis`）；`.env` 必须能被 bash source（值含空格的键需加引号，仓库模板已修正，历史生成的 `.env` 需手动修正 `ELASTICSEARCH_JAVA_OPTS="-Xms1g -Xmx1g"` 后再继续）。
+
+先完成默认构建和容器集成测试；`-Pintegration` 会创建独立的 Redis/Nacos Testcontainers，不会连接或清理共享实例：
+
+```bash
+mvn -f educloud-backend/pom.xml \
+  -pl educloud-gateway -am clean verify
+
+mvn -f educloud-backend/pom.xml \
+  -pl educloud-gateway -am clean verify -Pintegration
+```
+
+集成测试结束后再生成一套全新的短期材料，避免 15 分钟 JWT 在构建期间过期。不要复用第 8 节的旧 Token；如果第 8 节的演示目录仍存在，先按该节的清理命令删除，再执行：
+
+```bash
+GATEWAY_TEST_MATERIAL_DIR="$(mktemp -d /tmp/educloud-gateway.XXXXXX)"
+chmod 700 "$GATEWAY_TEST_MATERIAL_DIR"
+
+bash deploy/scripts/generate-gateway-test-material.sh \
+  --output "$GATEWAY_TEST_MATERIAL_DIR"
+
+set -a
+. deploy/docker-compose/.env
+. "$GATEWAY_TEST_MATERIAL_DIR/runtime.env"
+set +a
+
+gateway_jar='educloud-backend/educloud-gateway/target/educloud-gateway-1.0.0-SNAPSHOT.jar'
+```
+
+先验证缺少 JWKS 时脚本会在启动 Java 前失败；该失败路径不会删除测试材料：
+
+```bash
+if env -u GATEWAY_JWKS_LOCATION \
+  bash deploy/tests/gateway-rocky-smoke-tests.sh \
+  "$gateway_jar" "$GATEWAY_TEST_MATERIAL_DIR"; then
+  echo 'FAIL: 缺少 JWKS 时 smoke 脚本错误地返回了成功' >&2
+  exit 1
+fi
+
+if curl --silent --max-time 1 http://127.0.0.1:8080/ >/dev/null 2>&1; then
+  echo 'FAIL: 失败路径启动了 Gateway 进程' >&2
+  exit 1
+fi
+```
+
+再执行正式启动门禁：
+
+```bash
+bash deploy/tests/gateway-rocky-smoke-tests.sh \
+  "$gateway_jar" "$GATEWAY_TEST_MATERIAL_DIR"
+```
+
+脚本只启动并停止 Gateway，不停止共享 Redis/Nacos；它会为 Redis session/限流 key 生成独立的 `m02-smoke-*` 环境前缀，验证 Nacos 注册、liveness/readiness、401/404/503、CORS、安全响应头、ACTIVE 会话和 429/`Retry-After`，并只删除该前缀下的测试 key、PID、日志和整个临时材料目录。脚本结束后还要清除父 shell 中已经 source 的敏感变量：
+
+```bash
+unset GATEWAY_TEST_JWT \
+  GATEWAY_RATE_LIMIT_HMAC_SECRET \
+  GATEWAY_JWKS_LOCATION \
+  GATEWAY_JWT_ISSUER \
+  GATEWAY_JWT_AUDIENCE \
+  GATEWAY_TEST_MATERIAL_DIR \
+  gateway_jar
+```

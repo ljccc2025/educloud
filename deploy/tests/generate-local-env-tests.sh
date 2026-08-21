@@ -64,6 +64,12 @@ if [[ -f "$generated_env" ]]; then
       fail "unexpected Linux file mode: $file_mode"
     fi
   fi
+
+  if (set -a; . "$generated_env" >/dev/null 2>&1; set +a); then
+    pass 'generated environment is sourceable in a shell'
+  else
+    fail 'generated environment cannot be sourced by the shell'
+  fi
 fi
 
 printf 'DO_NOT_OVERWRITE\n' >"$generated_env"
