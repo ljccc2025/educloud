@@ -61,6 +61,13 @@ else
   fail 'Spring Boot repackage execution is missing'
 fi
 
+if grep -A20 -F '<artifactId>maven-failsafe-plugin</artifactId>' "$module_pom" \
+    | grep -Fq '<classesDirectory>${project.build.outputDirectory}</classesDirectory>'; then
+  pass 'Gateway Failsafe uses the unpacked main classes directory'
+else
+  fail 'Gateway Failsafe does not use the unpacked main classes directory'
+fi
+
 if [[ -d "$main_dir" ]]; then
   for forbidden_source in '@Entity' '@Mapper' 'jakarta.persistence' 'javax.persistence'; do
     if grep -REn --exclude-dir=target -- "$forbidden_source" "$main_dir"; then
