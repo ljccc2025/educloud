@@ -40,7 +40,15 @@ if [[ -f "$generated_env" ]]; then
     pass 'replaces every placeholder credential'
   fi
 
-  secret_values="$(grep -E '(_PASSWORD|_PASS|_TOKEN|_IDENTITY_VALUE)=' "$generated_env" | cut -d= -f2-)"
+  nacos_user_pw="$(grep '^NACOS_USER_PASSWORD=' "$generated_env" | cut -d= -f2-)"
+  service_nacos_pw="$(grep '^EDUCLOUD_USER_NACOS_PASSWORD=' "$generated_env" | cut -d= -f2-)"
+  if [[ -n "$nacos_user_pw" && "$nacos_user_pw" == "$service_nacos_pw" ]]; then
+    pass 'Nacos user password and service credential share one generated value'
+  else
+    fail 'Nacos user password and service credential must share one generated value'
+  fi
+  secret_values="$(grep -E '(_PASSWORD|_PASS|_TOKEN|_IDENTITY_VALUE)=' "$generated_env" | \
+    grep -vE '^(NACOS_USER_PASSWORD|EDUCLOUD_USER_NACOS_PASSWORD)=' | cut -d= -f2-)"
   secret_count="$(wc -l <<<"$secret_values" | tr -d ' ')"
   unique_secret_count="$(sort -u <<<"$secret_values" | wc -l | tr -d ' ')"
   if [[ "$secret_count" == "$unique_secret_count" ]]; then

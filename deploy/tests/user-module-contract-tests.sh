@@ -85,6 +85,20 @@ if grep -Fq 'M03 已实现' "$readme"; then
 fi
 pass 'README does not prematurely claim M03 completion'
 
+# 8) M03 e2e 契约：脚本存在、覆盖关键场景、独立 m03-e2e-* 环境前缀、结束后清理
+e2e_script="$repo_root/deploy/tests/user-gateway-e2e-tests.sh"
+provision_script="$repo_root/deploy/scripts/provision-user-nacos.sh"
+require_file "$e2e_script"
+require_file "$provision_script"
+for marker in 'register' 'login' '/api/v1/me' 'refresh' 'logout'   'password/change' 'DISABLED' 'REFRESH_ALREADY_ROTATED'; do
+  grep -Fq "$marker" "$e2e_script" || fail "e2e script must cover $marker"
+done
+grep -Eq 'm03-e2e-\$\{e2e_id\}' "$e2e_script" || fail 'e2e script must use the isolated m03-e2e-* environment prefix'
+grep -Eq 'DELETE FROM sys_user' "$e2e_script" ||   fail 'e2e script must clean up its test users'
+grep -Eq 'redis_call DEL|redis_call --scan' "$e2e_script" ||   fail 'e2e script must clean up its Redis session keys'
+grep -Fq 'NACOS_USER_USERNAME' "$provision_script" ||   fail 'provision-user-nacos.sh must provision the educloud_user identity'
+pass 'M03 e2e contract is covered'
+
 if ((failed > 0)); then
   printf '%s user module contract checks failed
 ' "$failed" >&2

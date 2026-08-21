@@ -10,7 +10,7 @@ main_source="$module_dir/src/main/java"
 test_source="$module_dir/src/test/java"
 image_helper="$test_source/com/educloud/common/testcontainers/TestContainerImages.java"
 dependency_output="$module_dir/target/runtime-dependencies.txt"
-expected_modules=$'educloud-common\neducloud-gateway'
+expected_modules=$'educloud-common\neducloud-gateway\neducloud-user'
 failed=0
 
 pass() {

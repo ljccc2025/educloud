@@ -184,6 +184,55 @@ services:
     networks:
       - educloud-infra
 
+  educloud-user:
+    # M03: 首个业务服务进入本地 Compose；镜像由本地构建（educloud-user:local）提供。
+    image: ${EDUCLOUD_USER_IMAGE:-educloud-user:local}
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "8082"
+      USER_MANAGEMENT_PORT: "8083"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      EDUCLOUD_USER_DB_PASSWORD: ${EDUCLOUD_USER_DB_PASSWORD:?set EDUCLOUD_USER_DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?set RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?set RABBITMQ_DEFAULT_PASS}
+      NACOS_SERVER_ADDR: nacos:8848
+      EDUCLOUD_USER_NACOS_USERNAME: ${EDUCLOUD_USER_NACOS_USERNAME:?set EDUCLOUD_USER_NACOS_USERNAME}
+      EDUCLOUD_USER_NACOS_PASSWORD: ${EDUCLOUD_USER_NACOS_PASSWORD:?set EDUCLOUD_USER_NACOS_PASSWORD}
+      NACOS_GATEWAY_NAMESPACE: ${NACOS_USER_NAMESPACE:-educloud-local}
+      NACOS_GATEWAY_DISCOVERY_GROUP: ${NACOS_GATEWAY_DISCOVERY_GROUP:-EDUCLOUD_SERVICES}
+      USER_JWT_PRIVATE_KEY_LOCATION: /run/secrets/user-jwt-private.pem
+      EDUCLOUD_USER_JWT_ISSUER: ${EDUCLOUD_USER_JWT_ISSUER:-https://issuer.educloud.local}
+      EDUCLOUD_USER_JWT_AUDIENCE: ${EDUCLOUD_USER_JWT_AUDIENCE:-educloud-api}
+      EDUCLOUD_ENVIRONMENT: ${EDUCLOUD_ENVIRONMENT:-local}
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+    ports:
+      - "${USER_PORT:-8082}:8082"
+    volumes:
+      - ${USER_JWT_PRIVATE_KEY_HOST:-../secrets/user-jwt-private.pem}:/run/secrets/user-jwt-private.pem:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8083/actuator/health/readiness >/dev/null 2>&1 || curl -fsS http://127.0.0.1:8083/actuator/health/readiness >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks:
+      - educloud-infra
+
 networks:
   educloud-infra:
     name: educloud-infra

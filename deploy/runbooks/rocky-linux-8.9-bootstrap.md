@@ -277,3 +277,61 @@ unset GATEWAY_TEST_JWT \
   GATEWAY_TEST_MATERIAL_DIR \
   gateway_jar
 ```
+
+## 10. 执行 M03 User 服务验证与真实登录联调
+
+前置要求：第 6/7 节共享依赖全部健康；已运行 M02 门禁并完成 `provision-gateway-nacos.sh`。
+
+先为 User 服务配置 Nacos 身份（创建 `educloud_user` 用户并授予 educloud-local 命名空间下 naming/educloud-user 的 r/w 权限；与 Gateway 身份隔离、幂等）：
+
+```bash
+export NACOS_ADMIN_USERNAME=nacos
+export NACOS_ADMIN_PASSWORD='你的 nacos 管理员密码'
+bash deploy/scripts/provision-user-nacos.sh
+unset NACOS_ADMIN_PASSWORD
+```
+
+生成 User 签名密钥（私钥仅 User 服务持有，公共 JWKS 给 Gateway；`deploy/secrets/` 已 gitignore）：
+
+```bash
+bash deploy/scripts/generate-user-jwt-keys.sh
+```
+
+执行默认构建与容器集成测试（MySQL/RabbitMQ Testcontainers；默认跳过 IT，`-Pintegration` 显式开启）：
+
+```bash
+mvn -f educloud-backend/pom.xml -pl educloud-user -am clean verify
+mvn -f educloud-backend/pom.xml -pl educloud-user -am clean verify -Pintegration
+```
+
+最后执行 User + Gateway 真实登录 e2e 门禁。先 source 环境并补足 e2e 需要的变量（issuer/audience 两服务必须一致；HMAC secret 为 base64、≥32 字节；Redis 停启依赖 compose 目录）：
+
+```bash
+set -a
+. deploy/docker-compose/.env
+export EDUCLOUD_USER_JWT_ISSUER="${EDUCLOUD_USER_JWT_ISSUER:-${GATEWAY_JWT_ISSUER:-https://issuer.educloud.local}}"
+export EDUCLOUD_USER_JWT_AUDIENCE="${EDUCLOUD_USER_JWT_AUDIENCE:-${GATEWAY_JWT_AUDIENCE:-educloud-api}}"
+export GATEWAY_JWT_ISSUER="$EDUCLOUD_USER_JWT_ISSUER"
+export GATEWAY_JWT_AUDIENCE="$EDUCLOUD_USER_JWT_AUDIENCE"
+export GATEWAY_RATE_LIMIT_HMAC_SECRET="${GATEWAY_RATE_LIMIT_HMAC_SECRET:-$(openssl rand -base64 48)}"
+export GATEWAY_ALLOWED_ORIGINS="https://educloud.local"
+export MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}"
+export REDIS_HOST=127.0.0.1
+export RABBITMQ_HOST=127.0.0.1
+set +a
+
+user_jar='educloud-backend/educloud-user/target/educloud-user-1.0.0-SNAPSHOT.jar'
+gateway_jar='educloud-backend/educloud-gateway/target/educloud-gateway-1.0.0-SNAPSHOT.jar'
+
+bash deploy/tests/user-gateway-e2e-tests.sh "$user_jar" "$gateway_jar"
+```
+
+e2e 脚本自行生成隔离密钥材料与 `m03-e2e-*` 环境前缀，覆盖注册/登录//me/并发刷新/宽限外重用撤销/注销/改密/禁用/Redis 失败关闭，结束自动停止两个服务并清理测试用户与 Redis key；共享 MySQL/Redis/RabbitMQ/Nacos 必须保持健康。脚本结束后清除敏感变量：
+
+```bash
+unset GATEWAY_RATE_LIMIT_HMAC_SECRET NACOS_GATEWAY_PASSWORD \
+  EDUCLOUD_USER_NACOS_PASSWORD REDIS_PASSWORD MYSQL_ROOT_PASSWORD \
+  EDUCLOUD_USER_JWT_ISSUER EDUCLOUD_USER_JWT_AUDIENCE \
+  GATEWAY_JWT_ISSUER GATEWAY_JWT_AUDIENCE user_jar gateway_jar
+```
+```

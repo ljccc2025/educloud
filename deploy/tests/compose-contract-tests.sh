@@ -50,11 +50,11 @@ actual_services="$({
 
 expected_services="$({
   printf '%s\n' \
-    elasticsearch grafana minio mysql nacos prometheus rabbitmq redis zipkin | sort
+    educloud-user elasticsearch grafana minio mysql nacos prometheus rabbitmq redis zipkin | sort
 })"
 
 if [[ "$actual_services" == "$expected_services" ]]; then
-  pass 'Compose contains exactly the nine shared infrastructure services'
+  pass 'Compose contains the shared infrastructure plus exactly educloud-user'
 else
   fail "unexpected service set; actual: $(tr '\n' ' ' <<<"$actual_services")"
 fi
@@ -68,7 +68,7 @@ service_block() {
   ' "$compose_file"
 }
 
-for service in mysql redis rabbitmq nacos minio elasticsearch; do
+for service in mysql redis rabbitmq nacos minio elasticsearch educloud-user; do
   if service_block "$service" | grep -q '^    healthcheck:'; then
     pass "$service has a health check"
   else
@@ -76,7 +76,7 @@ for service in mysql redis rabbitmq nacos minio elasticsearch; do
   fi
 done
 
-for service in mysql redis rabbitmq nacos minio elasticsearch zipkin prometheus grafana; do
+for service in mysql redis rabbitmq nacos minio elasticsearch zipkin prometheus grafana educloud-user; do
   image_reference="$(service_block "$service" | awk '$1 == "image:" { print $2; exit }')"
   image_name="${image_reference##*/}"
   image_tag="${image_name#*:}"
@@ -96,10 +96,10 @@ else
   pass 'Compose does not use latest image tags'
 fi
 
-if grep -Eq 'educloud-[a-z0-9-]+-service' "$compose_file"; then
-  fail 'Compose contains a backend business service'
+if grep -Eq '^  educloud-(course|content|order|payment|live|file|notification|analytics|search|recommendation):' "$compose_file"; then
+  fail 'Compose contains an M04+ backend business service'
 else
-  pass 'Compose contains no backend business services'
+  pass 'Compose contains no M04+ backend business services (educloud-user is allowed)'
 fi
 
 actual_volumes="$({

@@ -11,7 +11,7 @@ test_source="$module_dir/src/test/java"
 image_helper="$test_source/com/educloud/gateway/integration/TestContainerImages.java"
 application_yml="$main_dir/resources/application.yml"
 dependency_output="$module_dir/target/runtime-dependencies.txt"
-expected_modules=$'educloud-common\neducloud-gateway'
+expected_modules=$'educloud-common\neducloud-gateway\neducloud-user'
 failed=0
 
 pass() {

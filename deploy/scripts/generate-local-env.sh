@@ -66,6 +66,8 @@ random_nacos_token() {
 
 command -v head >/dev/null 2>&1 || fail "head command not found"
 
+nacos_user_password=''
+
 umask 077
 temporary_file="$(mktemp "${output_file}.tmp.XXXXXX")"
 trap 'rm -f "$temporary_file"' EXIT
@@ -76,6 +78,17 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     case "$variable_name" in
       MYSQL_ROOT_PASSWORD|EDUCLOUD_*_DB_PASSWORD|EDUCLOUD_*_MIGRATION_PASSWORD|REDIS_PASSWORD|RABBITMQ_DEFAULT_PASS|NACOS_AUTH_IDENTITY_VALUE|NACOS_GATEWAY_PASSWORD|MINIO_ROOT_PASSWORD|GF_SECURITY_ADMIN_PASSWORD)
         printf '%s=%s\n' "$variable_name" "$(random_hex)" >>"$temporary_file"
+        ;;
+      NACOS_USER_PASSWORD)
+        nacos_user_password="$(random_hex)"
+        printf '%s=%s\n' "$variable_name" "$nacos_user_password" >>"$temporary_file"
+        ;;
+      EDUCLOUD_USER_NACOS_PASSWORD)
+        # 与 NACOS_USER_PASSWORD 同值：provision-user-nacos.sh 用它创建身份，User 服务用它登录 Nacos。
+        if [[ -z "$nacos_user_password" ]]; then
+          nacos_user_password="$(random_hex)"
+        fi
+        printf '%s=%s\n' "$variable_name" "$nacos_user_password" >>"$temporary_file"
         ;;
       NACOS_AUTH_TOKEN)
         printf '%s=%s\n' "$variable_name" "$(random_nacos_token)" >>"$temporary_file"
