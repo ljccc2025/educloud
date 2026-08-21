@@ -14,6 +14,7 @@
 
     <modules>
         <module>educloud-common</module>
+        <module>educloud-gateway</module>
     </modules>
 
     <properties>
