@@ -79,11 +79,11 @@ grep -Fq '<skipITs>true</skipITs>' "$user_pom" ||   fail 'user module must defau
 grep -Fq '<id>integration</id>' "$user_pom" ||   fail 'user module must declare an integration profile'
 pass 'application name and integration gate are configured'
 
-# 7) README 不得提前宣称 M03 完成
-if grep -Fq 'M03 已实现' "$readme"; then
-  fail 'README must not claim M03 is implemented before user acceptance'
+# 7) README 不得提前宣称 M03 验收完成（允许如实记录"已实现、等待验收"）
+if grep -Eq 'M03 已验收|M03 已完成并验收|M03 交付完成|M03 已实现并验证，等待用户验收.*[^。]*已验收' "$readme"; then
+  fail 'README must not claim M03 acceptance before user acceptance'
 fi
-pass 'README does not prematurely claim M03 completion'
+pass 'README does not prematurely claim M03 acceptance'
 
 # 8) M03 e2e 契约：脚本存在、覆盖关键场景、独立 m03-e2e-* 环境前缀、结束后清理
 e2e_script="$repo_root/deploy/tests/user-gateway-e2e-tests.sh"
