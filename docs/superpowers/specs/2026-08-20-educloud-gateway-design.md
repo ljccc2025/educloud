@@ -2,7 +2,7 @@
 
 > 日期：2026-08-20
 >
-> 状态：书面规格已批准，详细实施计划待审阅
+> 状态：M02 已实施至 Rocky 验收阶段；Testcontainers 私有镜像覆盖增量设计待用户书面审阅
 >
 > 模块：M02 `educloud-gateway`
 >
@@ -391,6 +391,23 @@ Maven 默认 `verify` 不启动容器；`integration` profile 通过 Failsafe �
 
 所有测试资源使用 UUID namespace/key 前缀并在 `finally` 清理。清理失败必须使测试失败并输出非敏感资源标识，不遗留 Nacos 实例、用户、namespace 或 Redis key。
 
+#### 14.3.1 Testcontainers 镜像来源覆盖
+
+M02 的 Java 集成测试只启动 Redis 和 Nacos 两类 Testcontainers，不启动 MySQL、RabbitMQ、MinIO、Elasticsearch、Zipkin、Prometheus 或 Grafana。共享基础设施的 `deploy/docker-compose/compose.yml` 继续使用用户已有的私有镜像，任何测试或脚本都不得覆盖该文件中的镜像地址。
+
+为兼顾开发环境可移植性和 Rocky 私有镜像可用性，Testcontainers 采用“官方默认值 + 环境变量显式覆盖”：
+
+| 环境变量 | 未设置时的默认镜像 | Rocky 验收使用的私有镜像 |
+|---|---|---|
+| `EDUCLOUD_TEST_REDIS_IMAGE` | `redis:7.2.5-alpine` | `swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:7.2.5-alpine` |
+| `EDUCLOUD_TEST_NACOS_IMAGE` | `nacos/nacos-server:v2.3.2` | `swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nacos/nacos-server:v2.3.2` |
+
+覆盖变量不写入 `deploy/docker-compose/.env`，也不执行 `source` 整份 `.env` 后再运行 Maven。Rocky 验收只在当前 shell 临时 `export` 这两个非秘密变量，完成后 `unset`，从而避免把 Compose 凭据无关地传入 Maven/Testcontainers 进程。
+
+Common 与 Gateway 各自提供模块内测试镜像解析器，并共享完全相同的变量名和校验契约；所有 Common/Gateway Redis IT 和 Gateway Nacos IT 都通过对应解析器读取上述变量，不跨模块发布测试辅助类。变量未出现时使用固定默认值；变量一旦出现但为空、格式非法、没有显式版本标签或使用 `latest`，测试必须在创建容器前失败并指出变量名，不静默退回默认值。构建日志可以显示最终选择的镜像引用，但不得输出任何密码、Token 或其他 Secret。
+
+模块契约测试锁定两个变量名、默认版本以及所有相关 IT 不再散落硬编码镜像引用。Rocky `-Pintegration` 的验收证据必须包含 Testcontainers 实际创建上述两个私有镜像容器的日志；共享的 9 个 Compose 容器保持运行且不作为这组隔离 IT 的容器复用对象。
+
 ### 14.4 模块契约测试
 
 契约脚本必须验证：
@@ -406,7 +423,7 @@ Maven 默认 `verify` 不启动容器；`integration` profile 通过 Failsafe �
 
 M02 是可运行模块，必须在 Rocky Linux 8.9 / JDK 21 / Maven 3.9+ / Docker 环境完成以下门禁：
 
-1. 执行默认单元、模块契约、全量 Maven 和 `-Pintegration`；确认 Failsafe 明确运行 Redis/Nacos/Security IT。
+1. 临时导出 `EDUCLOUD_TEST_REDIS_IMAGE` 和 `EDUCLOUD_TEST_NACOS_IMAGE` 为 14.3.1 指定的私有镜像，再执行默认单元、模块契约、全量 Maven 和 `-Pintegration`；确认 Failsafe 明确运行 Redis/Nacos/Security IT，并从日志确认实际容器镜像来源。
 2. 通过幂等脚本配置专用 Nacos Gateway 用户并验证最小权限；不使用默认管理员账号启动应用。
 3. 在权限为 0700 的临时目录生成 RSA 测试 key/JWKS 和 HMAC Secret，只把公钥 JWKS交给 Gateway。
 4. 使用共享 Redis/Nacos 启动 Boot JAR，验证 8080、liveness、readiness 和 Nacos 中的健康 Gateway 实例。
@@ -439,7 +456,7 @@ M02 只有同时满足以下条件才算完成：
 3. JWT/JWKS、Redis 会话、匿名白名单和身份头边界有确定性测试。
 4. Redis 双维度限流、可信代理、CORS、安全响应头和请求大小有失败路径测试。
 5. Gateway 自有错误符合统一响应，不泄露 Token、内部 URL、凭据或异常细节。
-6. Redis 7.2.5 与 Nacos 2.3.2 集成测试真实执行且没有残留资源。
+6. Redis 7.2.5 与 Nacos 2.3.2 集成测试支持受校验的镜像覆盖；Rocky 使用指定私有镜像真实执行且没有残留资源。
 7. Rocky 上 Gateway 启动、健康、注册和入口错误语义通过。
 8. 正式依赖没有数据库、MVC、RabbitMQ 或业务领域越界；数据库迁移标记为 N/A 并说明原因。
 9. 中文代码审查没有未解决的必须修复项，工作区干净。
