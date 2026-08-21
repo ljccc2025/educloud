@@ -2,6 +2,7 @@ package com.educloud.gateway.ratelimit;
 
 import com.educloud.gateway.config.GatewayRuntimeProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -14,6 +15,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -26,6 +28,20 @@ class RedisTokenBucketLimiterTest {
 
     private static final String DIGEST_A = "a".repeat(64);
     private static final String DIGEST_B = "b".repeat(64);
+
+    @Test
+    void springSelectsTheRuntimeDependencyConstructor() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(ReactiveStringRedisTemplate.class,
+                    () -> mock(ReactiveStringRedisTemplate.class));
+            context.registerBean(GatewayRuntimeProperties.class,
+                    () -> new GatewayRuntimeProperties("test-env"));
+            context.register(RedisTokenBucketLimiter.class);
+
+            assertThatCode(context::refresh).doesNotThrowAnyException();
+            assertThat(context.getBean(RedisTokenBucketLimiter.class)).isNotNull();
+        }
+    }
 
     @Test
     void executesAllBucketsAtomicallyWithOneSharedHashTag() {

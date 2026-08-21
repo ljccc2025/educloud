@@ -2,6 +2,7 @@ package com.educloud.gateway.security;
 
 import com.educloud.gateway.config.GatewayRuntimeProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
@@ -13,6 +14,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -27,6 +29,20 @@ class RedisSessionVerifierTest {
     private static final String SUBJECT = "user-123";
     private static final String SESSION_ID = "session:abc-123";
     private static final long TOKEN_VERSION = 7L;
+
+    @Test
+    void springSelectsTheRuntimeDependencyConstructor() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(ReactiveStringRedisTemplate.class,
+                    () -> mock(ReactiveStringRedisTemplate.class));
+            context.registerBean(GatewayRuntimeProperties.class,
+                    () -> new GatewayRuntimeProperties("test-env"));
+            context.register(RedisSessionVerifier.class);
+
+            assertThatCode(context::refresh).doesNotThrowAnyException();
+            assertThat(context.getBean(RedisSessionVerifier.class)).isNotNull();
+        }
+    }
 
     @Test
     void classifiesEveryStableRedisProtocolResult() {

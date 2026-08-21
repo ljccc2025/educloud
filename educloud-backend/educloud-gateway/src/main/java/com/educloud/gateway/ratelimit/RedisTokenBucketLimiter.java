@@ -1,6 +1,7 @@
 package com.educloud.gateway.ratelimit;
 
 import com.educloud.gateway.config.GatewayRuntimeProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -30,6 +31,7 @@ public final class RedisTokenBucketLimiter {
     private final Duration commandTimeout;
     private final DefaultRedisScript<List> script;
 
+    @Autowired
     public RedisTokenBucketLimiter(
             ReactiveStringRedisTemplate redis, GatewayRuntimeProperties runtimeProperties) {
         this(redis, runtimeProperties, DEFAULT_COMMAND_TIMEOUT);
