@@ -21,7 +21,7 @@ import java.util.Objects;
  * 角色维护。依据：API 规范第 7 节（rbac:read / rbac:manage）；内置角色 code 不可修改。
  */
 @Service
-public final class RoleService {
+public class RoleService {
 
     private final SysRoleMapper sysRoleMapper;
     private final AuditWriter auditWriter;

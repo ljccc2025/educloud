@@ -33,7 +33,7 @@ import java.util.Objects;
  * 无权感知返回 404 由控制器权限决定）与 M03 设计规格第 10 节。
  */
 @Service
-public final class UserAdminService {
+public class UserAdminService {
 
     private static final int MAX_PAGE_SIZE = 100;
 

@@ -40,7 +40,7 @@ import java.util.Objects;
  * Access Token 签发）与第 4.1/4.2 节（Gateway 对齐契约）。
  */
 @Service
-public final class AuthenticationService {
+public class AuthenticationService {
 
     private final SysUserMapper sysUserMapper;
     private final UserProfileMapper userProfileMapper;

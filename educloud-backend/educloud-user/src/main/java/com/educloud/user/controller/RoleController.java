@@ -51,7 +51,7 @@ public class RoleController {
                 jwt.getSubject(),
                 servletRequest.getRemoteAddr(),
                 servletRequest.getHeader("User-Agent"),
-                servletRequest.getHeader("X-Request-Id")));
+                com.educloud.user.support.RequestIds.from(servletRequest)));
     }
 
     @PutMapping("/{id}")
@@ -67,6 +67,6 @@ public class RoleController {
                 jwt.getSubject(),
                 servletRequest.getRemoteAddr(),
                 servletRequest.getHeader("User-Agent"),
-                servletRequest.getHeader("X-Request-Id")));
+                com.educloud.user.support.RequestIds.from(servletRequest)));
     }
 }

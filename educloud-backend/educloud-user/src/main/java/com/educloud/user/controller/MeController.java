@@ -47,7 +47,7 @@ public final class MeController {
                 request,
                 servletRequest.getRemoteAddr(),
                 servletRequest.getHeader("User-Agent"),
-                servletRequest.getHeader("X-Request-Id")));
+                com.educloud.user.support.RequestIds.from(servletRequest)));
     }
 
     private static Long userId(Jwt jwt) {

@@ -15,7 +15,7 @@ import java.util.UUID;
  * source_sequence 由 outbox_sequence 单条原子 UPDATE 递增，保证按提交顺序单调。
  */
 @Component
-public final class OutboxWriter {
+public class OutboxWriter {
 
     private static final String SOURCE_NAME = "educloud-user";
 

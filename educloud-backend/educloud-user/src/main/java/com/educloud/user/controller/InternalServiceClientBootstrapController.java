@@ -47,7 +47,7 @@ public final class InternalServiceClientBootstrapController {
                 request.secret(),
                 request.allowedAudiences(),
                 request.allowedScopes(),
-                servletRequest.getHeader("X-Request-Id"));
+                com.educloud.user.support.RequestIds.from(servletRequest));
         return Map.of("clientId", request.clientId(), "status", "BOOTSTRAPPED");
     }
 

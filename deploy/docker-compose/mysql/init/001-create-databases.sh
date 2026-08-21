@@ -62,7 +62,7 @@ CREATE USER IF NOT EXISTS '${migration_user}'@'%' IDENTIFIED BY '${migration_pas
 ALTER USER '${migration_user}'@'%' IDENTIFIED BY '${migration_password}';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP, REFERENCES,
   CREATE VIEW, SHOW VIEW, TRIGGER
-  ON \`${database_name}\`.* TO '${migration_user}'@'%';
+  ON \`${database_name}\`.* TO '${migration_user}'@'%' WITH GRANT OPTION;
 SQL
 done
 

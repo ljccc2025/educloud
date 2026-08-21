@@ -35,7 +35,7 @@ import java.util.Objects;
  * UserRegistered Outbox 行、审计）与 API 规范第 7 节。
  */
 @Service
-public final class RegistrationService {
+public class RegistrationService {
 
     private static final String STUDENT_ROLE = "STUDENT";
 

@@ -17,7 +17,7 @@ import java.util.Objects;
  * 会话撤销（DB 权威 + Redis 读模型；撤销写 Redis 失败由调用方重试/补偿，设计规格第 4.4 节）。
  */
 @Service
-public final class SessionRevocationService {
+public class SessionRevocationService {
 
     private final RefreshSessionMapper refreshSessionMapper;
     private final SessionStore sessionStore;

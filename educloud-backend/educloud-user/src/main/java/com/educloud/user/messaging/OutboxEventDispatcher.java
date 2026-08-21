@@ -22,7 +22,7 @@ import java.util.List;
  * 达阈值标记 FAILED 并告警（可靠性设计第 4.1 节；确认不明确允许重投，消费者幂等）。
  */
 @Component
-public final class OutboxEventDispatcher {
+public class OutboxEventDispatcher {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OutboxEventDispatcher.class);
     private static final int BATCH_SIZE = 50;

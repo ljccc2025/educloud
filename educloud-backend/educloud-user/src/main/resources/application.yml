@@ -24,6 +24,8 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_DEFAULT_USER:}
     password: ${RABBITMQ_DEFAULT_PASS:}
+    # M03: 与 compose 的 RABBITMQ_DEFAULT_VHOST 对齐（默认 educloud）；缺省会让凭据在 vhost "/" 上认证失败。
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:educloud}
   cloud:
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}

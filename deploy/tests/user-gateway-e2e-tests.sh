@@ -74,14 +74,16 @@ environment="m03-e2e-${e2e_id}"
 [[ "$environment" =~ ^[a-z0-9-]{1,32}$ ]] || fail 'EDUCLOUD_ENVIRONMENT is invalid'
 username="e2e-${e2e_id}"
 email="e2e-${e2e_id}@example.com"
-phone="138${e2e_id:0:8}"
+# hex 含字母，phone 校验只允许数字，故用纯数字尾号
+phone_tail="$(python3 -c 'import uuid; print(str(uuid.uuid4().int)[-8:])')"
+phone="138${phone_tail}"
 password="E2ePassword_${e2e_id}"
 username2="e2e2-${e2e_id}"
 username3="e2e3-${e2e_id}"
 email2="e2e2-${e2e_id}@example.com"
-phone2="137${e2e_id:0:8}"
+phone2="137${phone_tail}"
 email3="e2e3-${e2e_id}@example.com"
-phone3="136${e2e_id:0:8}"
+phone3="136${phone_tail}"
 
 work_dir="$(mktemp -d /tmp/educloud-user-e2e.XXXXXX)"
 chmod 700 "$work_dir"
@@ -102,7 +104,7 @@ redis_call() {
 }
 
 mysql_call() {
-  MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql --protocol=TCP -h "$MYSQL_HOST" -p "$MYSQL_PORT" -u root --batch --skip-column-names "$@"
+  MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql --protocol=TCP -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u root --batch --skip-column-names "$@"
 }
 
 nacos_call() {
@@ -130,7 +132,7 @@ request() {
   local body="${5:-}"
   shift 5 || true
   local args=(--silent --show-error --connect-timeout 2 --max-time 8 --request "$method" \
-    --output "$out_file" --write-out '%{http_code}' \
+    --output "$out_file" --write-out '%{http_code}\n' \
     --header 'Content-Type: application/json' --header 'Accept: application/json')
   [[ -z "$jar" ]] || args+=(--cookie "$jar" --cookie-jar "$jar")
   [[ -z "$body" ]] || args+=(--data "$body")
@@ -275,7 +277,7 @@ printf 'User and Gateway are ready on environment %s\n' "$environment"
 # 5) 注册学生成功；重复用户名 409
 reg_body="{\"username\":\"$username\",\"password\":\"$password\",\"email\":\"$email\",\"phone\":\"$phone\",\"displayName\":\"E2E User\"}"
 reg_status="$(request POST http://127.0.0.1:8080/api/v1/auth/register "$work_dir/reg1.json" "" "$reg_body")"
-[[ "$reg_status" == '201' ]] || fail 'student registration did not return 201'
+[[ "$reg_status" == '201' ]] || { cat "$work_dir/reg1.json"; fail 'student registration did not return 201'; }
 dup_status="$(request POST http://127.0.0.1:8080/api/v1/auth/register "$work_dir/reg2.json" "" "$reg_body")"
 [[ "$dup_status" == '409' ]] || fail 'duplicate registration did not return 409'
 grep -q 'USERNAME_TAKEN' "$work_dir/reg2.json" || fail 'duplicate registration did not report USERNAME_TAKEN'
@@ -288,40 +290,64 @@ login_status="$(request POST http://127.0.0.1:8080/api/v1/auth/login "$work_dir/
 access1="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["data"]["accessToken"])' "$work_dir/login1.json")"
 [[ -n "$access1" && "$access1" =~ ^[A-Za-z0-9_.-]+\.[A-Za-z0-9_.-]+\.[A-Za-z0-9_.-]+$ ]] || fail 'login response has no valid access token'
 grep -q 'refresh_token' "$jar1" || fail 'login did not set the refresh_token cookie'
-me_status="$(request GET http://127.0.0.1:8080/api/v1/me "$work_dir/me1.json" "" "" "Authorization: Bearer $access1")"
-[[ "$me_status" == '200' ]] || fail '/api/v1/me via Gateway did not return 200'
+# Nacos 发现可能有秒级延迟：重试直到 200（或真实失败）。
+me_status=''
+for _ in {1..20}; do
+  me_status="$(request GET http://127.0.0.1:8080/api/v1/me "$work_dir/me1.json" "" "" "Authorization: Bearer $access1")"
+  [[ "$me_status" == '200' ]] && break
+  sleep 2
+done
+[[ "$me_status" == '200' ]] || { cat "$work_dir/me1.json"; fail "/api/v1/me via Gateway did not return 200 (got $me_status)"; }
 grep -q "$username" "$work_dir/me1.json" || fail '/me did not return the logged-in user'
 
 # 7) 并发刷新（同一 Refresh Token 两个并发请求）：一个成功一个 409
-(request POST http://127.0.0.1:8080/api/v1/auth/refresh "$work_dir/ref_a.json" "$jar1" "" >"$work_dir/ref_a.code" 2>/dev/null &)
-(request POST http://127.0.0.1:8080/api/v1/auth/refresh "$work_dir/ref_b.json" "$jar1" "" >"$work_dir/ref_b.code" 2>/dev/null &)
-wait
+# 注意：裸 wait 会等待 java 服务后台 job；curl cookie-jar 并发写同一文件会竞争，
+# 因此两个请求各用独立 cookie 副本，成功后把成功者的 jar 提升为当前会话。
+# 轮询结果文件（裸 wait 会等 java 服务导致永久阻塞）。
+cp "$jar1" "$work_dir/u1_a.jar"
+cp "$jar1" "$work_dir/u1_b.jar"
+: >"$work_dir/ref_a.code"
+: >"$work_dir/ref_b.code"
+(request POST http://127.0.0.1:8080/api/v1/auth/refresh "$work_dir/ref_a.json" "$work_dir/u1_a.jar" "" >"$work_dir/ref_a.code" 2>/dev/null &)
+(request POST http://127.0.0.1:8080/api/v1/auth/refresh "$work_dir/ref_b.json" "$work_dir/u1_b.jar" "" >"$work_dir/ref_b.code" 2>/dev/null &)
+for _ in {1..30}; do
+  [[ -s "$work_dir/ref_a.code" && -s "$work_dir/ref_b.code" ]] && break
+  sleep 0.5
+done
 concurrent_codes="$(cat "$work_dir/ref_a.code" "$work_dir/ref_b.code" | sort -u | tr '\n' ' ' | sed 's/ $//')"
 [[ "$concurrent_codes" == '200 409' ]] || fail "concurrent refresh did not yield one success and one 409 (got: $concurrent_codes)"
 grep -q 'REFRESH_ALREADY_ROTATED' "$work_dir/ref_a.json" "$work_dir/ref_b.json" || fail 'losing refresh did not report REFRESH_ALREADY_ROTATED'
+if [[ "$(cat "$work_dir/ref_a.code")" == '200' ]]; then
+  cp "$work_dir/u1_a.jar" "$jar1"
+else
+  cp "$work_dir/u1_b.jar" "$jar1"
+fi
 
 # 8) 宽限窗口外重用：家族撤销，旧 Access 立即 401
 cp "$jar1" "$work_dir/u1_r2.jar"
 sleep 6
 refresh_ok="$(request POST http://127.0.0.1:8080/api/v1/auth/refresh "$work_dir/ref_ok.json" "$jar1" "")"
 [[ "$refresh_ok" == '200' ]] || fail 'refresh after grace window did not return 200'
+# 等待宽限窗口（5s）过去，确保 R2 重用落在窗外（窗外重用触发家族撤销）。
+sleep 6
 reuse_status="$(request POST http://127.0.0.1:8080/api/v1/auth/refresh "$work_dir/ref_reuse.json" "$work_dir/u1_r2.jar" "")"
-[[ "$reuse_status" == '409' ]] || fail 'reuse outside the grace window did not return 409'
-grep -q 'REFRESH_ALREADY_ROTATED|SESSION_REUSE_DETECTED' "$work_dir/ref_reuse.json" || fail 'reuse did not report a rotated/reuse code'
+# 窗外重用：401 SESSION_REUSE_DETECTED（与 409 REFRESH_ALREADY_ROTATED 的宽限内冲突区分）。
+[[ "$reuse_status" == '401' ]] || { cat "$work_dir/ref_reuse.json"; fail "reuse outside the grace window did not return 401 (got $reuse_status)"; }
+grep -Fq 'SESSION_REUSE_DETECTED' "$work_dir/ref_reuse.json" || { cat "$work_dir/ref_reuse.json"; fail 'reuse did not report SESSION_REUSE_DETECTED'; }
 me_after_reuse="$(request GET http://127.0.0.1:8080/api/v1/me "$work_dir/me_reuse.json" "" "" "Authorization: Bearer $access1")"
 [[ "$me_after_reuse" == '401' ]] || fail 'old Access did not become 401 after family revocation'
 
 # 9) 注销：旧 Access 立即 401
 reg_body2="{\"username\":\"$username2\",\"password\":\"$password\",\"email\":\"$email2\",\"phone\":\"$phone2\",\"displayName\":\"E2E Two\"}"
 reg2_status="$(request POST http://127.0.0.1:8080/api/v1/auth/register "$work_dir/reg21.json" "" "$reg_body2")"
-[[ "$reg2_status" == '201' ]] || fail 'second registration did not return 201'
+[[ "$reg2_status" == '201' ]] || { cat "$work_dir/reg21.json"; fail 'second registration did not return 201'; }
 login_body2="{\"loginName\":\"$username2\",\"password\":\"$password\",\"portal\":\"STUDENT\"}"
 jar2="$work_dir/u2.jar"
 login2_status="$(request POST http://127.0.0.1:8080/api/v1/auth/login "$work_dir/login2.json" "$jar2" "$login_body2")"
 [[ "$login2_status" == '200' ]] || fail 'second login did not return 200'
 access2="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["data"]["accessToken"])' "$work_dir/login2.json")"
 logout_status="$(request POST http://127.0.0.1:8080/api/v1/auth/logout "$work_dir/logout.json" "$jar2" "")"
-[[ "$logout_status" == '204' ]] || fail 'logout did not return 204'
+[[ "$logout_status" == '204' ]] || { cat "$work_dir/logout.json"; cp "$gateway_log" /tmp/m03-e2e-gateway.log 2>/dev/null; cp "$user_log" /tmp/m03-e2e-user.log 2>/dev/null; fail "logout did not return 204 (got $logout_status)"; }
 me_after_logout="$(request GET http://127.0.0.1:8080/api/v1/me "$work_dir/me_logout.json" "" "" "Authorization: Bearer $access2")"
 [[ "$me_after_logout" == '401' ]] || fail 'old Access did not become 401 after logout'
 
@@ -347,7 +373,7 @@ access_final="$access2c"
 # 11) 禁用：模拟 UserStatusService 禁用效果（DB DISABLED + tokenVersion+1 + Redis REVOKED），旧 Access 立即 401
 reg_body3="{\"username\":\"$username3\",\"password\":\"$password\",\"email\":\"$email3\",\"phone\":\"$phone3\",\"displayName\":\"E2E Three\"}"
 reg3_status="$(request POST http://127.0.0.1:8080/api/v1/auth/register "$work_dir/reg31.json" "" "$reg_body3")"
-[[ "$reg3_status" == '201' ]] || fail 'third registration did not return 201'
+[[ "$reg3_status" == '201' ]] || { cat "$work_dir/reg31.json"; fail 'third registration did not return 201'; }
 login_body3="{\"loginName\":\"$username3\",\"password\":\"$password\",\"portal\":\"STUDENT\"}"
 jar3="$work_dir/u3.jar"
 login3_status="$(request POST http://127.0.0.1:8080/api/v1/auth/login "$work_dir/login3.json" "$jar3" "$login_body3")"

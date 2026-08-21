@@ -17,7 +17,7 @@ import java.util.Optional;
  * 同一键但请求摘要不同返回 409（API 规范第 6 节；匿名注册 user_id 用 0 约定）。
  */
 @Component
-public final class IdempotencyService {
+public class IdempotencyService {
 
     private final IdempotencyRecordMapper mapper;
 

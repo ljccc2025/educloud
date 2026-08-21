@@ -88,7 +88,7 @@ public final class AuthController {
             @Valid @RequestBody RegisterStudentRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             HttpServletRequest servletRequest) throws JsonProcessingException {
-        String requestId = servletRequest.getHeader("X-Request-Id");
+        String requestId = com.educloud.user.support.RequestIds.from(servletRequest);
         String ip = servletRequest.getRemoteAddr();
         String userAgent = servletRequest.getHeader(HttpHeaders.USER_AGENT);
 
@@ -112,7 +112,7 @@ public final class AuthController {
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest servletRequest) {
-        String requestId = servletRequest.getHeader("X-Request-Id");
+        String requestId = com.educloud.user.support.RequestIds.from(servletRequest);
         String ip = servletRequest.getRemoteAddr();
         String userAgent = servletRequest.getHeader(HttpHeaders.USER_AGENT);
 
@@ -130,7 +130,7 @@ public final class AuthController {
         if (refreshToken == null || refreshToken.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        String requestId = servletRequest.getHeader("X-Request-Id");
+        String requestId = com.educloud.user.support.RequestIds.from(servletRequest);
         String userAgent = servletRequest.getHeader(HttpHeaders.USER_AGENT);
         RefreshSessionService.RefreshResult result = refreshSessionService.refresh(
                 refreshToken, ClientFingerprint.of(userAgent), requestId);
@@ -143,7 +143,7 @@ public final class AuthController {
     public ResponseEntity<Void> logout(
             @CookieValue(value = "refresh_token", required = false) String refreshToken,
             HttpServletRequest servletRequest) {
-        String requestId = servletRequest.getHeader("X-Request-Id");
+        String requestId = com.educloud.user.support.RequestIds.from(servletRequest);
         if (refreshToken != null && !refreshToken.isBlank()) {
             revocationService.revokeFamilyByToken(refreshToken, "LOGOUT", requestId);
         }
@@ -184,7 +184,7 @@ public final class AuthController {
                 familyId,
                 servletRequest.getRemoteAddr(),
                 servletRequest.getHeader(HttpHeaders.USER_AGENT),
-                servletRequest.getHeader("X-Request-Id"));
+                com.educloud.user.support.RequestIds.from(servletRequest));
         return responses.success(null);
     }
 

@@ -34,7 +34,7 @@ import java.util.UUID;
  * 并发宽限窗口、窗口外重用撤销家族、指纹不一致撤销、用户状态/tokenVersion 校验）。
  */
 @Service
-public final class RefreshSessionService {
+public class RefreshSessionService {
 
     private final RefreshSessionMapper refreshSessionMapper;
     private final SysUserMapper sysUserMapper;

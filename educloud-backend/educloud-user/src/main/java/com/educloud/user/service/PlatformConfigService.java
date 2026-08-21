@@ -20,7 +20,7 @@ import java.util.Objects;
  * 仅非敏感配置（Secret 无产品侧更新 API，安全设计第 9 节）。
  */
 @Service
-public final class PlatformConfigService {
+public class PlatformConfigService {
 
     private final PlatformPublicConfigMapper mapper;
     private final AuditWriter auditWriter;

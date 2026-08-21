@@ -24,7 +24,7 @@ import java.util.Objects;
  * 原始 Secret 只从受控渠道（stdin/Secret 文件）进入，不进参数/stdout/日志。
  */
 @Service
-public final class ServiceClientCredentialCommand {
+public class ServiceClientCredentialCommand {
 
     private static final java.time.Duration GRACE_DURATION = java.time.Duration.ofHours(24);
 

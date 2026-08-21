@@ -25,7 +25,7 @@ import java.util.Objects;
  * （本人可读写本人允许字段；头像 fileId 不触发 File 调用、不落 URL）。
  */
 @Service
-public final class ProfileService {
+public class ProfileService {
 
     private final SysUserMapper sysUserMapper;
     private final UserProfileMapper userProfileMapper;

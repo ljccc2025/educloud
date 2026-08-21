@@ -53,7 +53,7 @@ USAGE
   esac
 done
 
-for command_name in openssl python3 sha256sum; do
+for command_name in openssl python3; do
   command -v "$command_name" >/dev/null 2>&1 || fail "$command_name command not found"
 done
 
@@ -74,7 +74,13 @@ value = int(sys.argv[1], 16)
 raw = value.to_bytes((value.bit_length() + 7) // 8, "big")
 print(base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii"))
 ' "$modulus_hex")"
-kid="educloud-user-$(printf '%s' "$modulus_hex" | sha256sum | cut -c1-16)"
+# kid 必须与 User 服务 JwtKeyProvider 一致：对 modulus 无符号字节做 SHA-256（不是 hex 文本）。
+kid="educloud-user-$(python3 -c '
+import hashlib, sys
+value = int(sys.argv[1], 16)
+raw = value.to_bytes((value.bit_length() + 7) // 8, "big")
+print(hashlib.sha256(raw).hexdigest()[:16])
+' "$modulus_hex")"
 
 printf '{"keys":[{"kty":"RSA","use":"sig","alg":"RS256","kid":"%s","n":"%s","e":"AQAB"}]}
 '   "$kid" "$modulus" >"$jwks_file"

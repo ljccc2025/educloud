@@ -23,7 +23,7 @@ import java.util.Set;
  * 恢复后账号可登录）。状态迁移带 version 乐观锁，冲突返回 409。
  */
 @Service
-public final class UserStatusService {
+public class UserStatusService {
 
     private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "LOCKED", "DISABLED");
 

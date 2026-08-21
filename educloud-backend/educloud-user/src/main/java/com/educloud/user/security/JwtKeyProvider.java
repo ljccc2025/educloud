@@ -118,9 +118,16 @@ public final class JwtKeyProvider {
 
     private static String keyId(RSAPrivateKey privateKey) {
         byte[] modulus = privateKey.getModulus().toByteArray();
+        // BigInteger.toByteArray() 带符号位前导 0x00；与 generate-user-jwt-keys.sh 的无符号
+        // to_bytes((bit_length+7)/8) 表示对齐后哈希，保证两边 kid 逐字节一致。
+        int offset = 0;
+        if (modulus.length > 1 && modulus[0] == 0) {
+            offset = 1;
+        }
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(modulus);
-            return KID_PREFIX + HexFormat.of().formatHex(digest).substring(0, 16);
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(modulus, offset, modulus.length - offset);
+            return KID_PREFIX + HexFormat.of().formatHex(digest.digest()).substring(0, 16);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }

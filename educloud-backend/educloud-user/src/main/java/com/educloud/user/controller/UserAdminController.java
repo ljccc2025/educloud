@@ -72,7 +72,7 @@ public class UserAdminController {
                 jwt.getSubject(),
                 servletRequest.getRemoteAddr(),
                 servletRequest.getHeader("User-Agent"),
-                servletRequest.getHeader("X-Request-Id"));
+                com.educloud.user.support.RequestIds.from(servletRequest));
         return responses.success(null);
     }
 
@@ -89,7 +89,7 @@ public class UserAdminController {
                 jwt.getSubject(),
                 servletRequest.getRemoteAddr(),
                 servletRequest.getHeader("User-Agent"),
-                servletRequest.getHeader("X-Request-Id"));
+                com.educloud.user.support.RequestIds.from(servletRequest));
         return responses.success(null);
     }
 }

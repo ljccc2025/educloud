@@ -25,7 +25,7 @@ import java.util.Objects;
  * 当前 family 保留 ACTIVE 且 Redis 以新 tokenVersion 重写，旧 Access Token 全部失效、当前会话可刷新续期）。
  */
 @Service
-public final class PasswordChangeService {
+public class PasswordChangeService {
 
     private final SysUserMapper sysUserMapper;
     private final PasswordEncoder passwordEncoder;
