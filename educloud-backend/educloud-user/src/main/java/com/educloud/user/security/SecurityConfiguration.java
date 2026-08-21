@@ -14,6 +14,11 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -31,7 +36,8 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtDecoder jwtDecoder,
-            ApiResponseFactory responses) throws Exception {
+            ApiResponseFactory responses,
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authorize -> authorize
@@ -44,11 +50,27 @@ public class SecurityConfiguration {
                                 "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.decoder(jwtDecoder))
-                        .authenticationEntryPoint(authenticationEntryPoint(responses)))
+                        .jwt(jwt -> jwt
+                                .decoder(jwtDecoder)
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                        .authenticationEntryPoint(authenticationEntryPoint(responses, objectMapper)))
                 .exceptionHandling(errors -> errors
-                        .authenticationEntryPoint(authenticationEntryPoint(responses)));
+                        .authenticationEntryPoint(authenticationEntryPoint(responses, objectMapper)));
         return http.build();
+    }
+
+    /**
+     * JWT permissions claim -> GrantedAuthority（无前缀，权限码直接作为 authority）。
+     * 依据：M03 设计规格第 6 节（方法级 @PreAuthorize + 权限码）。
+     */
+    @Bean
+    public Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
+        authorities.setAuthoritiesClaimName("permissions");
+        authorities.setAuthorityPrefix("");
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(authorities);
+        return converter;
     }
 
     @Bean
@@ -64,7 +86,8 @@ public class SecurityConfiguration {
         return decoder;
     }
 
-    private static AuthenticationEntryPoint authenticationEntryPoint(ApiResponseFactory responses) {
+    private static AuthenticationEntryPoint authenticationEntryPoint(
+            ApiResponseFactory responses, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         return (request, response, exception) -> {
             ApiResponse<Void> body = responses.error(
                     CommonErrorCode.UNAUTHENTICATED,
@@ -73,8 +96,7 @@ public class SecurityConfiguration {
             response.setStatus(CommonErrorCode.UNAUTHENTICATED.httpStatus());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");
-            response.getWriter().write(new com.fasterxml.jackson.databind.ObjectMapper()
-                    .writeValueAsString(body));
+            response.getWriter().write(objectMapper.writeValueAsString(body));
         };
     }
 }
