@@ -125,6 +125,7 @@ http_status() {
     printf 'connect-timeout = 2\nmax-time = 5\n'
     printf 'output = "/dev/null"\n'
     printf 'write-out = "%%{http_code}"\n'
+    printf 'dump-header = "%s"\n' "$headers_file"
     printf 'url = "http://127.0.0.1:8080%s"\n' "$path"
     local header
     for header in "$@"; do
@@ -281,16 +282,16 @@ unset nacos_instances
   fail 'Known route without a healthy downstream did not return 503'
 
 capture_headers /api/v1/courses/rocky-smoke \
-  'Origin: http://localhost:5173' \
+  'Origin: https://educloud.local' \
   'X-Request-Id: rocky-smoke-request'
-grep -Eiq '^access-control-allow-origin:[[:space:]]*http://localhost:5173\r?$' "$headers_file" || \
+grep -Eiq '^access-control-allow-origin:[[:space:]]*https://educloud.local[[:space:]]*$' "$headers_file" || \
   fail 'Allowed Origin did not receive the CORS response header'
-grep -Eiq '^x-request-id:[[:space:]]*rocky-smoke-request\r?$' "$headers_file" || \
+grep -Eiq '^x-request-id:[[:space:]]*rocky-smoke-request[[:space:]]*$' "$headers_file" || \
   fail 'Gateway did not preserve the valid request ID'
-grep -Eiq '^x-content-type-options:[[:space:]]*nosniff\r?$' "$headers_file" || \
+grep -Eiq '^x-content-type-options:[[:space:]]*nosniff[[:space:]]*$' "$headers_file" || \
   fail 'Gateway security headers are missing'
 [[ "$(http_status /api/v1/courses/rocky-smoke \
-  'Origin: http://localhost:5173.evil.example')" == '403' ]] || \
+  'Origin: https://educloud.local.evil.example')" == '403' ]] || \
   fail 'Rejected Origin did not return 403'
 
 session_key="educloud:{${gateway_environment}:auth}:session:rocky-session"
@@ -305,8 +306,7 @@ for _ in {1..100}; do
   status="$(http_status /api/v1/courses)"
   if [[ "$status" == '429' ]]; then
     rate_limited=1
-    capture_headers /api/v1/courses
-    grep -Eiq '^retry-after:[[:space:]]*[1-9][0-9]*\r?$' "$headers_file" || \
+    grep -Eiq '^retry-after:[[:space:]]*[1-9][0-9]*[[:space:]]*$' "$headers_file" || \
       fail 'Rate-limit response omitted a positive Retry-After header'
     break
   fi

@@ -249,6 +249,18 @@ class NacosGatewayRoutingIT {
                 .then()
                 .block(Duration.ofSeconds(10));
         assertThat(websocketReply).hasValue("live:ping");
+
+        assertThatThrownBy(() -> HttpClient.create()
+                .headers(headers -> {
+                    headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+                    headers.set(HttpHeaders.ORIGIN, "https://evil.example");
+                })
+                .websocket()
+                .uri("ws://127.0.0.1:" + gatewayPort + "/ws/v1/live/room-one")
+                .handle((inbound, outbound) -> Mono.empty())
+                .then()
+                .block(Duration.ofSeconds(10)))
+                .hasMessageContaining("403");
     }
 
     @Test
@@ -261,6 +273,8 @@ class NacosGatewayRoutingIT {
         try {
             await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(
                     adminNaming.selectInstances("educloud-recommendation", DISCOVERY_GROUP, true)).isEmpty());
+            await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThat(
+                    gatewayNaming.selectInstances("educloud-recommendation", DISCOVERY_GROUP, true)).isEmpty());
             await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> assertThat(
                     authorizedGet("/api/v1/recommendations/one").status()).isEqualTo(503));
         } finally {

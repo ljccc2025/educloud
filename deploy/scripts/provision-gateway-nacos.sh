@@ -80,7 +80,7 @@ if [[ -z "$admin_password" ]]; then
   IFS= read -r -s admin_password
   printf '\n' >&2
 fi
-[[ "$admin_password" =~ ^[A-Za-z0-9_.:@%+=-]{8,128}$ ]] || fail 'Nacos administrator password is invalid'
+[[ "$admin_password" =~ ^[A-Za-z0-9_.:@%+=-]{5,128}$ ]] || fail 'Nacos administrator password is invalid'
 
 base_url="${NACOS_BASE_URL:-http://127.0.0.1:${nacos_port}/nacos}"
 [[ "$base_url" =~ ^https?://[A-Za-z0-9.:-]+/nacos$ ]] || fail 'NACOS_BASE_URL is invalid'
@@ -174,20 +174,20 @@ fi
 expected_permissions="$temporary_directory/expected-permissions"
 actual_permissions="$temporary_directory/actual-permissions"
 cat >"$expected_permissions" <<EOF
-r	${namespace}:${config_group}:educloud-gateway.yaml
-r	${namespace}:${discovery_group}:educloud-analytics
-r	${namespace}:${discovery_group}:educloud-content
-r	${namespace}:${discovery_group}:educloud-course
-r	${namespace}:${discovery_group}:educloud-file
-r	${namespace}:${discovery_group}:educloud-live
-r	${namespace}:${discovery_group}:educloud-notification
-r	${namespace}:${discovery_group}:educloud-order
-r	${namespace}:${discovery_group}:educloud-payment
-r	${namespace}:${discovery_group}:educloud-recommendation
-r	${namespace}:${discovery_group}:educloud-search
-r	${namespace}:${discovery_group}:educloud-user
-r	${namespace}:${discovery_group}:educloud-gateway
-w	${namespace}:${discovery_group}:educloud-gateway
+r	${namespace}:${config_group}:config/educloud-gateway.yaml
+r	${namespace}:${discovery_group}:naming/educloud-analytics
+r	${namespace}:${discovery_group}:naming/educloud-content
+r	${namespace}:${discovery_group}:naming/educloud-course
+r	${namespace}:${discovery_group}:naming/educloud-file
+r	${namespace}:${discovery_group}:naming/educloud-live
+r	${namespace}:${discovery_group}:naming/educloud-notification
+r	${namespace}:${discovery_group}:naming/educloud-order
+r	${namespace}:${discovery_group}:naming/educloud-payment
+r	${namespace}:${discovery_group}:naming/educloud-recommendation
+r	${namespace}:${discovery_group}:naming/educloud-search
+r	${namespace}:${discovery_group}:naming/educloud-user
+r	${namespace}:${discovery_group}:naming/educloud-gateway
+w	${namespace}:${discovery_group}:naming/educloud-gateway
 EOF
 sort -u "$expected_permissions" -o "$expected_permissions"
 

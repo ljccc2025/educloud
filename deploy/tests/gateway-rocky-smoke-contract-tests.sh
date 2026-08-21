@@ -23,6 +23,12 @@ grep -Fq 'export SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1' "$smoke_script" || \
   fail 'Smoke Nacos registration is not pinned to a uniquely checkable local address'
 grep -Fq "export GATEWAY_ALLOWED_ORIGINS='https://educloud.local'" "$smoke_script" || \
   fail 'Smoke script does not pin an exact HTTPS allowed origin for its non-local environment'
+if grep -Fq "access-control-allow-origin: http://localhost:5173" "$smoke_script"; then
+  fail 'Smoke CORS assertion still expects a non-HTTPS allowed origin'
+fi
+if grep -Fq "'Origin: http://localhost" "$smoke_script"; then
+  fail 'Smoke CORS request still sends a non-HTTPS origin'
+fi
 grep -Fq "fail 'Nacos still contains the stopped Gateway instance'" "$smoke_script" || \
   fail 'Smoke script does not verify Nacos deregistration after shutdown'
 grep -Fq "NACOS_GATEWAY_PASSWORD is invalid" "$smoke_script" || \
