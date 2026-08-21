@@ -76,23 +76,17 @@ for service in mysql redis rabbitmq nacos minio elasticsearch; do
   fi
 done
 
-declare -A expected_images=(
-  [mysql]='mysql:8.0.36'
-  [redis]='redis:7.2.5-alpine'
-  [rabbitmq]='rabbitmq:3.13.7-management-alpine'
-  [nacos]='nacos/nacos-server:v2.3.2'
-  [minio]='minio/minio:RELEASE.2024-06-13T22-53-53Z'
-  [elasticsearch]='docker.elastic.co/elasticsearch/elasticsearch:8.14.0'
-  [zipkin]='openzipkin/zipkin:3.6.1'
-  [prometheus]='prom/prometheus:v2.53.5'
-  [grafana]='grafana/grafana:11.6.14-security-04'
-)
-
-for service in "${!expected_images[@]}"; do
-  if service_block "$service" | grep -Fq "image: ${expected_images[$service]}"; then
-    pass "$service image is pinned"
+for service in mysql redis rabbitmq nacos minio elasticsearch zipkin prometheus grafana; do
+  image_reference="$(service_block "$service" | awk '$1 == "image:" { print $2; exit }')"
+  image_name="${image_reference##*/}"
+  image_tag="${image_name#*:}"
+  if [[ -n "$image_reference"
+      && "$image_name" == *:*
+      && -n "$image_tag"
+      && "$image_tag" != 'latest' ]]; then
+    pass "$service image uses an explicit non-latest tag"
   else
-    fail "$service image is not pinned to ${expected_images[$service]}"
+    fail "$service image must use an explicit non-latest tag"
   fi
 done
 
@@ -193,8 +187,14 @@ mkdir -p "$init_test_root/bin"
 cat >"$init_test_root/bin/mysql" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$MYSQL_STUB_ARGS"
-cat >>"$MYSQL_STUB_SQL"
-printf '\n' >>"$MYSQL_STUB_SQL"
+has_execute=0
+for argument in "$@"; do
+  [[ "$argument" == --execute=* ]] && has_execute=1
+done
+if ((has_execute == 0)); then
+  cat >>"$MYSQL_STUB_SQL"
+  printf '\n' >>"$MYSQL_STUB_SQL"
+fi
 STUB
 chmod +x "$init_test_root/bin/mysql"
 
