@@ -4,6 +4,7 @@ import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
 import com.educloud.file.exception.FileNotAvailableException;
 import com.educloud.file.exception.FileNotFoundException;
+import com.educloud.file.exception.VersionConflictException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,6 +64,7 @@ class FileBindingServiceTest {
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
         when(bindingMapper.findActiveByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
                 .thenReturn(null);
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
 
         service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID);
 
@@ -137,6 +139,7 @@ class FileBindingServiceTest {
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
         when(bindingMapper.findActiveByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
                 .thenReturn(active);
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
 
         service.unbind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID);
 
@@ -149,6 +152,41 @@ class FileBindingServiceTest {
                 ArgumentCaptor.forClass(FileObjectEntity.class);
         verify(objectMapper).updateById(objectCaptor.capture());
         assertThat(objectCaptor.getValue().getVersion()).isEqualTo(2);
+    }
+
+    @Test
+    void bindThrowsVersionConflictWhenRootUpdateMisses() {
+        FileObjectEntity root = availableFile();
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findActiveByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .thenReturn(null);
+        // 拦截器按旧 version 生成 WHERE 条件，0 行命中即版本冲突（不 mock 则默认返回 0）。
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(0);
+
+        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .isInstanceOf(VersionConflictException.class);
+
+        verify(objectMapper).updateById(root);
+        // 冲突时版本保持读出的旧值，不得在内存中自增。
+        assertThat(root.getVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void unbindThrowsVersionConflictWhenRootUpdateMisses() {
+        FileObjectEntity root = availableFile();
+        FileBindingEntity active = new FileBindingEntity();
+        active.setId(9L);
+        active.setUnboundAt(null);
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findActiveByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .thenReturn(active);
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(0);
+
+        assertThatThrownBy(() -> service.unbind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .isInstanceOf(VersionConflictException.class);
+
+        verify(objectMapper).updateById(root);
+        assertThat(root.getVersion()).isEqualTo(1);
     }
 
     @Test

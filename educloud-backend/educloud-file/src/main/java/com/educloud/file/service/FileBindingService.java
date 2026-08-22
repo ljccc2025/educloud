@@ -6,6 +6,7 @@ import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
 import com.educloud.file.exception.FileNotAvailableException;
 import com.educloud.file.exception.FileNotFoundException;
+import com.educloud.file.exception.VersionConflictException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import org.springframework.dao.DuplicateKeyException;
@@ -93,8 +94,15 @@ public class FileBindingService {
             }
         }
 
+        // 乐观锁拦截器按实体当前 version 生成 WHERE version=旧 并自动 SET version=旧+1，
+        // 实体 version 必须保持 DB 读出的旧值，不能在 updateById 前手动 +1。
+        int updated = objectMapper.updateById(root);
+        if (updated != 1) {
+            throw new VersionConflictException(
+                    "文件对象版本冲突，绑定失败: fileId=" + fileId);
+        }
+        // 拦截器不回写实体：仅同步内存值供返回值/审计使用（SQL 已按旧 version 命中并递增）。
         root.setVersion(incrementVersion(root.getVersion()));
-        objectMapper.updateById(root);
     }
 
     /**
@@ -115,8 +123,14 @@ public class FileBindingService {
         active.setUnboundAt(clock.instant());
         bindingMapper.updateById(active);
 
+        // 同 bind：实体 version 保持旧值交给拦截器递增，再检查命中行数。
+        int updated = objectMapper.updateById(root);
+        if (updated != 1) {
+            throw new VersionConflictException(
+                    "文件对象版本冲突，解绑失败: fileId=" + fileId);
+        }
+        // 拦截器不回写实体：仅同步内存值供返回值/审计使用。
         root.setVersion(incrementVersion(root.getVersion()));
-        objectMapper.updateById(root);
     }
 
     private static int incrementVersion(Integer version) {

@@ -2,6 +2,7 @@ package com.educloud.file.service;
 
 import com.educloud.file.entity.FileObjectEntity;
 import com.educloud.file.exception.FileBoundException;
+import com.educloud.file.exception.VersionConflictException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.storage.StorageGateway;
@@ -91,6 +92,7 @@ class FileObjectServiceTest {
         FileObjectEntity root = availableFile();
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
         when(bindingMapper.countActiveByFileId(FILE_ID)).thenReturn(0L);
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
 
         service.deleteIfUnbound(FILE_ID, REASON);
 
@@ -103,6 +105,23 @@ class FileObjectServiceTest {
         assertThat(updated.getStatus()).isEqualTo("DELETED");
         assertThat(updated.getDeletedAt()).isEqualTo(NOW);
         assertThat(updated.getVersion()).isEqualTo(2);
+    }
+
+    @Test
+    void deleteIfUnboundThrowsVersionConflictWhenRootUpdateMisses() {
+        FileObjectEntity root = availableFile();
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.countActiveByFileId(FILE_ID)).thenReturn(0L);
+        // 拦截器按旧 version 生成 WHERE 条件，0 行命中即版本冲突（不 mock 则默认返回 0）。
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(0);
+
+        assertThatThrownBy(() -> service.deleteIfUnbound(FILE_ID, REASON))
+                .isInstanceOf(VersionConflictException.class);
+
+        verify(storageGateway).deleteObject(BUCKET, OBJECT_KEY);
+        verify(objectMapper).updateById(root);
+        // 冲突时版本保持读出的旧值，不得在内存中自增。
+        assertThat(root.getVersion()).isEqualTo(1);
     }
 
     @Test
