@@ -35,7 +35,13 @@ export default function Profile() {
     setAvatarError(null);
     try {
       const fileId = await uploadAvatar(file);
-      await http.patch('/me/profile', { avatarFileId: fileId });
+      // PATCH 为全量更新：displayName 必填（后端 @NotBlank），带上当前档案字段。
+      await http.patch('/me/profile', {
+        displayName: displayUser.realName || displayUser.username || '学员',
+        bio: displayUser.bio ?? '',
+        locale: 'zh-CN',
+        avatarFileId: fileId,
+      });
       await refresh();
     } catch (err) {
       setAvatarError(apiErrorText(err));
