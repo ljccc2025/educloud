@@ -9,6 +9,7 @@ import com.educloud.file.exception.FileNotFoundException;
 import com.educloud.file.exception.VersionConflictException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
+import com.educloud.file.messaging.FileEventPublisher;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,21 +25,24 @@ import java.util.Objects;
  * <p>依据：M04 设计规格第 7.2 节与第 5 节 —— 绑定幂等（同属主重复 bind 不重复插入）；
  * 唯一键 uk_file_binding 以 try/catch DuplicateKeyException 兜并发；
  * unbind 用 unbound_at 软标记保留审计历史，未绑定幂等返回。
- * 事件（FileBound/FileUnbound）由任务 11 经 Outbox 发布，本任务不发布。</p>
+ * 成功路径经 {@link FileEventPublisher} 发布 FileBound/FileUnbound（Outbox，事务内写入）。</p>
  */
 @Service
 public class FileBindingService {
 
     private final FileObjectMapper objectMapper;
     private final FileBindingMapper bindingMapper;
+    private final FileEventPublisher eventPublisher;
     private final Clock clock;
 
     public FileBindingService(
             FileObjectMapper objectMapper,
             FileBindingMapper bindingMapper,
+            FileEventPublisher eventPublisher,
             Clock clock) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.bindingMapper = Objects.requireNonNull(bindingMapper, "bindingMapper");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -97,11 +101,15 @@ public class FileBindingService {
 
         // 乐观锁拦截器按实体当前 version 生成 WHERE version=旧、SET version=旧+1，
         // 并在 updateById 成功后把新版本写回实体（Field.set），此处不得再手动 +1。
+        int versionAfterBind = root.getVersion() + 1;
         int updated = objectMapper.updateById(root);
         if (updated != 1) {
             throw new VersionConflictException(
                     "文件对象版本冲突，绑定失败: fileId=" + fileId);
         }
+        // 绑定成功后发布 FileBound（aggregateVersion=绑定后根版本）。
+        eventPublisher.fileBound(
+                fileId, ownerService, ownerType, ownerId, versionAfterBind);
     }
 
     /**
@@ -123,11 +131,15 @@ public class FileBindingService {
         bindingMapper.updateById(active);
 
         // 同 bind：实体 version 保持旧值交给拦截器递增，成功后拦截器写回新版本，再检查命中行数。
+        int versionAfterUnbind = root.getVersion() + 1;
         int updated = objectMapper.updateById(root);
         if (updated != 1) {
             throw new VersionConflictException(
                     "文件对象版本冲突，解绑失败: fileId=" + fileId);
         }
+        // 解绑成功后发布 FileUnbound（aggregateVersion=解绑后根版本）。
+        eventPublisher.fileUnbound(
+                fileId, ownerService, ownerType, ownerId, versionAfterUnbind);
     }
 
     /**

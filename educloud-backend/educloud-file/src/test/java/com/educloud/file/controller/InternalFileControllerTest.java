@@ -9,6 +9,7 @@ import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
+import com.educloud.file.messaging.FileEventPublisher;
 import com.educloud.file.security.SecurityConfiguration;
 import com.educloud.file.service.DownloadGrantService;
 import com.educloud.file.service.FileBindingService;
@@ -90,6 +91,9 @@ class InternalFileControllerTest {
 
     @MockBean
     private StorageGateway storageGateway;
+
+    @MockBean
+    private FileEventPublisher fileEventPublisher;
 
     @MockBean
     private FileAccessAuditWriter auditWriter;

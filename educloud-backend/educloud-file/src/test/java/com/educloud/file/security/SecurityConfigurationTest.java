@@ -6,6 +6,8 @@ import com.educloud.file.mapper.FileAccessAuditMapper;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.mapper.FileUploadSessionMapper;
+import com.educloud.file.mapper.OutboxEventMapper;
+import com.educloud.file.mapper.OutboxSequenceMapper;
 import io.minio.MinioClient;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -187,6 +189,16 @@ class SecurityConfigurationTest {
         @Bean
         FileAccessAuditMapper fileAccessAuditMapper() {
             return mock(FileAccessAuditMapper.class);
+        }
+
+        @Bean
+        OutboxEventMapper outboxEventMapper() {
+            return mock(OutboxEventMapper.class);
+        }
+
+        @Bean
+        OutboxSequenceMapper outboxSequenceMapper() {
+            return mock(OutboxSequenceMapper.class);
         }
     }
 }

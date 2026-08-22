@@ -6,6 +6,7 @@ import com.educloud.file.exception.FileBoundException;
 import com.educloud.file.exception.VersionConflictException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
+import com.educloud.file.messaging.FileEventPublisher;
 import com.educloud.file.storage.StorageGateway;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,8 +19,8 @@ import java.util.Objects;
  *
  * <p>依据：M04 设计规格第 7.2/7.4 节与第 5 节 —— 删除在事务内先 SELECT ... FOR UPDATE
  * 锁 file_object 根并递增 version；活跃绑定（unbound_at IS NULL）存在则拒绝删除；
- * MinIO 对象删除失败时异常上抛、事务回滚（DB 为准）。事件（FileUploaded/FileDeleted）
- * 由任务 11 经 Outbox 发布，本任务不发布。</p>
+ * MinIO 对象删除失败时异常上抛、事务回滚（DB 为准）。成功路径经
+ * {@link FileEventPublisher} 发布 FileUploaded/FileDeleted（Outbox，事务内写入）。</p>
  */
 @Service
 public class FileObjectService {
@@ -33,6 +34,7 @@ public class FileObjectService {
     private final FileObjectMapper objectMapper;
     private final FileBindingMapper bindingMapper;
     private final StorageGateway storageGateway;
+    private final FileEventPublisher eventPublisher;
     private final Clock clock;
 
     public FileObjectService(
@@ -40,22 +42,27 @@ public class FileObjectService {
             FileObjectMapper objectMapper,
             FileBindingMapper bindingMapper,
             StorageGateway storageGateway,
+            FileEventPublisher eventPublisher,
             Clock clock) {
         this.uploadSessionService = Objects.requireNonNull(uploadSessionService, "uploadSessionService");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.bindingMapper = Objects.requireNonNull(bindingMapper, "bindingMapper");
         this.storageGateway = Objects.requireNonNull(storageGateway, "storageGateway");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
-     * 确认上传完成：委托 {@link UploadSessionService#complete} 将对象落为 AVAILABLE。
-     *
-     * <p>任务 11 在本方法返回前补发 FileUploaded（Outbox），当前仅返回对象实体。</p>
+     * 确认上传完成：委托 {@link UploadSessionService#complete} 将对象落为 AVAILABLE，
+     * 成功后发布 FileUploaded（Outbox，同一事务内写入；ownerService=null 表示尚未绑定）。
      */
     @Transactional
     public FileObjectEntity completeUpload(Long uploaderId, Long sessionId) {
-        return uploadSessionService.complete(uploaderId, sessionId);
+        FileObjectEntity object = uploadSessionService.complete(uploaderId, sessionId);
+        eventPublisher.fileUploaded(
+                object.getId(), object.getObjectKey(), null, object.getUploaderId(),
+                object.getVersion());
+        return object;
     }
 
     /**
@@ -87,10 +94,15 @@ public class FileObjectService {
         root.setDeletedAt(clock.instant());
         // 乐观锁拦截器按实体当前 version 生成 WHERE version=旧、SET version=旧+1，
         // 并在 updateById 成功后把新版本写回实体（Field.set），此处不得再手动 +1。
+        int versionAfterDelete = root.getVersion() + 1;
         int updated = objectMapper.updateById(root);
         if (updated != 1) {
             throw new VersionConflictException(
                     "文件对象版本冲突，删除失败: fileId=" + fileId);
         }
+        // 删除成功后发布 FileDeleted（aggregateVersion=删除后根版本）。
+        eventPublisher.fileDeleted(
+                fileId, root.getObjectKey(), ownerService, ownerType, ownerId, reason,
+                versionAfterDelete);
     }
 }

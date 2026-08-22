@@ -7,6 +7,7 @@ import com.educloud.file.exception.FileBoundException;
 import com.educloud.file.exception.VersionConflictException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
+import com.educloud.file.messaging.FileEventPublisher;
 import com.educloud.file.storage.StorageGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -58,6 +61,8 @@ class FileObjectServiceTest {
     private FileBindingMapper bindingMapper;
     @Mock
     private StorageGateway storageGateway;
+    @Mock
+    private FileEventPublisher eventPublisher;
 
     private FileObjectService service;
 
@@ -65,7 +70,7 @@ class FileObjectServiceTest {
     void setUp() {
         service = new FileObjectService(
                 uploadSessionService, objectMapper, bindingMapper, storageGateway,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                eventPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -77,6 +82,9 @@ class FileObjectServiceTest {
 
         assertThat(result).isSameAs(expected);
         verify(uploadSessionService).complete(UPLOADER_ID, SESSION_ID);
+        // 任务 11：completeUpload 成功后发布 FileUploaded（ownerService=null，未绑定）。
+        verify(eventPublisher).fileUploaded(
+                eq(FILE_ID), eq(OBJECT_KEY), isNull(), eq(UPLOADER_ID), eq(1L));
     }
 
     @Test
@@ -93,6 +101,8 @@ class FileObjectServiceTest {
         verify(bindingMapper, never()).countActiveByFileId(anyLong());
         verify(storageGateway, never()).deleteObject(anyString(), anyString());
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+        verify(eventPublisher, never()).fileDeleted(anyLong(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test
@@ -109,6 +119,8 @@ class FileObjectServiceTest {
 
         verify(storageGateway, never()).deleteObject(anyString(), anyString());
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+        verify(eventPublisher, never()).fileDeleted(anyLong(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test
@@ -133,6 +145,10 @@ class FileObjectServiceTest {
         // mock 返回 1 表示 DB 命中：传给 updateById 的实体 version 必须仍是旧值，拦截器才能
         // 生成 WHERE version=旧 并 SET 旧+1；成功后的版本写回属框架行为，单测不模拟。
         assertThat(updated.getVersion()).isEqualTo(1);
+        // 任务 11：删除成功后发布 FileDeleted（aggregateVersion=删除后根版本=2）。
+        verify(eventPublisher).fileDeleted(
+                eq(FILE_ID), eq(OBJECT_KEY), eq(OWNER_SERVICE), eq(OWNER_TYPE),
+                eq(OWNER_ID), eq(REASON), eq(2L));
     }
 
     @Test
@@ -153,6 +169,8 @@ class FileObjectServiceTest {
         verify(objectMapper).updateById(root);
         // 冲突时版本保持读出的旧值，不得在内存中自增。
         assertThat(root.getVersion()).isEqualTo(1);
+        verify(eventPublisher, never()).fileDeleted(anyLong(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test
@@ -166,6 +184,8 @@ class FileObjectServiceTest {
         verify(bindingMapper, never()).countActiveByFileId(anyLong());
         verify(storageGateway, never()).deleteObject(anyString(), anyString());
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+        verify(eventPublisher, never()).fileDeleted(anyLong(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyLong());
     }
 
     private FileObjectEntity availableFile() {
@@ -174,6 +194,7 @@ class FileObjectServiceTest {
         root.setObjectKey(OBJECT_KEY);
         root.setBucket(BUCKET);
         root.setStatus("AVAILABLE");
+        root.setUploaderId(UPLOADER_ID);
         root.setVersion(1);
         return root;
     }

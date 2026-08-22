@@ -7,6 +7,7 @@ import com.educloud.file.exception.FileNotFoundException;
 import com.educloud.file.exception.VersionConflictException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
+import com.educloud.file.messaging.FileEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,13 +51,15 @@ class FileBindingServiceTest {
     private FileObjectMapper objectMapper;
     @Mock
     private FileBindingMapper bindingMapper;
+    @Mock
+    private FileEventPublisher eventPublisher;
 
     private FileBindingService service;
 
     @BeforeEach
     void setUp() {
         service = new FileBindingService(
-                objectMapper, bindingMapper, Clock.fixed(NOW, ZoneOffset.UTC));
+                objectMapper, bindingMapper, eventPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -86,6 +89,9 @@ class FileBindingServiceTest {
         // mock 返回 1 表示 DB 命中：传给 updateById 的实体 version 必须仍是旧值，拦截器才能
         // 生成 WHERE version=旧 并 SET 旧+1；成功后的版本写回属框架行为，单测不模拟。
         assertThat(updateCaptor.getValue().getVersion()).isEqualTo(1);
+        // 任务 11：绑定成功后发布 FileBound（aggregateVersion=绑定后根版本=2）。
+        verify(eventPublisher).fileBound(
+                eq(FILE_ID), eq(OWNER_SERVICE), eq(OWNER_TYPE), eq(OWNER_ID), eq(2L));
     }
 
     @Test
@@ -102,6 +108,7 @@ class FileBindingServiceTest {
 
         verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+        verify(eventPublisher, never()).fileBound(anyLong(), anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test
@@ -126,6 +133,7 @@ class FileBindingServiceTest {
 
         verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+        verify(eventPublisher, never()).fileBound(anyLong(), anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test
@@ -156,6 +164,9 @@ class FileBindingServiceTest {
         verify(objectMapper).updateById(objectCaptor.capture());
         // 同 bind：mock 返回 1 表示 DB 命中，传给 updateById 的实体 version 保持旧值。
         assertThat(objectCaptor.getValue().getVersion()).isEqualTo(1);
+        // 任务 11：解绑成功后发布 FileUnbound（aggregateVersion=解绑后根版本=2）。
+        verify(eventPublisher).fileUnbound(
+                eq(FILE_ID), eq(OWNER_SERVICE), eq(OWNER_TYPE), eq(OWNER_ID), eq(2L));
     }
 
     @Test
@@ -173,6 +184,7 @@ class FileBindingServiceTest {
         verify(objectMapper).updateById(root);
         // 冲突时版本保持读出的旧值，不得在内存中自增。
         assertThat(root.getVersion()).isEqualTo(1);
+        verify(eventPublisher, never()).fileBound(anyLong(), anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test
@@ -191,6 +203,7 @@ class FileBindingServiceTest {
 
         verify(objectMapper).updateById(root);
         assertThat(root.getVersion()).isEqualTo(1);
+        verify(eventPublisher, never()).fileUnbound(anyLong(), anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test
@@ -204,6 +217,7 @@ class FileBindingServiceTest {
 
         verify(bindingMapper, never()).updateById(any(FileBindingEntity.class));
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+        verify(eventPublisher, never()).fileUnbound(anyLong(), anyString(), anyString(), anyString(), anyLong());
     }
 
     @Test

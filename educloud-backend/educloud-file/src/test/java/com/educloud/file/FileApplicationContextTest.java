@@ -5,6 +5,8 @@ import com.educloud.file.mapper.FileAccessAuditMapper;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.mapper.FileUploadSessionMapper;
+import com.educloud.file.mapper.OutboxEventMapper;
+import com.educloud.file.mapper.OutboxSequenceMapper;
 import com.educloud.file.security.TestJwtKeys;
 import io.minio.MinioClient;
 import org.junit.jupiter.api.Test;
@@ -31,8 +33,9 @@ import static org.mockito.Mockito.mock;
  * （mock 使用独立 bean 名，避免与 FileStorageConfiguration 的 minioClient 同名冲突；
  * MinioClient 构建本身为懒连接、不发网络请求）。MyBatis-Plus Mapper 在无 DataSource
  * 时不注册，故 UploadSessionService 依赖的 Mapper 以 mock bean 满足（与
- * UserApplicationContextTest 同法）。Outbox 相关 Mapper 属后续任务
- * （任务 11 Outbox 事件发布），任务 0 尚无对应类，故不在本测试中 mock。</p>
+ * UserApplicationContextTest 同法）。任务 11 起 Outbox 相关 Mapper
+ * （OutboxEventMapper/OutboxSequenceMapper）与 RabbitMQ ConnectionFactory
+ * 一并 mock，保证 RabbitConfiguration/OutboxEventDispatcher 可无外部连接启动。</p>
  */
 class FileApplicationContextTest {
 
@@ -120,6 +123,16 @@ class FileApplicationContextTest {
         @Bean
         FileAccessAuditMapper fileAccessAuditMapper() {
             return mock(FileAccessAuditMapper.class);
+        }
+
+        @Bean
+        OutboxEventMapper outboxEventMapper() {
+            return mock(OutboxEventMapper.class);
+        }
+
+        @Bean
+        OutboxSequenceMapper outboxSequenceMapper() {
+            return mock(OutboxSequenceMapper.class);
         }
     }
 }
