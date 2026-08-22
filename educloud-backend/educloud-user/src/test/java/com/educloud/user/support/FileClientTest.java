@@ -22,8 +22,14 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.anything;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -184,6 +190,43 @@ class FileClientTest {
         clock.advance(Duration.ofSeconds(271L));
         client.bindAvatar(1001L, 9002L);
         verify(serviceTokenService, times(2)).issue(any(), any(), any(), any(), any(), any());
+        server.verify();
+    }
+
+
+    @Test
+    void concurrentTokenRefreshIssuesTokenOnlyOnce() throws Exception {
+        // 首次令牌缓存为空：两个线程同时进入首次检查并阻塞在 issue 内，
+        // 复现 B2 竞态 —— 旧实现两个线程都会调用 issue。
+        CountDownLatch enterIssue = new CountDownLatch(1);
+        CountDownLatch releaseIssue = new CountDownLatch(1);
+        when(serviceTokenService.issue(
+                eq("user-service"), eq("s3cret"), eq("educloud-file"),
+                eq(List.of("file:internal")), isNull(), isNull()))
+                .thenAnswer(invocation -> {
+                    enterIssue.countDown();
+                    releaseIssue.await(5, TimeUnit.SECONDS);
+                    return new ServiceTokenService.IssueResult("tok-1", 300L);
+                });
+
+        server.expect(requestTo(anything()))
+                .andRespond(withSuccess("{\"status\":\"BOUND\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(anything()))
+                .andRespond(withSuccess("{\"status\":\"BOUND\"}", MediaType.APPLICATION_JSON));
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = pool.submit(() -> client.bindAvatar(1001L, 9001L));
+            Future<?> second = pool.submit(() -> client.bindAvatar(1002L, 9002L));
+            assertThat(enterIssue.await(2, TimeUnit.SECONDS)).isTrue();
+            releaseIssue.countDown();
+            first.get(5, TimeUnit.SECONDS);
+            second.get(5, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        verify(serviceTokenService, times(1)).issue(any(), any(), any(), any(), any(), any());
         server.verify();
     }
 

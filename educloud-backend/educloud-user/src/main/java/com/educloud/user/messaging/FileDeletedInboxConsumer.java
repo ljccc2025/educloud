@@ -103,8 +103,15 @@ public class FileDeletedInboxConsumer {
             } catch (Exception failure) {
                 int attempt = (state == null ? 0 : state.attempts()) + 1;
                 boolean failed = attempt >= MAX_ATTEMPTS;
-                Instant nextAttemptAt = failed ? Instant.MAX : now.plusSeconds(Math.min(300L, 2L * attempt));
-                attempts.put(eventId, new AttemptState(attempt, nextAttemptAt));
+                if (failed) {
+                    // B3 修复：达阈值置 FAILED 后移除退避记账，避免 attempts Map 随历史
+                    // 事件无限增长；仅 PENDING 重试期间保留 entry（FAILED 事件不再被轮询，
+                    // 也无须退避）。
+                    attempts.remove(eventId);
+                } else {
+                    Instant nextAttemptAt = now.plusSeconds(Math.min(300L, 2L * attempt));
+                    attempts.put(eventId, new AttemptState(attempt, nextAttemptAt));
+                }
                 inboxEventMapper.update(
                         null,
                         new UpdateWrapper<InboxEventEntity>()

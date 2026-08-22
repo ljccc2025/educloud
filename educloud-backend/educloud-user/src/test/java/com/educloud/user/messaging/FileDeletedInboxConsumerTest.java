@@ -132,6 +132,36 @@ class FileDeletedInboxConsumerTest {
         verify(inboxEventMapper, times(1)).update(isNull(), any());
     }
 
+
+    @Test
+    void failedEventIsRemovedFromBackoffMapAndRetriesImmediately() {
+        InboxEventEntity event = pendingEvent(1L, 9001L);
+        when(inboxEventMapper.selectList(any())).thenReturn(List.of(event));
+        when(userProfileMapper.update(isNull(), any()))
+                .thenThrow(new RuntimeException("profile db down"));
+        when(inboxEventMapper.update(isNull(), any())).thenReturn(1);
+
+        for (int attempt = 0; attempt < 4; attempt++) {
+            consumer.consumePending();
+            clock.advance(Duration.ofSeconds(10L));
+        }
+        // 第 5 次达阈值置 FAILED；B3 修复后退避条目应被移除。
+        consumer.consumePending();
+
+        // 条目已清理：同一时刻再次轮询不再被退避跳过，立即重试（重新从第 1 次尝试计数）。
+        consumer.consumePending();
+
+        verify(inboxEventMapper, times(5)).update(
+                isNull(),
+                org.mockito.ArgumentMatchers.argThat(wrapper ->
+                        ((UpdateWrapper<InboxEventEntity>) wrapper).getParamNameValuePairs().containsValue("PENDING")));
+        verify(inboxEventMapper, times(1)).update(
+                isNull(),
+                org.mockito.ArgumentMatchers.argThat(wrapper ->
+                        ((UpdateWrapper<InboxEventEntity>) wrapper).getParamNameValuePairs().containsValue("FAILED")));
+        verify(inboxEventMapper, times(6)).update(isNull(), any());
+    }
+
     @Test
     void processedEventsAreSkippedByIdempotentQuery() {
         InboxEventEntity event = pendingEvent(1L, 9001L);

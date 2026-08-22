@@ -191,20 +191,36 @@ public class FileClient {
         }
     }
 
+    /**
+     * 返回缓存的 Bearer 令牌；缓存缺失或临近过期（30s 提前量）时签发新令牌。
+     *
+     * <p>B2 审查修复：synchronized(tokenCache) + 双重检查，避免并发首次签发时多个线程
+     * 同时调用 issue 造成令牌竞态；锁内重新校验缓存状态，只有真正需要时才签发一次。</p>
+     */
     private String bearerToken() {
-        CachedToken cached = tokenCache.get(properties.clientId());
-        if (cached == null || clock.instant().plusSeconds(TOKEN_REFRESH_LEAD_SECONDS).isAfter(cached.expiresAt())) {
-            ServiceTokenService.IssueResult issued = serviceTokenService.issue(
-                    properties.clientId(),
-                    properties.clientSecret(),
-                    AUDIENCE,
-                    SCOPES,
-                    null,
-                    null);
-            cached = new CachedToken(issued.accessToken(), clock.instant().plusSeconds(issued.expiresIn()));
-            tokenCache.put(properties.clientId(), cached);
+        String clientId = properties.clientId();
+        CachedToken cached = tokenCache.get(clientId);
+        if (cached == null || isExpiringSoon(cached)) {
+            synchronized (tokenCache) {
+                cached = tokenCache.get(clientId);
+                if (cached == null || isExpiringSoon(cached)) {
+                    ServiceTokenService.IssueResult issued = serviceTokenService.issue(
+                            clientId,
+                            properties.clientSecret(),
+                            AUDIENCE,
+                            SCOPES,
+                            null,
+                            null);
+                    cached = new CachedToken(issued.accessToken(), clock.instant().plusSeconds(issued.expiresIn()));
+                    tokenCache.put(clientId, cached);
+                }
+            }
         }
         return cached.accessToken();
+    }
+
+    private boolean isExpiringSoon(CachedToken cached) {
+        return clock.instant().plusSeconds(TOKEN_REFRESH_LEAD_SECONDS).isAfter(cached.expiresAt());
     }
 
     private BusinessException dependencyUnavailable(String uri, int status) {
