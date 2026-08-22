@@ -19,9 +19,7 @@ public enum FileErrorCode implements ErrorCode {
     FILE_BOUND(409, "File has active bindings"),
     FILE_ACCESS_DENIED(403, "File access denied"),
     GRANT_PURPOSE_NOT_ALLOWED(403, "Grant purpose is not allowed"),
-    STORAGE_TEST_RATE_LIMITED(429, "Storage test rate limit exceeded"),
-    VERSION_CONFLICT(409, "Resource version conflict"),
-    FILE_STORAGE_UNAVAILABLE(503, "File storage unavailable");
+    STORAGE_TEST_RATE_LIMITED(429, "Storage test rate limit exceeded");
 
     private final int httpStatus;
     private final String defaultMessage;

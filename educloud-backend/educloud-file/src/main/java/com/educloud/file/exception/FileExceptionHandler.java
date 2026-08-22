@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 /**
  * File 服务统一异常出口（任务 7）。
  *
- * <p>把模块内部异常映射为 {@link FileErrorCode} 的 ApiResponse 信封响应
+ * <p>把模块内部异常映射为 {@link ErrorCode}（FileErrorCode 或通用 CommonErrorCode）的 ApiResponse 信封响应
  * （code/message/data/requestId/timestamp + X-Request-Id 响应头），message 一律用
  * 错误码的英文 defaultMessage，不向客户端泄漏内部路径、堆栈或底层驱动细节。
  * 与 common 的 {@code GlobalExceptionHandler} 并存：域内异常在此收敛，
@@ -46,7 +46,7 @@ public final class FileExceptionHandler {
     /**
      * File 域内部异常统一映射。storage 包子类（FileTypeNotAllowedException、
      * FileTooLargeException）继承 FileStorageException，instanceof 分支必须
-     * 子类在前，避免被父类分支抢先归为 FILE_STORAGE_UNAVAILABLE。
+     * 子类在前，避免被父类分支抢先归为 DEPENDENCY_UNAVAILABLE。
      */
     @ExceptionHandler({
             UploadSessionExpiredException.class,
@@ -64,7 +64,7 @@ public final class FileExceptionHandler {
             GrantPurposeNotAllowedException.class,
             VersionConflictException.class })
     public ResponseEntity<ApiResponse<Void>> handleFileDomainException(RuntimeException exception) {
-        FileErrorCode errorCode = toFileErrorCode(exception);
+        ErrorCode errorCode = toFileErrorCode(exception);
         return respond(errorCode, errorCode.defaultMessage(), null);
     }
 
@@ -113,7 +113,7 @@ public final class FileExceptionHandler {
                 .body(body);
     }
 
-    private static FileErrorCode toFileErrorCode(RuntimeException exception) {
+    private static ErrorCode toFileErrorCode(RuntimeException exception) {
         if (exception instanceof UploadSessionExpiredException) {
             return FileErrorCode.UPLOAD_SESSION_EXPIRED;
         }
@@ -139,7 +139,7 @@ public final class FileExceptionHandler {
             return FileErrorCode.FILE_TOO_LARGE;
         }
         if (exception instanceof FileStorageException) {
-            return FileErrorCode.FILE_STORAGE_UNAVAILABLE;
+            return CommonErrorCode.DEPENDENCY_UNAVAILABLE;
         }
         if (exception instanceof FileNotFoundException) {
             return FileErrorCode.FILE_NOT_FOUND;
@@ -159,7 +159,7 @@ public final class FileExceptionHandler {
             return FileErrorCode.GRANT_PURPOSE_NOT_ALLOWED;
         }
         if (exception instanceof VersionConflictException) {
-            return FileErrorCode.VERSION_CONFLICT;
+            return CommonErrorCode.VERSION_CONFLICT;
         }
         throw new IllegalArgumentException(
                 "Unmapped file exception: " + exception.getClass().getName());
