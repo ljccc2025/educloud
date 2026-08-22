@@ -24,3 +24,6 @@ Thumbs.db
 .worktrees/
 
 deploy/secrets/
+
+# 本地交接文档（不提交 GitHub）
+交接文档-*.md
