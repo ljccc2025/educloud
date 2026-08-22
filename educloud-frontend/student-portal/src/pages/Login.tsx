@@ -139,7 +139,7 @@ export default function Login() {
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder="3-32 位字母/数字/._-"
                       required
-                      pattern="[A-Za-z0-9_.-]+"
+                      pattern="[A-Za-z0-9_.\-]+"
                       minLength={3}
                       maxLength={32}
                       className="input-field pl-11"
@@ -156,7 +156,7 @@ export default function Login() {
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="11 位手机号"
                       required
-                      pattern="[0-9+ -]{5,32}"
+                      pattern="[0-9+ \-]{5,32}"
                       className="input-field pl-11"
                     />
                   </div>
