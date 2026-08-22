@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { type JSX } from 'react';
+import { useEffect, type JSX } from 'react';
 import MainLayout from './layouts/MainLayout';
 import { useAuthStore } from './stores/useAuthStore';
 
@@ -25,6 +25,11 @@ function ProtectedRoute({ children }: { children: JSX.Element }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    // 已有本地 token 时恢复真实用户信息（失败则自动清理过期登录态）。
+    void useAuthStore.getState().restore();
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>

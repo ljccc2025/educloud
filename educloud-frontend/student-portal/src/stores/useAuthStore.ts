@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { authApi, currentUser } from '../services/api';
+import { authApi } from '../services/api';
+import { apiErrorText } from '../services/http';
 import type { StudentUser } from '../types';
 
 interface AuthState {
@@ -7,31 +8,46 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   error: string | null;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  login: (loginName: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  restore: () => Promise<void>;
   clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: localStorage.getItem('student_token'),
   loading: false,
   error: null,
-  login: async (username, password) => {
+  login: async (loginName, password) => {
     set({ loading: true, error: null });
     try {
-      const { token } = await authApi.login(username, password);
-      localStorage.setItem('student_token', token);
-      set({ user: currentUser, token, loading: false });
+      const { token, user } = await authApi.login(loginName, password);
+      set({ user, token, loading: false });
       return true;
     } catch (e) {
-      set({ error: (e as Error).message, loading: false });
+      set({ error: apiErrorText(e), loading: false });
       return false;
     }
   },
-  logout: () => {
-    localStorage.removeItem('student_token');
+  logout: async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // 本地始终清理。
+    }
     set({ user: null, token: null });
+  },
+  restore: async () => {
+    if (!get().token) return;
+    set({ loading: true });
+    try {
+      const user = await authApi.me();
+      set({ user, loading: false });
+    } catch {
+      localStorage.removeItem('student_token');
+      set({ user: null, token: null, loading: false });
+    }
   },
   clearError: () => set({ error: null }),
 }));

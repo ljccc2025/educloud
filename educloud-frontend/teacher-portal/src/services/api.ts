@@ -1,3 +1,4 @@
+import { http, TOKEN_KEY, type ApiEnvelope } from './http';
 import type {
   User,
   Course,
@@ -564,16 +565,52 @@ function delay<T>(data: T, ms = 300): Promise<T> {
 }
 
 // ---------- API Functions ----------
+export interface AuthUser {
+  id: string;
+  username: string;
+  displayName: string;
+  userType: string;
+  roles: string[];
+  permissions: string[];
+}
+
+function mapAuthUser(a: AuthUser): User {
+  return {
+    id: a.id,
+    name: a.displayName || a.username,
+    email: a.username,
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(a.username)}&backgroundColor=1e1b4b`,
+    role: a.userType === 'ADMIN' ? 'admin' : 'teacher',
+    title: a.roles.join('、') || 'EduCloud 教师',
+    bio: '',
+  };
+}
+
 export const api = {
-  // Auth
-  login: (email: string, password: string) => {
-    void email;
-    void password;
-    return delay({ user: mockUser, token: 'mock-jwt-token-' + Date.now() });
+  // Auth（M03 联调：经 Gateway 与 educloud-user 服务对接）
+  login: async (loginName: string, password: string) => {
+    const resp = await http.post<ApiEnvelope<{ accessToken: string; expiresIn: number; user: AuthUser }>>(
+      '/auth/login',
+      { loginName, password, portal: 'TEACHER' },
+    );
+    const token = resp.data.data.accessToken;
+    localStorage.setItem(TOKEN_KEY, token);
+    return { user: mapAuthUser(resp.data.data.user), token };
+  },
+  logout: async (): Promise<void> => {
+    try {
+      await http.post('/auth/logout');
+    } catch {
+      // 本地始终清理。
+    }
+    localStorage.removeItem(TOKEN_KEY);
   },
 
   // User
-  getCurrentUser: () => delay(mockUser),
+  getCurrentUser: async (): Promise<User> => {
+    const resp = await http.get<ApiEnvelope<AuthUser>>('/me');
+    return mapAuthUser(resp.data.data);
+  },
 
   // Courses
   getCourses: () => delay(mockCourses),

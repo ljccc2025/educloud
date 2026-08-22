@@ -19,8 +19,8 @@ export default function Login() {
     try {
       await login(email, password);
       navigate('/');
-    } catch {
-      setError('登录失败，请检查邮箱与密码');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '登录失败，请检查邮箱与密码');
     }
   };
 

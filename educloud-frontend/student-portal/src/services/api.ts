@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { http, TOKEN_KEY, type ApiEnvelope } from './http';
 import type {
   Course, Chapter, Review, LiveRoom, ChatMessage,
   Assignment, Exam, Order, StudentUser, HomeStats,
@@ -17,7 +18,7 @@ const cover = (seed: number) =>
 
 // ---------- current user ----------
 export const currentUser: StudentUser = {
-  id: 1,
+  id: '1',
   username: 'student001',
   realName: '林晓',
   email: 'linxiao@educloud.cn',
@@ -454,12 +455,63 @@ export const userApi = {
   },
 };
 
+// ---------- 真实认证（M03 联调）：经 Gateway 与 educloud-user 服务对接 ----------
+export interface AuthUser {
+  id: string;
+  username: string;
+  displayName: string;
+  userType: string;
+  roles: string[];
+  permissions: string[];
+}
+
+function mapAuthUser(a: AuthUser): StudentUser {
+  return {
+    id: a.id,
+    username: a.username,
+    realName: a.displayName || a.username,
+    email: '',
+    phone: '',
+    avatar: avatar(a.username),
+    bio: '',
+    joinDate: new Date().toISOString().slice(0, 10),
+    learnedCourses: 0,
+    learnedHours: 0,
+    certificates: 0,
+    consecutiveDays: 1,
+  };
+}
+
 export const authApi = {
-  login: (username: string, password: string): Promise<{ token: string; user: StudentUser }> => {
-    if (username && password) {
-      return delay({ token: 'mock-student-token-' + Date.now(), user: currentUser });
+  login: async (loginName: string, password: string): Promise<{ token: string; user: StudentUser }> => {
+    const resp = await http.post<ApiEnvelope<{ accessToken: string; expiresIn: number; user: AuthUser }>>(
+      '/auth/login',
+      { loginName, password, portal: 'STUDENT' },
+    );
+    const token = resp.data.data.accessToken;
+    localStorage.setItem(TOKEN_KEY, token);
+    return { token, user: mapAuthUser(resp.data.data.user) };
+  },
+  me: async (): Promise<StudentUser> => {
+    const resp = await http.get<ApiEnvelope<AuthUser>>('/me');
+    return mapAuthUser(resp.data.data);
+  },
+  logout: async (): Promise<void> => {
+    try {
+      await http.post('/auth/logout');
+    } catch {
+      // 服务端已尽力撤销；本地始终清理。
     }
-    return Promise.reject(new Error('用户名或密码错误'));
+    localStorage.removeItem(TOKEN_KEY);
+  },
+  register: async (payload: {
+    username: string;
+    password: string;
+    email: string;
+    phone: string;
+    displayName?: string;
+  }): Promise<void> => {
+    await http.post('/auth/register', payload);
   },
 };
 

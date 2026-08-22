@@ -168,7 +168,7 @@ export interface Order {
 
 // 用户
 export interface StudentUser {
-  id: number;
+  id: string;
   username: string;
   realName: string;
   email: string;

@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { http, TOKEN_KEY, type ApiEnvelope } from './http';
 import type {
   User,
   Course,
@@ -29,7 +30,7 @@ const cover = (seed: number) =>
 
 // ---------- 管理员 ----------
 export interface AdminUser {
-  id: number;
+  id: string;
   username: string;
   realName: string;
   email: string;
@@ -39,7 +40,7 @@ export interface AdminUser {
 }
 
 export const adminUser: AdminUser = {
-  id: 1,
+  id: '1',
   username: 'admin',
   realName: '超级管理员',
   email: 'admin@educloud.cn',
@@ -350,14 +351,50 @@ function generateMonthlyRevenue() {
 // ---------- API 函数 ----------
 
 // 认证
+export interface AuthUser {
+  id: string;
+  username: string;
+  displayName: string;
+  userType: string;
+  roles: string[];
+  permissions: string[];
+}
+
+function mapAuthAdmin(a: AuthUser): AdminUser {
+  return {
+    id: a.id,
+    username: a.username,
+    realName: a.displayName || a.username,
+    email: '',
+    avatar: avatar(a.username),
+    role: a.roles[0] ?? 'ADMIN',
+    lastLogin: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+  };
+}
+
 export const authApi = {
-  login: (username: string, password: string): Promise<{ token: string; admin: AdminUser }> => {
-    if (username && password) {
-      return delay({ token: 'mock-jwt-token-' + Date.now(), admin: adminUser });
-    }
-    return Promise.reject(new Error('用户名或密码错误'));
+  // M03 联调：经 Gateway 与 educloud-user 服务对接
+  login: async (loginName: string, password: string): Promise<{ token: string; admin: AdminUser }> => {
+    const resp = await http.post<ApiEnvelope<{ accessToken: string; expiresIn: number; user: AuthUser }>>(
+      '/auth/login',
+      { loginName, password, portal: 'ADMIN' },
+    );
+    const token = resp.data.data.accessToken;
+    localStorage.setItem(TOKEN_KEY, token);
+    return { token, admin: mapAuthAdmin(resp.data.data.user) };
   },
-  getProfile: (): Promise<AdminUser> => delay(adminUser),
+  me: async (): Promise<AdminUser> => {
+    const resp = await http.get<ApiEnvelope<AuthUser>>('/me');
+    return mapAuthAdmin(resp.data.data);
+  },
+  logout: async (): Promise<void> => {
+    try {
+      await http.post('/auth/logout');
+    } catch {
+      // 本地始终清理。
+    }
+    localStorage.removeItem(TOKEN_KEY);
+  },
 };
 
 // 用户
