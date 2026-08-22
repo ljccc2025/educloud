@@ -1,6 +1,7 @@
 package com.educloud.file.config;
 
 import com.educloud.file.support.ContentTypePolicy;
+import com.educloud.file.support.GrantPurposePolicy;
 import com.educloud.file.support.ObjectKeyFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,5 +25,10 @@ public class FileSupportConfiguration {
     @Bean
     ObjectKeyFactory objectKeyFactory(FileProperties properties, ContentTypePolicy contentTypePolicy) {
         return new ObjectKeyFactory(properties.storage().bucket(), contentTypePolicy);
+    }
+
+    @Bean
+    GrantPurposePolicy grantPurposePolicy(FileProperties properties) {
+        return new GrantPurposePolicy(properties.downloadGrant().purposes());
     }
 }

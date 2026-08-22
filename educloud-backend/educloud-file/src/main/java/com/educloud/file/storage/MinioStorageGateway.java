@@ -63,6 +63,22 @@ public class MinioStorageGateway implements StorageGateway {
     }
 
     @Override
+    public String presignedGetUrl(String bucket, String objectKey, Duration ttl) {
+        try {
+            GetPresignedObjectUrlArgs args = GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET)
+                    .bucket(bucket)
+                    .object(objectKey)
+                    .expiry(Math.toIntExact(ttl.getSeconds()))
+                    .build();
+            return minioClient.getPresignedObjectUrl(args);
+        } catch (MinioException | IOException | GeneralSecurityException e) {
+            throw new FileStorageException(
+                    "生成 presigned GET URL 失败: bucket=" + bucket + ", object=" + objectKey, e);
+        }
+    }
+
+    @Override
     public ObjectStat stat(String bucket, String objectKey) {
         try {
             StatObjectResponse response = minioClient.statObject(

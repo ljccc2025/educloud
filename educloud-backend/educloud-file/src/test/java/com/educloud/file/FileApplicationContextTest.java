@@ -1,6 +1,7 @@
 package com.educloud.file;
 
 import com.educloud.file.config.FileProperties;
+import com.educloud.file.mapper.FileAccessAuditMapper;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.mapper.FileUploadSessionMapper;
@@ -97,6 +98,11 @@ class FileApplicationContextTest {
         @Bean
         FileBindingMapper fileBindingMapper() {
             return mock(FileBindingMapper.class);
+        }
+
+        @Bean
+        FileAccessAuditMapper fileAccessAuditMapper() {
+            return mock(FileAccessAuditMapper.class);
         }
     }
 }

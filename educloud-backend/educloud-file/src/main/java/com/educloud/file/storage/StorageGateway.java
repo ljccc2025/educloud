@@ -23,6 +23,16 @@ public interface StorageGateway {
     String presignedPutUrl(String bucket, String objectKey, String contentType, Duration ttl);
 
     /**
+     * 生成对象下载（presigned GET）URL。
+     *
+     * @param bucket    存储桶
+     * @param objectKey 对象键
+     * @param ttl       URL 有效期（私有 bucket 下存储层强制过期）
+     * @return 可直接 GET 的签名 URL
+     */
+    String presignedGetUrl(String bucket, String objectKey, Duration ttl);
+
+    /**
      * 查询对象元信息；对象不存在时返回 exists=false 的 ObjectStat。
      */
     ObjectStat stat(String bucket, String objectKey);

@@ -73,6 +73,24 @@ class MinioStorageGatewayTest {
     }
 
     @Test
+    void presignedGetUrlBuildsGetRequestWithBucketObjectAndExpiry() throws Exception {
+        when(client.getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class)))
+                .thenReturn("https://minio.example/educloud-files/dir/file.png?X-Amz-Signature=abc");
+
+        String url = gateway.presignedGetUrl(BUCKET, OBJECT, Duration.ofMinutes(5));
+
+        assertThat(url).startsWith("https://minio.example/");
+        ArgumentCaptor<GetPresignedObjectUrlArgs> captor =
+                ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
+        verify(client).getPresignedObjectUrl(captor.capture());
+        GetPresignedObjectUrlArgs args = captor.getValue();
+        assertThat(args.bucket()).isEqualTo(BUCKET);
+        assertThat(args.object()).isEqualTo(OBJECT);
+        assertThat(args.method()).isEqualTo(Method.GET);
+        assertThat(args.expiry()).isEqualTo(300);
+    }
+
+    @Test
     void statMapsExistingObject() throws Exception {
         StatObjectResponse response = mock(StatObjectResponse.class);
         when(response.size()).thenReturn(2048L);
