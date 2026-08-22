@@ -35,7 +35,7 @@ export default function Profile() {
     setAvatarError(null);
     try {
       const fileId = await uploadAvatar(file);
-      await http.put('/me/profile', { avatarFileId: fileId });
+      await http.patch('/me/profile', { avatarFileId: fileId });
       await refresh();
     } catch (err) {
       setAvatarError(apiErrorText(err));
