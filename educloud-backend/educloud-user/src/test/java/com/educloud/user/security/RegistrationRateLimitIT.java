@@ -51,9 +51,9 @@ class RegistrationRateLimitIT {
         filter = new RegistrationRateLimitFilter(redis, properties, session, new ObjectMapper());
     }
 
-    private MockHttpServletResponse hit(String deviceId) throws Exception {
+    private MockHttpServletResponse hit(String ip, String deviceId) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/register");
-        request.setRemoteAddr("10.1.1.1");
+        request.setRemoteAddr(ip);
         if (deviceId != null) {
             request.addHeader("X-Device-Id", deviceId);
         }
@@ -65,18 +65,19 @@ class RegistrationRateLimitIT {
     @Test
     void sixthIpRequestWithinWindowIs429() throws Exception {
         for (int i = 0; i < 5; i++) {
-            assertThat(hit(null).getStatus()).isEqualTo(200);
+            assertThat(hit("10.1.1.1", null).getStatus()).isEqualTo(200);
         }
-        MockHttpServletResponse sixth = hit(null);
+        MockHttpServletResponse sixth = hit("10.1.1.1", null);
         assertThat(sixth.getStatus()).isEqualTo(429);
         assertThat(sixth.getHeader("Retry-After")).isNotBlank();
     }
 
     @Test
     void deviceLimitKicksInEarlier() throws Exception {
+        // 与 IP 用例使用不同 IP，避免共享计数导致测试间相互干扰。
         for (int i = 0; i < 3; i++) {
-            assertThat(hit("device-x").getStatus()).isEqualTo(200);
+            assertThat(hit("10.1.1.2", "device-x").getStatus()).isEqualTo(200);
         }
-        assertThat(hit("device-x").getStatus()).isEqualTo(429);
+        assertThat(hit("10.1.1.2", "device-x").getStatus()).isEqualTo(429);
     }
 }
