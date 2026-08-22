@@ -646,7 +646,7 @@ export const api = {
     const fromLogin = mapAuthUser(resp.data.data.user);
     try {
       // 登录响应不含 avatarUrl（M04：仅 /me 经 File 批量授权解析），补一次 me() 拿真实头像。
-      return { user: await authApi.me(), token };
+      return { user: await api.getCurrentUser(), token };
     } catch {
       return { user: fromLogin, token };
     }
