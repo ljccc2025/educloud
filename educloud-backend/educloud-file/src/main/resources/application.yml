@@ -54,6 +54,7 @@ educloud:
       max-ttl: ${EDUCLOUD_FILE_GRANT_MAX_TTL:15m}
       purposes: ${EDUCLOUD_FILE_GRANT_PURPOSES:PROFILE_AVATAR,PUBLIC_CATALOG}
     cleanup:
+      interval: ${EDUCLOUD_FILE_CLEANUP_INTERVAL:60000}   # ms（@Scheduled fixedDelayString 只接受 long）
       unbound-retention: ${EDUCLOUD_FILE_UNBOUND_RETENTION:24h}
       session-expiry: ${EDUCLOUD_FILE_SESSION_EXPIRY:15m}
       batch-size: ${EDUCLOUD_FILE_CLEANUP_BATCH:50}

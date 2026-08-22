@@ -35,7 +35,8 @@ import static org.mockito.Mockito.mock;
  * 时不注册，故 UploadSessionService 依赖的 Mapper 以 mock bean 满足（与
  * UserApplicationContextTest 同法）。任务 11 起 Outbox 相关 Mapper
  * （OutboxEventMapper/OutboxSequenceMapper）与 RabbitMQ ConnectionFactory
- * 一并 mock，保证 RabbitConfiguration/OutboxEventDispatcher 可无外部连接启动。</p>
+ * 一并 mock，保证 RabbitConfiguration/OutboxEventDispatcher 可无外部连接启动。任务 12 起
+ * FileCleanupService 的 PlatformTransactionManager 一并 mock（无 DataSource 自动配置）。</p>
  */
 class FileApplicationContextTest {
 
@@ -103,6 +104,12 @@ class FileApplicationContextTest {
         @Bean
         MinioClient minioClientMock() {
             return mock(MinioClient.class);
+        }
+
+        @Bean
+        org.springframework.transaction.PlatformTransactionManager platformTransactionManager() {
+            // 任务 12 的 FileCleanupService 需要事务管理器（DataSource 自动配置被排除）。
+            return mock(org.springframework.transaction.PlatformTransactionManager.class);
         }
 
         @Bean

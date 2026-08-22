@@ -172,6 +172,12 @@ class SecurityConfigurationTest {
         }
 
         @Bean
+        org.springframework.transaction.PlatformTransactionManager platformTransactionManager() {
+            // 任务 12 的 FileCleanupService 需要事务管理器（DataSource 自动配置被排除）。
+            return mock(org.springframework.transaction.PlatformTransactionManager.class);
+        }
+
+        @Bean
         FileUploadSessionMapper fileUploadSessionMapper() {
             return mock(FileUploadSessionMapper.class);
         }
