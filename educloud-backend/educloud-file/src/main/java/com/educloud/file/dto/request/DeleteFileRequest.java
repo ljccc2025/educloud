@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
  * <p>reason 保留供审计与事件载荷使用（任务 11/12）。</p>
  */
 public record DeleteFileRequest(
-        @NotBlank String ownerType,
-        @NotBlank String ownerId,
+        @NotBlank @Size(max = 64) String ownerType,
+        @NotBlank @Size(max = 128) String ownerId,
         @NotBlank @Size(max = 255) String reason) {
 }

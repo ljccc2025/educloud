@@ -2,6 +2,7 @@ package com.educloud.file.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 /**
  * 单文件下载授权请求体（POST /internal/v1/files/{id}/download-grants）。
@@ -10,10 +11,10 @@ import jakarta.validation.constraints.PositiveOrZero;
  * 服务端默认 TTL 兜底（null → 服务端默认）。</p>
  */
 public record DownloadGrantRequest(
-        @NotBlank String subjectType,
+        @NotBlank @Size(max = 64) String subjectType,
         Long subjectUserId,
-        @NotBlank String ownerType,
-        @NotBlank String ownerId,
-        @NotBlank String purpose,
+        @NotBlank @Size(max = 64) String ownerType,
+        @NotBlank @Size(max = 128) String ownerId,
+        @NotBlank @Size(max = 64) String purpose,
         @PositiveOrZero Long requestedTtlSeconds) {
 }

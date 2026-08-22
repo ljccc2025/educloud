@@ -44,8 +44,21 @@ class StorageTestRateLimitFilterTest {
                 new FileProperties.Cleanup(Duration.ofHours(24), Duration.ofMinutes(15), 50),
                 new FileProperties.StorageTest(1, Duration.ofMinutes(1)),
                 new FileProperties.Internal("bootstrap-key", List.of("user-service"), "educloud-file"),
-                new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"));
+                new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"),
+                    "local");
         filter = new StorageTestRateLimitFilter(jwtDecoder, redis, properties, new ObjectMapper());
+    }
+
+    private FileProperties withEnvironment(String environment) {
+        return new FileProperties(
+                new FileProperties.Storage("http://127.0.0.1:9000", "ak", "sk", "educloud-files"),
+                new FileProperties.Upload(10485760, List.of("image/jpeg"), Duration.ofMinutes(5), Duration.ofMinutes(15)),
+                new FileProperties.DownloadGrant(Duration.ofMinutes(5), Duration.ofMinutes(15), List.of("PROFILE_AVATAR")),
+                new FileProperties.Cleanup(Duration.ofHours(24), Duration.ofMinutes(15), 50),
+                new FileProperties.StorageTest(1, Duration.ofMinutes(1)),
+                new FileProperties.Internal("bootstrap-key", List.of("user-service"), "educloud-file"),
+                new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"),
+                environment);
     }
 
     private MockHttpServletRequest storageTestRequest() {
@@ -60,8 +73,19 @@ class StorageTestRateLimitFilterTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(storageTestRequest(), response, (req, res) -> ((MockHttpServletResponse) res).setStatus(200));
         assertThat(response.getStatus()).isEqualTo(200);
-        verify(values).increment(argThat(key -> key.contains("storage-test")));
+        verify(values).increment("educloud:local:file:ratelimit:storage-test:ip:10.0.0.1");
         verify(redis).expire(anyString(), any(Duration.class));
+    }
+
+    @Test
+    void usesEnvironmentNamespacedRedisKey() throws Exception {
+        when(values.increment(anyString())).thenReturn(1L);
+        StorageTestRateLimitFilter prodFilter = new StorageTestRateLimitFilter(
+                jwtDecoder, redis, withEnvironment("prod"), new ObjectMapper());
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        prodFilter.doFilter(storageTestRequest(), response, (req, res) -> ((MockHttpServletResponse) res).setStatus(200));
+        assertThat(response.getStatus()).isEqualTo(200);
+        verify(values).increment("educloud:prod:file:ratelimit:storage-test:ip:10.0.0.1");
     }
 
     @Test

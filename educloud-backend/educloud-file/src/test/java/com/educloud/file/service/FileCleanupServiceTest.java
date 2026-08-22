@@ -314,6 +314,7 @@ class FileCleanupServiceTest {
                 new FileProperties.Cleanup(RETENTION, Duration.ofMinutes(15), BATCH_SIZE),
                 new FileProperties.StorageTest(1, Duration.ofMinutes(1)),
                 new FileProperties.Internal("bootstrap", List.of("user-service"), "educloud-file"),
-                new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"));
+                new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"),
+                    "local");
     }
 }

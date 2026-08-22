@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -100,6 +101,26 @@ class FileUploadSessionControllerTest {
                 "image/png".equals(request.contentType())
                         && request.expectedSizeBytes() == 2048L
                         && "avatar.png".equals(request.originalName())));
+    }
+
+    @Test
+    @WithMockJwt(subject = "not-a-number", permissions = {"file:upload"})
+    void createRejectsNonNumericSubjectWith401() throws Exception {
+        mockMvc.perform(post("/api/v1/file-upload-sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contentType\":\"image/png\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        verifyNoInteractions(uploadSessionService, fileObjectService);
+    }
+
+    @Test
+    @WithMockJwt(subject = "not-a-number", permissions = {"file:upload"})
+    void completeRejectsNonNumericSubjectWith401() throws Exception {
+        mockMvc.perform(post("/api/v1/file-upload-sessions/55/complete"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        verifyNoInteractions(fileObjectService);
     }
 
     @Test
@@ -177,7 +198,8 @@ class FileUploadSessionControllerTest {
                     new FileProperties.Cleanup(Duration.ofHours(24), Duration.ofMinutes(15), 50),
                     new FileProperties.StorageTest(1, Duration.ofMinutes(1)),
                     new FileProperties.Internal("bootstrap-key", List.of("user-service"), "educloud-file"),
-                    new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"));
+                    new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"),
+                    "local");
         }
     }
 }

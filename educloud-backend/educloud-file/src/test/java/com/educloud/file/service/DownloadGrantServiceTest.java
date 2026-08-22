@@ -1,5 +1,7 @@
 package com.educloud.file.service;
 
+import com.educloud.common.error.BusinessException;
+import com.educloud.common.error.CommonErrorCode;
 import com.educloud.file.config.FileProperties;
 import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
@@ -150,6 +152,7 @@ class DownloadGrantServiceTest {
                 OWNER_SERVICE, singleRequest("USER", SUBJECT_USER_ID, OWNER_TYPE, OWNER_ID, "PROFILE_AVATAR", null)))
                 .isInstanceOf(FileAccessDeniedException.class);
 
+        verify(auditWriter).writeGrantSingle(FILE_ID, SUBJECT_USER_ID, false);
         verify(storageGateway, never()).presignedGetUrl(anyString(), anyString(), any(Duration.class));
         verify(metrics).recordGrantDenied();
     }
@@ -169,6 +172,9 @@ class DownloadGrantServiceTest {
                 OWNER_SERVICE, singleRequest("USER", SUBJECT_USER_ID, OWNER_TYPE, OWNER_ID, "INTERNAL_ONLY", null)))
                 .isInstanceOf(GrantPurposeNotAllowedException.class);
         verify(bindingMapper, never()).findActiveByOwner(anyLong(), anyString(), anyString(), anyString());
+        // 越权/伪造拒绝均需 GRANT_SINGLE FAILURE 审计（ANONYMOUS 与缺失 subjectUserId 为 null 主体）
+        verify(auditWriter).writeGrantSingle(FILE_ID, SUBJECT_USER_ID, false);
+        verify(auditWriter, org.mockito.Mockito.times(2)).writeGrantSingle(FILE_ID, null, false);
     }
 
     @Test
@@ -189,31 +195,40 @@ class DownloadGrantServiceTest {
     }
 
     @Test
-    void grantBatchRejectsOversizedAndDuplicateItems() {
+    void grantBatchRejectsOversizedAndDuplicateItemsWith400ValidationError() {
         List<BatchItem> tooMany = IntStream.range(0, 101)
                 .mapToObj(i -> new BatchItem("k" + i, FILE_ID + (long) i, OWNER_TYPE, OWNER_ID))
                 .toList();
         assertThatThrownBy(() -> service.grantBatch(OWNER_SERVICE,
                 new GrantBatchRequest("USER", SUBJECT_USER_ID, "PROFILE_AVATAR", null, tooMany)))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(CommonErrorCode.VALIDATION_FAILED);
 
         assertThatThrownBy(() -> service.grantBatch(OWNER_SERVICE,
                 new GrantBatchRequest("USER", SUBJECT_USER_ID, "PROFILE_AVATAR", null,
                         List.of(
                                 new BatchItem("k1", FILE_ID, OWNER_TYPE, OWNER_ID),
                                 new BatchItem("k1", FILE_ID + 1, OWNER_TYPE, OWNER_ID)))))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(CommonErrorCode.VALIDATION_FAILED);
+
+        assertThatThrownBy(() -> service.grantBatch(OWNER_SERVICE,
+                new GrantBatchRequest("USER", SUBJECT_USER_ID, "PROFILE_AVATAR",
+                        Duration.ofSeconds(-1), List.of(new BatchItem("k1", FILE_ID, OWNER_TYPE, OWNER_ID)))))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(CommonErrorCode.VALIDATION_FAILED);
     }
 
     @Test
     void grantBatchDeniesEntireBatchOnForgeryAndWritesAudit() {
         BatchItem good = new BatchItem("k-good", FILE_ID, OWNER_TYPE, OWNER_ID);
         BatchItem forged = new BatchItem("k-forged", FILE_ID, OWNER_TYPE, "u-999");
+        // 正常项在第二遍才会消费 URL/文件状态；伪造先行抛出，故只 stub 绑定校验。
         when(bindingMapper.findActiveByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
                 .thenReturn(activeBinding(OWNER_ID));
-        when(objectMapper.selectById(FILE_ID)).thenReturn(availableFile());
-        when(storageGateway.presignedGetUrl(BUCKET, OBJECT_KEY, DEFAULT_TTL))
-                .thenReturn("https://minio.example/educloud-files/abc.png?X-Amz-Signature=s1");
         // 伪造项：无精确绑定（ownerId 不匹配），但文件存在绑定行 → 视为伪造
         when(bindingMapper.findActiveByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, "u-999"))
                 .thenReturn(null);
@@ -224,7 +239,20 @@ class DownloadGrantServiceTest {
                         List.of(good, forged))))
                 .isInstanceOf(FileAccessDeniedException.class);
 
+        verify(storageGateway, never()).presignedGetUrl(anyString(), anyString(), any(Duration.class));
         verify(auditWriter).writeGrantBatchDenied(FILE_ID, SUBJECT_USER_ID);
+        verify(metrics).recordGrantDenied();
+    }
+
+    @Test
+    void grantBatchPurposeViolationWritesAuditWithSentinelFileId() {
+        assertThatThrownBy(() -> service.grantBatch(OWNER_SERVICE,
+                new GrantBatchRequest("ANONYMOUS", null, "PROFILE_AVATAR", null,
+                        List.of(new BatchItem("k1", FILE_ID, OWNER_TYPE, OWNER_ID)))))
+                .isInstanceOf(GrantPurposeNotAllowedException.class);
+
+        verify(auditWriter).writeGrantBatchDenied(0L, null);
+        verify(bindingMapper, never()).findActiveByOwner(anyLong(), anyString(), anyString(), anyString());
         verify(metrics).recordGrantDenied();
     }
 
@@ -335,6 +363,7 @@ class DownloadGrantServiceTest {
                 new FileProperties.Cleanup(Duration.ofHours(24), Duration.ofMinutes(15), 50),
                 new FileProperties.StorageTest(1, Duration.ofMinutes(1)),
                 new FileProperties.Internal("bootstrap", List.of("user-service"), "educloud-file"),
-                new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"));
+                new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"),
+                    "local");
     }
 }

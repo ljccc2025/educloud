@@ -22,6 +22,7 @@ import com.educloud.file.support.GrantPurposePolicy;
 import com.educloud.file.support.OwnerServiceRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcBuilderCustomizer;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -136,6 +137,21 @@ class InternalFileControllerTest {
                 .andExpect(jsonPath("$.status").value("BOUND"));
 
         verify(bindingService).bind(1001L, "user", "USER_PROFILE", "u-42");
+    }
+
+    @Test
+    void bindRejectsOverlongOwnerFieldsWith400() throws Exception {
+        when(jwtDecoder.decode("user-token")).thenReturn(serviceToken("user-service"));
+        String longOwnerId = "u-" + "x".repeat(130);
+
+        mockMvc.perform(post("/internal/v1/files/1001/bind")
+                        .header("Authorization", "Bearer user-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ownerType\":\"USER_PROFILE\",\"ownerId\":\"" + longOwnerId + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        verifyNoInteractions(bindingService);
     }
 
     @Test
@@ -347,6 +363,20 @@ class InternalFileControllerTest {
     static class TestInfrastructure {
 
         @Bean
+        MockMvcBuilderCustomizer internalServletPathCustomizer() {
+            // 真实容器中 servletPath 与内部路由对齐；MockMvc 请求默认 servletPath 为空，
+            // 而 InternalApiFilter.shouldNotFilter 按 getServletPath 判断，这里补齐映射。
+            return builder -> builder.defaultRequest(
+                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/")
+                    .with(request -> {
+                        if (request.getRequestURI().startsWith("/internal/v1/")) {
+                            request.setServletPath(request.getRequestURI());
+                        }
+                        return request;
+                    }));
+        }
+
+        @Bean
         Clock clock() {
             return Clock.fixed(Instant.parse("2026-08-22T11:00:00Z"), ZoneOffset.UTC);
         }
@@ -385,7 +415,8 @@ class InternalFileControllerTest {
                     new FileProperties.Internal(
                             "bootstrap-key", List.of("user-service", "evil-service"), "educloud-file"),
                     new FileProperties.Jwt(
-                            "file:/jwks.json", "https://issuer.educloud.local", "educloud-api"));
+                            "file:/jwks.json", "https://issuer.educloud.local", "educloud-api"),
+                    "local");
         }
 
         @Bean

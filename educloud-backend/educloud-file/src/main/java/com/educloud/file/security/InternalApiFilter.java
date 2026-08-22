@@ -40,7 +40,9 @@ public final class InternalApiFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/internal/v1/");
+        // 用 servletPath 而非 requestURI：context-path/网关 rewrite 场景下
+        // requestURI 可能带前缀，servletPath 才是被映射的 servlet 内路径。
+        return !request.getServletPath().startsWith("/internal/v1/");
     }
 
     @Override

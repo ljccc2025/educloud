@@ -24,9 +24,9 @@ public record BatchDownloadGrantRequest(
 
     /** 批量授权单项（与 DownloadGrantService.BatchItem 同构）。 */
     public record Item(
-            @NotBlank String requestKey,
+            @NotBlank @Size(max = 64) String requestKey,
             @NotNull Long fileId,
-            @NotBlank String ownerType,
-            @NotBlank String ownerId) {
+            @NotBlank @Size(max = 64) String ownerType,
+            @NotBlank @Size(max = 128) String ownerId) {
     }
 }

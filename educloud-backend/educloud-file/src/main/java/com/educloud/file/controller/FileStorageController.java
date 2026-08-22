@@ -2,6 +2,8 @@ package com.educloud.file.controller;
 
 import com.educloud.common.api.ApiResponse;
 import com.educloud.common.api.ApiResponseFactory;
+import com.educloud.common.error.BusinessException;
+import com.educloud.common.error.CommonErrorCode;
 import com.educloud.file.dto.response.StorageStatusResponse;
 import com.educloud.file.dto.response.StorageTestResponse;
 import com.educloud.file.observability.FileMetrics;
@@ -49,8 +51,18 @@ public class FileStorageController {
     @PostMapping("/storage-tests")
     @PreAuthorize("hasAuthority('file:storage:test')")
     public ApiResponse<StorageTestResponse> runTest(@AuthenticationPrincipal Jwt jwt) {
-        StorageTestResponse response = storageStatusService.runTest(Long.valueOf(jwt.getSubject()));
+        StorageTestResponse response = storageStatusService.runTest(subjectUserId(jwt));
         metrics.recordStorageTest();
         return responses.success(response);
+    }
+
+    private static Long subjectUserId(Jwt jwt) {
+        try {
+            return Long.valueOf(jwt.getSubject());
+        } catch (NumberFormatException e) {
+            throw new BusinessException(
+                    CommonErrorCode.UNAUTHENTICATED,
+                    "JWT subject 必须为数字: " + jwt.getSubject());
+        }
     }
 }

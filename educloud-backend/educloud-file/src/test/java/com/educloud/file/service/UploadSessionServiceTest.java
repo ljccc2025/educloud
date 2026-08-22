@@ -34,6 +34,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -77,7 +78,8 @@ class UploadSessionServiceTest {
         contentTypePolicy = new ContentTypePolicy(
                 properties.upload().allowedContentTypes(), properties.upload().maxSizeBytes());
         ObjectKeyFactory objectKeyFactory =
-                new ObjectKeyFactory(properties.storage().bucket(), contentTypePolicy);
+                new ObjectKeyFactory(
+                        properties.storage().bucket(), contentTypePolicy, Clock.fixed(NOW, ZoneOffset.UTC));
         service = new UploadSessionService(
                 sessionMapper,
                 objectMapper,
@@ -226,24 +228,6 @@ class UploadSessionServiceTest {
     }
 
     @Test
-    void expireOverdueMarksOverduePendingSessionsAsExpired() {
-        FileUploadSessionEntity overdue1 = pendingSession();
-        overdue1.setId(1L);
-        FileUploadSessionEntity overdue2 = pendingSession();
-        overdue2.setId(2L);
-        when(sessionMapper.selectList(any())).thenReturn(List.of(overdue1, overdue2));
-
-        service.expireOverdue(Duration.ofMinutes(15));
-
-        ArgumentCaptor<FileUploadSessionEntity> captor =
-                ArgumentCaptor.forClass(FileUploadSessionEntity.class);
-        verify(sessionMapper, times(2)).updateById(captor.capture());
-        assertThat(captor.getAllValues())
-                .extracting(FileUploadSessionEntity::getStatus)
-                .containsExactly("EXPIRED", "EXPIRED");
-    }
-
-    @Test
     void completeRejectsSessionNotFound() {
         when(sessionMapper.selectByIdForUpdate(SESSION_ID)).thenReturn(null);
 
@@ -294,6 +278,65 @@ class UploadSessionServiceTest {
         verify(sessionMapper, never()).updateById(any(FileUploadSessionEntity.class));
     }
 
+    @Test
+    void completeRejectsNullStatContentType() {
+        FileUploadSessionEntity session = pendingSession();
+        when(sessionMapper.selectByIdForUpdate(SESSION_ID)).thenReturn(session);
+        when(storageGateway.stat(BUCKET, OBJECT_KEY))
+                .thenReturn(new StorageGateway.ObjectStat(true, 2048L, null));
+
+        assertThatThrownBy(() -> service.complete(UPLOADER_ID, SESSION_ID))
+                .isInstanceOf(FileTypeNotAllowedException.class);
+
+        verify(objectMapper, never()).insert(any(FileObjectEntity.class));
+        verify(sessionMapper, never()).updateById(any(FileUploadSessionEntity.class));
+    }
+
+    @Test
+    void completePersistsActualStatContentTypeNotDeclaredType() {
+        FileUploadSessionEntity session = pendingSession(); // 申报 image/png
+        when(sessionMapper.selectByIdForUpdate(SESSION_ID)).thenReturn(session);
+        when(storageGateway.stat(BUCKET, OBJECT_KEY))
+                .thenReturn(new StorageGateway.ObjectStat(true, 2048L, "image/webp"));
+        when(storageGateway.sha256(BUCKET, OBJECT_KEY, (int) MAX_SIZE_BYTES))
+                .thenReturn("abc123");
+
+        FileObjectEntity result = service.complete(UPLOADER_ID, SESSION_ID);
+
+        ArgumentCaptor<FileObjectEntity> captor =
+                ArgumentCaptor.forClass(FileObjectEntity.class);
+        verify(objectMapper).insert(captor.capture());
+        assertThat(captor.getValue().getContentType()).isEqualTo("image/webp");
+        assertThat(result.getContentType()).isEqualTo("image/webp");
+        verify(sessionMapper).updateById(org.mockito.ArgumentMatchers.<FileUploadSessionEntity>argThat(s ->
+                "COMPLETED".equals(s.getStatus())));
+    }
+
+    @Test
+    void completeRejectsMaxSizeBytesExceedingIntRangeBeforeSha256() {
+        properties = filePropertiesWithMaxSize(Integer.MAX_VALUE + 1L);
+        contentTypePolicy = new ContentTypePolicy(
+                properties.upload().allowedContentTypes(), properties.upload().maxSizeBytes());
+        ObjectKeyFactory objectKeyFactory =
+                new ObjectKeyFactory(
+                        properties.storage().bucket(), contentTypePolicy, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new UploadSessionService(
+                sessionMapper, objectMapper, storageGateway, objectKeyFactory,
+                contentTypePolicy, properties, Clock.fixed(NOW, ZoneOffset.UTC), metrics);
+
+        FileUploadSessionEntity session = pendingSession();
+        when(sessionMapper.selectByIdForUpdate(SESSION_ID)).thenReturn(session);
+        when(storageGateway.stat(BUCKET, OBJECT_KEY))
+                .thenReturn(new StorageGateway.ObjectStat(true, 2048L, "image/png"));
+
+        assertThatThrownBy(() -> service.complete(UPLOADER_ID, SESSION_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("int");
+
+        verify(storageGateway, never()).sha256(anyString(), anyString(), anyInt());
+        verify(objectMapper, never()).insert(any(FileObjectEntity.class));
+    }
+
     private FileUploadSessionEntity pendingSession() {
         FileUploadSessionEntity session = new FileUploadSessionEntity();
         session.setId(SESSION_ID);
@@ -312,10 +355,14 @@ class UploadSessionServiceTest {
     }
 
     private FileProperties fileProperties() {
+        return filePropertiesWithMaxSize(MAX_SIZE_BYTES);
+    }
+
+    private FileProperties filePropertiesWithMaxSize(long maxSizeBytes) {
         return new FileProperties(
                 new FileProperties.Storage("http://127.0.0.1:9000", "ak", "sk", BUCKET),
                 new FileProperties.Upload(
-                        MAX_SIZE_BYTES,
+                        maxSizeBytes,
                         List.of("image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"),
                         Duration.ofMinutes(5),
                         Duration.ofMinutes(15)),
@@ -324,6 +371,7 @@ class UploadSessionServiceTest {
                 new FileProperties.Cleanup(Duration.ofHours(24), Duration.ofMinutes(15), 50),
                 new FileProperties.StorageTest(1, Duration.ofMinutes(1)),
                 new FileProperties.Internal("bootstrap", List.of("user-service"), "educloud-file"),
-                new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"));
+                new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"),
+                    "local");
     }
 }

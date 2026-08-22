@@ -2,6 +2,8 @@ package com.educloud.file.controller;
 
 import com.educloud.common.api.ApiResponse;
 import com.educloud.common.api.ApiResponseFactory;
+import com.educloud.common.error.BusinessException;
+import com.educloud.common.error.CommonErrorCode;
 import com.educloud.common.web.RequestContext;
 import com.educloud.file.dto.request.CreateUploadSessionRequest;
 import com.educloud.file.dto.response.FileObjectResponse;
@@ -57,7 +59,7 @@ public class FileUploadSessionController {
             @Valid @RequestBody CreateUploadSessionRequest request,
             @AuthenticationPrincipal Jwt jwt,
             HttpServletRequest servletRequest) {
-        Long uploaderId = Long.valueOf(jwt.getSubject());
+        Long uploaderId = subjectUserId(jwt);
         String requestId = requestId(servletRequest);
         String ip = servletRequest.getRemoteAddr();
         LOGGER.debug("create upload session uploaderId={} requestId={} clientIp={}",
@@ -70,9 +72,19 @@ public class FileUploadSessionController {
     public ApiResponse<FileObjectResponse> complete(
             @PathVariable Long id,
             @AuthenticationPrincipal Jwt jwt) {
-        Long uploaderId = Long.valueOf(jwt.getSubject());
+        Long uploaderId = subjectUserId(jwt);
         FileObjectEntity object = fileObjectService.completeUpload(uploaderId, id);
         return responses.success(FileObjectResponse.from(object));
+    }
+
+    private static Long subjectUserId(Jwt jwt) {
+        try {
+            return Long.valueOf(jwt.getSubject());
+        } catch (NumberFormatException e) {
+            throw new BusinessException(
+                    CommonErrorCode.UNAUTHENTICATED,
+                    "JWT subject 必须为数字: " + jwt.getSubject());
+        }
     }
 
     private static String requestId(HttpServletRequest request) {

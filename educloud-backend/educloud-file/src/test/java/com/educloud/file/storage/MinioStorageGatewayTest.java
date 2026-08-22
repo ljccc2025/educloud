@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -88,6 +89,23 @@ class MinioStorageGatewayTest {
         assertThat(args.object()).isEqualTo(OBJECT);
         assertThat(args.method()).isEqualTo(Method.GET);
         assertThat(args.expiry()).isEqualTo(300);
+    }
+
+    @Test
+    void presignedUrlsClampTtlSecondsToMaxAllowed() throws Exception {
+        when(client.getPresignedObjectUrl(any(GetPresignedObjectUrlArgs.class)))
+                .thenReturn("https://minio.example/educloud-files/dir/file.png?X-Amz-Signature=abc");
+        Duration huge = Duration.ofSeconds(Integer.MAX_VALUE + 1L);
+        int maxAllowed = 7 * 24 * 60 * 60;
+
+        gateway.presignedPutUrl(BUCKET, OBJECT, "image/png", huge);
+        gateway.presignedGetUrl(BUCKET, OBJECT, huge);
+
+        ArgumentCaptor<GetPresignedObjectUrlArgs> captor =
+                ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
+        verify(client, times(2)).getPresignedObjectUrl(captor.capture());
+        assertThat(captor.getAllValues())
+                .allSatisfy(args -> assertThat(args.expiry()).isEqualTo(maxAllowed));
     }
 
     @Test

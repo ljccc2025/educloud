@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -121,6 +122,15 @@ class FileStorageControllerTest {
     }
 
     @Test
+    @WithMockJwt(subject = "not-a-number", permissions = {"file:storage:test"})
+    void storageTestRejectsNonNumericSubjectWith401() throws Exception {
+        mockMvc.perform(post("/api/v1/files/storage-tests"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        verifyNoInteractions(storageGateway, auditWriter);
+    }
+
+    @Test
     @WithMockJwt(permissions = {"file:storage:test"})
     void storageTestRunsProbeAndWritesSuccessAudit() throws Exception {
         when(storageGateway.probe())
@@ -194,7 +204,8 @@ class FileStorageControllerTest {
                     new FileProperties.Cleanup(Duration.ofHours(24), Duration.ofMinutes(15), 50),
                     new FileProperties.StorageTest(1, Duration.ofMinutes(1)),
                     new FileProperties.Internal("bootstrap-key", List.of("user-service"), "educloud-file"),
-                    new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"));
+                    new FileProperties.Jwt("file:/jwks.json", "https://issuer.educloud.local", "educloud-api"),
+                    "local");
         }
     }
 }
