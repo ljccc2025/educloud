@@ -90,6 +90,14 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         fi
         printf '%s=%s\n' "$variable_name" "$nacos_user_password" >>"$temporary_file"
         ;;
+      NACOS_FILE_PASSWORD)
+        # M04: File 服务 Nacos 密码（provision-file-nacos.sh 用它创建身份，File 服务用它登录 Nacos）。
+        printf '%s=%s\n' "$variable_name" "$(random_hex)" >>"$temporary_file"
+        ;;
+      EDUCLOUD_FILE_INTERNAL_BOOTSTRAP_KEY)
+        # M04: File 内部 bootstrap 密钥；生成后从 .env 读取作为 bootstrap-service-clients.sh 的 BOOTSTRAP_KEY。
+        printf '%s=%s\n' "$variable_name" "$(random_hex)" >>"$temporary_file"
+        ;;
       NACOS_AUTH_TOKEN)
         printf '%s=%s\n' "$variable_name" "$(random_nacos_token)" >>"$temporary_file"
         ;;

@@ -6,6 +6,9 @@
 # 用法：
 #   CLIENT_ID=... AUDIENCES='["educloud-order"]' SCOPES='["order:read"]' \
 #     printf '%s' "$SECRET" | bash deploy/scripts/bootstrap-service-clients.sh
+#   # M04: 为 File 注册 user-service 内部客户端
+#   CLIENT_ID=user-service AUDIENCES='["educloud-file"]' SCOPES='["file:internal"]' \
+#     printf '%s' "$SECRET" | bash deploy/scripts/bootstrap-service-clients.sh
 #
 # 环境变量：CLIENT_ID、AUDIENCES（JSON 数组）、SCOPES（JSON 数组）、
 #   BOOTSTRAP_KEY、BOOTSTRAP_URL（默认 http://127.0.0.1:8082/internal/bootstrap/service-clients）
