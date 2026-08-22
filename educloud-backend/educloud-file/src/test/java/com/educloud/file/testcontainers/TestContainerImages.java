@@ -6,7 +6,8 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * 测试镜像解析器：支持 `EDUCLOUD_TEST_MYSQL_IMAGE` / `EDUCLOUD_TEST_RABBITMQ_IMAGE` /
- * `EDUCLOUD_TEST_REDIS_IMAGE` 私有镜像覆盖（沿用 M01/M02/M03 的 TestContainerImages 模式）。
+ * `EDUCLOUD_TEST_REDIS_IMAGE` / `EDUCLOUD_TEST_MINIO_IMAGE` 私有镜像覆盖
+ * （沿用 M01/M02/M03 的 TestContainerImages 模式）。
  * 依据：M02 提交 ab01feb「allow private integration images」与模块契约「Testcontainers 镜像固定可覆盖来源」。
  */
 public final class TestContainerImages {
@@ -19,6 +20,9 @@ public final class TestContainerImages {
 
     static final String REDIS_IMAGE_ENV = "EDUCLOUD_TEST_REDIS_IMAGE";
     private static final String DEFAULT_REDIS_IMAGE = "redis:7.2.5-alpine";
+
+    static final String MINIO_IMAGE_ENV = "EDUCLOUD_TEST_MINIO_IMAGE";
+    private static final String DEFAULT_MINIO_IMAGE = "minio/minio:RELEASE.2024-01-16T16-07-38Z";
 
     private TestContainerImages() {
     }
@@ -45,6 +49,14 @@ public final class TestContainerImages {
 
     static DockerImageName redis(Function<String, String> environment) {
         return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment);
+    }
+
+    public static DockerImageName minio() {
+        return minio(System::getenv);
+    }
+
+    static DockerImageName minio(Function<String, String> environment) {
+        return resolve(MINIO_IMAGE_ENV, DEFAULT_MINIO_IMAGE, environment);
     }
 
     static DockerImageName resolve(

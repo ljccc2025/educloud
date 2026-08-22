@@ -53,7 +53,8 @@ class FileApplicationContextTest {
                         "--educloud.file.storage.endpoint=http://127.0.0.1:9000",
                         "--educloud.file.storage.access-key=context-test-access",
                         "--educloud.file.storage.secret-key=context-test-secret",
-                        "--educloud.file.storage.bucket=educloud-files-context-test")) {
+                        "--educloud.file.storage.bucket=educloud-files-context-test",
+                        "--educloud.file.storage.init-bucket-on-startup=false")) {
             assertThat(context.isActive()).isTrue();
             assertThat(context.getBean(FileProperties.class).storage().endpoint())
                     .isEqualTo("http://127.0.0.1:9000");
