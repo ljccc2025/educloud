@@ -25,10 +25,23 @@ const http = axios.create({
 
 const DEVICE_KEY = 'educloud_device_id';
 
+function randomUuid(): string {
+  // crypto.randomUUID 仅在安全上下文（https 或 localhost）可用；
+  // 局域网 http 访问必须回退到 RFC4122 v4 生成器，否则注册请求会中断。
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 function deviceId(): string {
   let id = localStorage.getItem(DEVICE_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = randomUuid();
     localStorage.setItem(DEVICE_KEY, id);
   }
   return id;
