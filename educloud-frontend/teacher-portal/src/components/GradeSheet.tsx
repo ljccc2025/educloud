@@ -51,7 +51,7 @@ export default function GradeSheet({
               key={sub.id}
               onClick={() => onSelectSubmission(sub.id)}
               className={cn(
-                'w-full flex items-center gap-3 p-3 border text-left transition-all',
+                'w-full flex items-center gap-3 p-3 border text-left transition-all rounded-xl',
                 selectedSubmissionId === sub.id
                   ? 'border-indigo-800 bg-indigo-50/50'
                   : 'border-ink-100 bg-white hover:border-ink-300'
@@ -112,7 +112,7 @@ export default function GradeSheet({
               <label className="block text-xs font-semibold text-ink-500 uppercase tracking-wider mb-2">
                 作业内容
               </label>
-              <div className="bg-ink-50/50 border border-ink-100 p-4 text-sm text-ink-700 leading-relaxed whitespace-pre-wrap">
+              <div className="bg-ink-50/50 border border-ink-100 p-4 text-sm text-ink-700 leading-relaxed whitespace-pre-wrap rounded-xl">
                 {selected.content}
               </div>
             </div>

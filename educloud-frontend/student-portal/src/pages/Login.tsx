@@ -1,53 +1,32 @@
 import { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, GraduationCap, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { authApi } from '@/services/api';
+import { getSafeInternalRedirect } from '@/utils/checkoutSession';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login, token } = useAuthStore();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
-  const [phone, setPhone] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState('limingxuan@educloud.com');
+  const [password, setPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const redirectTo = getSafeInternalRedirect(searchParams.get('redirect'));
 
   if (token) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={redirectTo} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setNotice('');
     setLoading(true);
     try {
-      if (mode === 'register') {
-        if (password !== confirmPassword) {
-          setError('两次输入的密码不一致');
-          return;
-        }
-        await authApi.register({
-          username,
-          password,
-          email,
-          phone,
-          displayName: displayName || username,
-        });
-        setNotice('注册成功，请使用新账号登录');
-        setMode('login');
-        return;
-      }
       const success = await login(email, password);
       if (success) {
-        navigate('/');
+        navigate(redirectTo, { replace: true });
       } else {
         setError('登录失败，请检查账号和密码');
       }
@@ -120,72 +99,20 @@ export default function Login() {
             <span className="font-display text-2xl font-bold text-indigo-800">EduCloud</span>
           </div>
 
-          <span className="section-label mb-4">{mode === 'login' ? '欢迎回来' : '加入我们'}</span>
-          <h1 className="display-heading text-4xl mt-4 mb-2">{mode === 'login' ? '登录账户' : '注册新账号'}</h1>
-          <p className="text-ink-500 mb-8">
-            {mode === 'login' ? '输入你的邮箱（或用户名）和密码，继续学习之旅' : '填写以下信息，开启学习之旅'}
-          </p>
+          <span className="section-label mb-4">欢迎回来</span>
+          <h1 className="display-heading text-4xl mt-4 mb-2">登录账户</h1>
+          <p className="text-ink-500 mb-8">输入你的邮箱和密码，继续学习之旅</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {mode === 'register' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-ink-700 mb-2">用户名</label>
-                  <div className="relative">
-                    <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-300" />
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="3-32 位字母/数字/._-"
-                      required
-                      pattern="[A-Za-z0-9_.\-]+"
-                      minLength={3}
-                      maxLength={32}
-                      className="input-field pl-11"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-ink-700 mb-2">手机号</label>
-                  <div className="relative">
-                    <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-300" />
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="11 位手机号"
-                      required
-                      pattern="[0-9+ \-]{5,32}"
-                      className="input-field pl-11"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-ink-700 mb-2">昵称（可选）</label>
-                  <div className="relative">
-                    <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-300" />
-                    <input
-                      type="text"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="展示名称"
-                      maxLength={64}
-                      className="input-field pl-11"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
             <div>
-              <label className="block text-sm font-medium text-ink-700 mb-2">{mode === 'login' ? '邮箱或用户名' : '邮箱'}</label>
+              <label className="block text-sm font-medium text-ink-700 mb-2">邮箱地址</label>
               <div className="relative">
                 <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-300" />
                 <input
-                  type={mode === 'login' ? 'text' : 'email'}
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={mode === 'login' ? 'your@email.com 或用户名' : 'your@email.com'}
+                  placeholder="your@email.com"
                   required
                   className="input-field pl-11"
                 />
@@ -202,7 +129,7 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="请输入密码"
                   required
-                  minLength={8}
+                  minLength={6}
                   className="input-field pl-11 pr-12"
                 />
                 <button
@@ -225,33 +152,9 @@ export default function Login() {
               </button>
             </div>
 
-            {mode === 'register' && (
-              <div>
-                <label className="block text-sm font-medium text-ink-700 mb-2">确认密码</label>
-                <div className="relative">
-                  <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-300" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="再次输入密码"
-                    required
-                    minLength={8}
-                    className="input-field pl-11 pr-12"
-                  />
-                </div>
-              </div>
-            )}
-
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
                 {error}
-              </div>
-            )}
-
-            {notice && (
-              <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3">
-                {notice}
               </div>
             )}
 
@@ -261,41 +164,22 @@ export default function Login() {
               className="btn-primary w-full py-3.5 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <><Loader2 size={16} className="animate-spin" /> 提交中...</>
+                <><Loader2 size={16} className="animate-spin" /> 登录中...</>
               ) : (
-                mode === 'login' ? '登录' : '注册并登录'
+                '登录'
               )}
             </button>
           </form>
 
           <div className="mt-8 text-center text-sm text-ink-500">
-            {mode === 'login' ? (
-              <>
-                还没有账户？
-                <button
-                  type="button"
-                  className="text-indigo-800 font-medium link-underline ml-1"
-                  onClick={() => { setMode('register'); setError(''); setNotice(''); }}
-                >
-                  立即注册
-                </button>
-              </>
-            ) : (
-              <>
-                已有账户？
-                <button
-                  type="button"
-                  className="text-indigo-800 font-medium link-underline ml-1"
-                  onClick={() => { setMode('login'); setError(''); setNotice(''); }}
-                >
-                  去登录
-                </button>
-              </>
-            )}
+            还没有账户？
+            <button type="button" className="text-indigo-800 font-medium link-underline ml-1">
+              立即注册
+            </button>
           </div>
 
           <p className="mt-8 text-xs text-ink-300 text-center">
-            {mode === 'login' ? '登录即代表同意 EduCloud 服务条款与隐私政策' : '注册后即可开始你的学习之旅'}
+            演示账号已预填，直接点击登录即可体验
           </p>
         </div>
       </div>

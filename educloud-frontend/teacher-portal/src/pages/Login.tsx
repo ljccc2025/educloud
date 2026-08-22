@@ -36,7 +36,7 @@ export default function Login() {
         <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 text-paper w-full">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500 flex items-center justify-center">
+            <div className="w-10 h-10 bg-amber-500 flex items-center justify-center rounded-lg">
               <BookOpen className="w-5 h-5 text-indigo-900" strokeWidth={2.5} />
             </div>
             <div>
@@ -72,7 +72,7 @@ export default function Login() {
         <div className="w-full max-w-md space-y-8 animate-fade-up">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 justify-center">
-            <div className="w-10 h-10 bg-indigo-800 flex items-center justify-center">
+            <div className="w-10 h-10 bg-indigo-800 flex items-center justify-center rounded-lg">
               <BookOpen className="w-5 h-5 text-amber-400" />
             </div>
             <h1 className="font-display text-2xl font-bold text-ink-900">EduCloud 教师端</h1>
@@ -86,7 +86,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm">
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">
                 {error}
               </div>
             )}
@@ -121,7 +121,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPwd(!showPwd)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-300 hover:text-ink-600"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-300 hover:text-ink-600 rounded-md"
                 >
                   {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>

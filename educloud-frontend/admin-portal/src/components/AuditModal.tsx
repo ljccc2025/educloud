@@ -73,15 +73,15 @@ export default function AuditModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-indigo-800/70 backdrop-blur-sm animate-fade-in"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
-      <div className="relative bg-paper w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-ink-200 shadow-2xl animate-fade-up">
+      <div className="relative bg-surface w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-ink-200 shadow-2xl animate-fade-up rounded-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-8 py-5 border-b border-ink-100 bg-white">
+        <div className="flex items-center justify-between px-8 py-5 border-b border-ink-100 bg-surface-light">
           <div>
             <div className="section-label mb-1">审核详情</div>
-            <h2 className="font-display text-2xl font-700 text-ink-900">{title}</h2>
+            <h2 className="font-display text-2xl font-bold text-ink-900">{title}</h2>
           </div>
           <button
             onClick={onClose}
@@ -95,7 +95,7 @@ export default function AuditModal({
         <div className="p-8 space-y-6">
           {course && (
             <>
-              <div className="aspect-[16/9] overflow-hidden bg-ink-100 border border-ink-200">
+              <div className="aspect-[16/9] overflow-hidden bg-ink-100 border border-ink-200 rounded-xl">
                 <img
                   src={course.cover}
                   alt={course.title}
@@ -103,7 +103,7 @@ export default function AuditModal({
                 />
               </div>
               <div>
-                <h3 className="font-display text-xl font-700 text-ink-900 mb-2">
+                <h3 className="font-display text-xl font-bold text-ink-900 mb-2">
                   {course.title}
                 </h3>
                 <p className="text-sm text-ink-500 leading-relaxed">{course.description}</p>
@@ -119,12 +119,12 @@ export default function AuditModal({
 
           {content && (
             <>
-              <div className="flex items-start gap-4 p-5 bg-white border border-ink-100">
-                <span className="flex items-center justify-center w-14 h-14 bg-indigo-50 text-indigo-800 shrink-0">
+              <div className="flex items-start gap-4 p-5 bg-surface border border-ink-100 rounded-xl">
+                <span className="flex items-center justify-center w-14 h-14 bg-indigo-50 text-indigo-800 shrink-0 rounded-xl">
                   <TypeIcon size={28} />
                 </span>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-display text-lg font-700 text-ink-900 mb-1 truncate">
+                  <h3 className="font-display text-lg font-bold text-ink-900 mb-1 truncate">
                     {content.title}
                   </h3>
                   <p className="text-sm text-ink-500 truncate">{content.courseName}</p>
@@ -164,13 +164,13 @@ export default function AuditModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-8 py-5 border-t border-ink-100 bg-white">
+        <div className="flex items-center justify-end gap-3 px-8 py-5 border-t border-ink-100 bg-surface-light">
           {mode === 'idle' ? (
             <>
               <button
                 onClick={() => setMode('reject')}
                 disabled={loading}
-                className="btn-outline border-red-300 text-red-700 hover:border-red-700 hover:text-red-700"
+                className="btn-outline border-red-500/30 text-red-600 dark:text-red-400 hover:border-red-500/60 hover:text-red-700 dark:hover:text-red-300"
               >
                 <XCircle size={16} />
                 驳回
@@ -178,7 +178,7 @@ export default function AuditModal({
               <button
                 onClick={() => setMode('approve')}
                 disabled={loading}
-                className="btn-primary bg-green-700 hover:bg-green-800 hover:shadow-green-700/20"
+                className="btn-primary bg-green-600 hover:bg-green-700"
               >
                 <Check size={16} />
                 通过
@@ -200,8 +200,8 @@ export default function AuditModal({
                 disabled={loading || (mode === 'reject' && !reason.trim())}
                 className={cn(
                   'btn-primary',
-                  mode === 'reject' && 'bg-red-700 hover:bg-red-800',
-                  mode === 'approve' && 'bg-green-700 hover:bg-green-800',
+                  mode === 'reject' && 'bg-red-600 hover:bg-red-700',
+                  mode === 'approve' && 'bg-green-600 hover:bg-green-700',
                   (loading || (mode === 'reject' && !reason.trim())) && 'opacity-50 cursor-not-allowed',
                 )}
               >

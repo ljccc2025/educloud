@@ -96,7 +96,7 @@ export default function ContentAudit() {
         const Icon = typeIcon[item.type];
         return (
           <div className="flex items-center gap-3">
-            <span className="flex items-center justify-center w-9 h-9 bg-ink-50 text-ink-600 shrink-0">
+            <span className="flex items-center justify-center w-9 h-9 bg-ink-50 text-ink-600 rounded-xl shrink-0">
               <Icon size={16} />
             </span>
             <div>
@@ -181,7 +181,7 @@ export default function ContentAudit() {
             className={cn(
               'px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
               tab === t.key
-                ? 'border-amber-600 text-indigo-800'
+                ? 'border-brand-500 text-brand-500 dark:text-brand-400'
                 : 'border-transparent text-ink-500 hover:text-ink-800',
             )}
           >

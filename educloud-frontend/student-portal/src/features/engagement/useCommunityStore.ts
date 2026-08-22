@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { CommunityPost, CommunityReply } from './types';
 
 const avatar = (name: string) =>
-  `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=1e1b4b&textColor=ffffff`;
+  `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=1e1b4b&textColor=ffffff&fontWeight=500&fontSize=24`;
 
 const initialPosts: CommunityPost[] = [
   {

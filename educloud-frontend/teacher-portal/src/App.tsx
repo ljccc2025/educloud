@@ -10,6 +10,7 @@ import AssignmentGrade from './pages/AssignmentGrade';
 import ExamManage from './pages/ExamManage';
 import StudentList from './pages/StudentList';
 import Analytics from './pages/Analytics';
+import Notifications from './pages/Notifications';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/exams" element={<ExamManage />} />
           <Route path="/students" element={<StudentList />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/notifications" element={<Notifications />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

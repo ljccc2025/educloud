@@ -156,7 +156,7 @@ export default function LiveManage() {
       {/* Quick stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="stat-card flex items-center gap-4">
-          <div className="w-12 h-12 bg-red-50 flex items-center justify-center">
+          <div className="w-12 h-12 bg-red-50 flex items-center justify-center rounded-xl">
             <Radio className="w-6 h-6 text-red-600" />
           </div>
           <div>
@@ -165,7 +165,7 @@ export default function LiveManage() {
           </div>
         </div>
         <div className="stat-card flex items-center gap-4">
-          <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center">
+          <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded-xl">
             <Calendar className="w-6 h-6 text-indigo-600" />
           </div>
           <div>
@@ -174,7 +174,7 @@ export default function LiveManage() {
           </div>
         </div>
         <div className="stat-card flex items-center gap-4">
-          <div className="w-12 h-12 bg-amber-50 flex items-center justify-center">
+          <div className="w-12 h-12 bg-amber-50 flex items-center justify-center rounded-xl">
             <CheckCircle2 className="w-6 h-6 text-amber-600" />
           </div>
           <div>
@@ -191,7 +191,7 @@ export default function LiveManage() {
             key={tab.key}
             onClick={() => setFilter(tab.key)}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all -mb-px',
+              'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all -mb-px rounded-lg',
               filter === tab.key
                 ? 'border-amber-600 text-indigo-800'
                 : 'border-transparent text-ink-400 hover:text-ink-700'
@@ -199,7 +199,7 @@ export default function LiveManage() {
           >
             {tab.label}
             <span className={cn(
-              'text-xs px-1.5 py-0.5',
+              'text-xs px-1.5 py-0.5 rounded-md',
               filter === tab.key ? 'bg-amber-100 text-amber-700' : 'bg-ink-100 text-ink-500'
             )}>
               {tab.count}

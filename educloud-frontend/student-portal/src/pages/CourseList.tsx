@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useCourseStore } from '@/stores/useCourseStore';
 import { categories } from '@/services/api';
 import CourseCard from '@/components/CourseCard';
@@ -27,8 +28,8 @@ const sortOptions: readonly CourseSortOption<SortOption>[] = [
 
 export default function CourseList() {
   const { courses, loading, fetchCourses } = useCourseStore();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [priceRange, setPriceRange] = useState<PriceRange>('all');
   const [sort, setSort] = useState<SortOption>('popular');
@@ -37,6 +38,24 @@ export default function CourseList() {
   useEffect(() => {
     fetchCourses();
   }, [fetchCourses]);
+
+  const categoryParam = searchParams.get('category');
+  const selectedCategory =
+    categoryParam && categories.some((category) => category.name === categoryParam)
+      ? categoryParam
+      : 'all';
+
+  const selectCategory = (category: string) => {
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams);
+      if (category === 'all') {
+        nextParams.delete('category');
+      } else {
+        nextParams.set('category', category);
+      }
+      return nextParams;
+    });
+  };
 
   const filteredCourses = useMemo(() => {
     let result = [...courses];
@@ -92,7 +111,7 @@ export default function CourseList() {
 
   const clearFilters = () => {
     setSearch('');
-    setSelectedCategory('all');
+    selectCategory('all');
     setSelectedLevel('all');
     setPriceRange('all');
     setSort('popular');
@@ -106,7 +125,9 @@ export default function CourseList() {
         <div className="space-y-1">
           <button
             type="button"
-            onClick={() => setSelectedCategory('all')}
+            aria-pressed={selectedCategory === 'all'}
+            data-course-category-filter="all"
+            onClick={() => selectCategory('all')}
             className={cn(
               'w-full text-left px-3 py-2 text-sm transition-colors',
               selectedCategory === 'all'
@@ -120,7 +141,9 @@ export default function CourseList() {
             <button
               key={cat.name}
               type="button"
-              onClick={() => setSelectedCategory(cat.name)}
+              aria-pressed={selectedCategory === cat.name}
+              data-course-category-filter={cat.name}
+              onClick={() => selectCategory(cat.name)}
               className={cn(
                 'w-full text-left px-3 py-2 text-sm transition-colors flex justify-between items-center',
                 selectedCategory === cat.name

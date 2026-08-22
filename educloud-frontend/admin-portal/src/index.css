@@ -3,11 +3,152 @@
 @tailwind utilities;
 
 @layer base {
+  /* ===== LIGHT THEME (default) ===== */
   :root {
-    --color-paper: #faf8f5;
-    --color-ink: #1c1917;
-    --color-indigo: #1e1b4b;
-    --color-amber: #d97706;
+    /* Surfaces */
+    --color-paper: 247 247 251;
+    --color-surface: 255 255 255;
+    --color-surface-light: 241 243 249;
+    --color-surface-lighter: 232 234 242;
+    --color-surface-dark: 238 240 246;
+    --color-shadow: 15 18 40;
+
+    /* Ink / Neutral (dark text on light bg) */
+    --color-ink-50: 247 247 251;
+    --color-ink-100: 241 243 249;
+    --color-ink-200: 226 229 240;
+    --color-ink-300: 200 204 219;
+    --color-ink-400: 139 144 165;
+    --color-ink-500: 107 112 136;
+    --color-ink-600: 77 82 104;
+    --color-ink-700: 53 57 73;
+    --color-ink-800: 30 33 48;
+    --color-ink-900: 19 21 32;
+    --color-ink-950: 10 11 18;
+
+    /* Brand / Purple */
+    --color-brand-400: 139 92 246;
+    --color-brand-500: 124 58 237;
+    --color-brand-600: 109 40 217;
+    --color-brand-700: 91 33 182;
+
+    /* Indigo (tints for backgrounds) */
+    --color-indigo-50: 245 243 255;
+    --color-indigo-100: 237 235 254;
+    --color-indigo-200: 221 214 254;
+    --color-indigo-300: 196 181 253;
+    --color-indigo-400: 167 139 250;
+    --color-indigo-500: 139 92 246;
+    --color-indigo-600: 124 58 237;
+    --color-indigo-700: 109 40 217;
+    --color-indigo-800: 91 33 182;
+    --color-indigo-900: 76 29 149;
+
+    /* Amber */
+    --color-amber-50: 255 251 235;
+    --color-amber-100: 254 243 199;
+    --color-amber-200: 253 230 138;
+    --color-amber-300: 252 211 77;
+    --color-amber-400: 251 191 36;
+    --color-amber-500: 245 158 11;
+    --color-amber-600: 217 119 6;
+    --color-amber-700: 180 83 9;
+    --color-amber-800: 146 64 14;
+    --color-amber-900: 120 53 15;
+
+    /* Chart colors */
+    --chart-grid: 226 229 240;
+    --chart-text: 139 144 165;
+    --chart-axis: 226 229 240;
+    --chart-tooltip-bg: 255 255 255;
+    --chart-tooltip-border: 226 229 240;
+    --chart-tooltip-text: 53 57 73;
+    --chart-tooltip-label: 124 58 237;
+    --chart-cursor: 124 58 237;
+    --chart-primary: 124 58 237;
+    --chart-secondary: 245 158 11;
+    --chart-legend: 107 112 136;
+    --chart-pie-1: 124 58 237;
+    --chart-pie-2: 167 139 250;
+    --chart-pie-3: 139 144 165;
+    --chart-pie-4: 200 204 219;
+
+    /* Hover overlay */
+    --color-hover-overlay: 15 18 40;
+  }
+
+  /* ===== DARK THEME ===== */
+  .dark {
+    /* Surfaces */
+    --color-paper: 10 10 18;
+    --color-surface: 18 18 30;
+    --color-surface-light: 26 26 46;
+    --color-surface-lighter: 34 34 58;
+    --color-surface-dark: 12 12 22;
+    --color-shadow: 0 0 0;
+
+    /* Ink / Neutral (light text on dark bg) */
+    --color-ink-50: 18 18 30;
+    --color-ink-100: 26 26 46;
+    --color-ink-200: 37 37 56;
+    --color-ink-300: 53 53 72;
+    --color-ink-400: 107 107 128;
+    --color-ink-500: 136 136 160;
+    --color-ink-600: 160 160 181;
+    --color-ink-700: 197 197 213;
+    --color-ink-800: 224 224 234;
+    --color-ink-900: 240 240 245;
+    --color-ink-950: 8 8 15;
+
+    /* Brand / Purple */
+    --color-brand-400: 167 139 250;
+    --color-brand-500: 139 92 246;
+    --color-brand-600: 124 58 237;
+    --color-brand-700: 109 40 217;
+
+    /* Indigo (dark tints for dark mode) */
+    --color-indigo-50: 26 21 56;
+    --color-indigo-100: 34 27 72;
+    --color-indigo-200: 45 35 88;
+    --color-indigo-300: 76 53 137;
+    --color-indigo-400: 124 92 196;
+    --color-indigo-500: 139 92 246;
+    --color-indigo-600: 154 108 247;
+    --color-indigo-700: 167 139 250;
+    --color-indigo-800: 139 92 246;
+    --color-indigo-900: 124 58 237;
+
+    /* Amber */
+    --color-amber-50: 42 31 10;
+    --color-amber-100: 58 42 16;
+    --color-amber-200: 90 64 24;
+    --color-amber-300: 138 96 32;
+    --color-amber-400: 251 191 36;
+    --color-amber-500: 245 158 11;
+    --color-amber-600: 217 119 6;
+    --color-amber-700: 180 83 9;
+    --color-amber-800: 146 64 14;
+    --color-amber-900: 120 53 15;
+
+    /* Chart colors */
+    --chart-grid: 37 37 56;
+    --chart-text: 107 107 128;
+    --chart-axis: 37 37 56;
+    --chart-tooltip-bg: 26 26 46;
+    --chart-tooltip-border: 37 37 56;
+    --chart-tooltip-text: 224 224 234;
+    --chart-tooltip-label: 167 139 250;
+    --chart-cursor: 139 92 246;
+    --chart-primary: 139 92 246;
+    --chart-secondary: 245 158 11;
+    --chart-legend: 155 155 176;
+    --chart-pie-1: 139 92 246;
+    --chart-pie-2: 167 139 250;
+    --chart-pie-3: 107 107 128;
+    --chart-pie-4: 53 53 72;
+
+    /* Hover overlay */
+    --color-hover-overlay: 255 255 255;
   }
 
   html {
@@ -15,111 +156,133 @@
   }
 
   body {
-    @apply bg-paper text-ink-800 font-sans antialiased;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
+    @apply bg-paper text-ink-700 font-sans antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgb(var(--color-brand-500) / 0.06), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgb(var(--color-brand-500) / 0.03), transparent);
+    background-attachment: fixed;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   ::selection {
-    @apply bg-amber-200 text-ink-900;
+    @apply bg-brand-500/30 text-ink-900;
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-ink-200 rounded-full;
+    @apply bg-ink-300 rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-ink-300;
+    @apply bg-ink-400;
+  }
+
+  select option {
+    @apply bg-surface text-ink-800;
   }
 }
 
 @layer components {
-  /* Editorial display heading */
+  /* Display heading */
   .display-heading {
-    @apply font-display font-bold tracking-tight leading-[1.05] text-ink-900;
+    @apply font-sans font-bold tracking-tight leading-[1.1] text-ink-900;
   }
 
-  /* Section label — small caps with rule */
+  /* Section label */
   .section-label {
-    @apply inline-flex items-center gap-3 text-xs font-medium uppercase tracking-[0.2em] text-ink-400;
+    @apply inline-flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.15em] text-ink-400;
   }
   .section-label::before {
     content: '';
-    @apply block w-8 h-px bg-amber-600;
+    @apply block w-6 h-px bg-brand-500;
   }
 
-  /* Scholarly numbered marker */
+  /* Section number */
   .section-number {
-    @apply font-display text-7xl md:text-8xl font-black text-indigo-800/10 leading-none select-none;
+    @apply font-sans text-7xl md:text-8xl font-black text-brand-500/10 leading-none select-none;
   }
 
   /* Primary CTA button */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-indigo-800 text-paper
-           font-medium text-sm rounded-none transition-all duration-300
-           hover:bg-indigo-900 hover:shadow-lg hover:shadow-indigo-800/20
-           focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-paper;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-500 text-white
+           font-medium text-sm rounded-xl transition-all duration-200
+           hover:bg-brand-600 hover:shadow-glow-purple
+           active:scale-[0.98]
+           focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:ring-offset-2 focus:ring-offset-paper;
   }
 
   /* Secondary outline button */
   .btn-outline {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 border border-ink-300
-           text-ink-700 font-medium text-sm rounded-none transition-all duration-300
-           hover:border-indigo-800 hover:text-indigo-800
-           focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-paper;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-ink-300
+           text-ink-600 font-medium text-sm rounded-xl transition-all duration-200
+           hover:border-brand-500 hover:text-brand-500 hover:bg-brand-500/5
+           active:scale-[0.98]
+           focus:outline-none focus:ring-2 focus:ring-brand-500/30;
   }
 
   /* Ghost button */
   .btn-ghost {
-    @apply inline-flex items-center gap-2 px-3 py-2 text-ink-500 text-sm font-medium
-           transition-colors duration-200 hover:text-indigo-800;
+    @apply inline-flex items-center gap-2 px-3 py-2 text-ink-500 text-sm font-medium rounded-lg
+           transition-all duration-200 hover:text-brand-500 hover:bg-brand-500/10;
   }
 
-  /* Card — editorial style with subtle border */
+  /* Card */
   .card-editorial {
-    @apply bg-white border border-ink-100 transition-all duration-300;
+    @apply bg-surface border border-ink-200/60 rounded-2xl transition-all duration-300;
   }
   .card-editorial:hover {
-    @apply border-ink-200 shadow-xl shadow-ink-900/5;
+    @apply border-brand-500/30 shadow-card-hover;
   }
 
   /* Input field */
   .input-field {
-    @apply w-full px-4 py-3 bg-white border border-ink-200 text-ink-800 text-sm
-           placeholder:text-ink-300 transition-all duration-200
-           focus:outline-none focus:border-indigo-800 focus:ring-1 focus:ring-indigo-800;
+    @apply w-full px-4 py-2.5 bg-ink-100 border border-ink-300 text-ink-800 text-sm rounded-xl
+           placeholder:text-ink-500 transition-all duration-200
+           focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
   }
 
   /* Badge */
   .badge {
-    @apply inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wider;
+    @apply inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg;
   }
   .badge-amber {
-    @apply badge bg-amber-50 text-amber-700 border border-amber-200;
+    @apply badge bg-amber-500/15 text-amber-600 border border-amber-500/20 dark:text-amber-400;
   }
   .badge-indigo {
-    @apply badge bg-indigo-50 text-indigo-700 border border-indigo-200;
+    @apply badge bg-brand-500/15 text-brand-500 border border-brand-500/20 dark:text-brand-400;
   }
   .badge-green {
-    @apply badge bg-green-50 text-green-700 border border-green-200;
+    @apply badge bg-green-500/15 text-green-600 border border-green-500/20 dark:text-green-400;
   }
   .badge-red {
-    @apply badge bg-red-50 text-red-700 border border-red-200;
+    @apply badge bg-red-500/15 text-red-600 border border-red-500/20 dark:text-red-400;
   }
 
   /* Sidebar nav item */
   .nav-item {
-    @apply flex items-center gap-3 px-4 py-2.5 text-sm text-ink-500 transition-all duration-200
-           border-l-2 border-transparent hover:text-indigo-800 hover:bg-indigo-50/50;
+    @apply flex items-center gap-3 px-4 py-2.5 mx-3 text-sm rounded-xl transition-all duration-200;
+    color: rgb(var(--color-ink-600));
+  }
+  .nav-item:hover {
+    color: rgb(var(--color-ink-900));
+    background-color: rgb(var(--color-ink-500) / 0.08);
+  }
+  .dark .nav-item {
+    color: rgb(var(--color-ink-400));
+  }
+  .dark .nav-item:hover {
+    color: rgb(var(--color-ink-900));
+    background-color: rgb(255 255 255 / 0.05);
   }
   .nav-item-active {
-    @apply flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-indigo-800
-           bg-indigo-50 border-l-2 border-amber-600;
+    @apply flex items-center gap-3 px-4 py-2.5 mx-3 text-sm font-semibold rounded-xl shadow-glow-purple;
+    color: white;
+    background-color: rgb(var(--color-brand-500));
   }
 
   /* Data table */
@@ -127,24 +290,31 @@
     @apply w-full text-sm;
   }
   .data-table thead th {
-    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-400
-           border-b border-ink-100 bg-ink-50/50;
+    @apply px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-ink-400
+           border-b border-ink-200 bg-ink-100/50;
   }
   .data-table tbody td {
-    @apply px-4 py-3 border-b border-ink-50 text-ink-700;
+    @apply px-4 py-3.5 border-b border-ink-200/40 text-ink-600;
+  }
+  .data-table tbody tr {
+    @apply transition-colors duration-150;
   }
   .data-table tbody tr:hover {
-    @apply bg-indigo-50/30;
+    @apply bg-brand-500/5;
+  }
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
   }
 
   /* Stat card */
   .stat-card {
-    @apply bg-white border border-ink-100 p-6;
+    @apply bg-surface border border-ink-200/60 rounded-2xl p-5 transition-all duration-300
+           hover:border-brand-500/20 hover:shadow-card;
   }
 
   /* Animated underline link */
   .link-underline {
-    @apply relative text-indigo-800 font-medium;
+    @apply relative text-brand-500 dark:text-brand-400 font-medium;
     background-image: linear-gradient(currentColor, currentColor);
     background-size: 0% 1px;
     background-repeat: no-repeat;
@@ -157,10 +327,10 @@
 
   /* Progress bar */
   .progress-track {
-    @apply w-full h-1.5 bg-ink-100 overflow-hidden;
+    @apply w-full h-1.5 bg-ink-200 rounded-full overflow-hidden;
   }
   .progress-fill {
-    @apply h-full bg-amber-600 transition-all duration-500;
+    @apply h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full transition-all duration-500;
   }
 }
 

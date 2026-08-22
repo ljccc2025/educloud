@@ -75,7 +75,7 @@ export default function StudentList() {
               key={f.key}
               onClick={() => setProgressFilter(f.key)}
               className={cn(
-                'px-3 py-1.5 text-xs font-medium border transition-all',
+                'px-3 py-1.5 text-xs font-medium border transition-all rounded-lg',
                 progressFilter === f.key
                   ? 'border-indigo-800 bg-indigo-800 text-white'
                   : 'border-ink-200 text-ink-600 hover:border-ink-400'

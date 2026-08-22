@@ -5,8 +5,11 @@ import { cn } from '../utils/cn';
 
 interface CourseFormProps {
   initialCourse?: Course | null;
-  onSubmit: (data: Partial<Course>) => void;
+  onSubmit: (data: Partial<Course>) => void | Promise<void>;
+  onCancel?: () => void;
   loading?: boolean;
+  variant?: 'page' | 'modal';
+  errorMessage?: string | null;
 }
 
 const categories: { value: CourseCategory; label: string }[] = [
@@ -18,7 +21,15 @@ const categories: { value: CourseCategory; label: string }[] = [
   { value: 'mobile', label: '移动开发' },
 ];
 
-export default function CourseForm({ initialCourse, onSubmit, loading }: CourseFormProps) {
+export default function CourseForm({
+  initialCourse,
+  onSubmit,
+  onCancel,
+  loading,
+  variant = 'page',
+  errorMessage,
+}: CourseFormProps) {
+  const isModal = variant === 'modal';
   const [title, setTitle] = useState(initialCourse?.title ?? '');
   const [description, setDescription] = useState(initialCourse?.description ?? '');
   const [category, setCategory] = useState<CourseCategory>(initialCourse?.category ?? 'backend');
@@ -39,18 +50,24 @@ export default function CourseForm({ initialCourse, onSubmit, loading }: CourseF
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form
+      id="course-form"
+      onSubmit={handleSubmit}
+      className={cn(isModal ? 'space-y-5' : 'space-y-8')}
+    >
       {/* Title */}
       <div>
         <label className="block text-sm font-medium text-ink-700 mb-2">
           课程标题 <span className="text-amber-600">*</span>
         </label>
         <input
+          autoFocus={isModal}
+          data-autofocus={isModal ? 'true' : undefined}
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="请输入课程标题，例如：Spring Boot 3 实战"
-          className="input-field font-display text-lg"
+          className={cn('input-field', isModal ? 'text-base' : 'font-display text-lg')}
           required
         />
       </div>
@@ -62,13 +79,13 @@ export default function CourseForm({ initialCourse, onSubmit, loading }: CourseF
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="详细描述课程内容、学习目标与适合人群……"
-          rows={5}
+          rows={isModal ? 3 : 5}
           className="input-field resize-none"
         />
       </div>
 
       {/* Category & Price */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className={cn('grid grid-cols-1 md:grid-cols-2', isModal ? 'gap-4' : 'gap-6')}>
         <div>
           <label className="block text-sm font-medium text-ink-700 mb-2">课程分类</label>
           <select
@@ -102,13 +119,21 @@ export default function CourseForm({ initialCourse, onSubmit, loading }: CourseF
       {/* Cover Upload */}
       <div>
         <label className="block text-sm font-medium text-ink-700 mb-2">课程封面</label>
-        <div className="border-2 border-dashed border-ink-200 p-8 text-center hover:border-indigo-800 transition-colors">
+        <div
+          className={cn(
+            'border-2 border-dashed border-ink-200 text-center hover:border-indigo-800 transition-colors rounded-2xl',
+            isModal ? 'p-5' : 'p-8'
+          )}
+        >
           {cover ? (
             <div className="space-y-3">
               <img
                 src={cover}
                 alt="封面预览"
-                className="w-full max-w-md mx-auto h-48 object-cover border border-ink-100"
+                className={cn(
+                  'w-full max-w-md mx-auto object-cover border border-ink-100 rounded-xl',
+                  isModal ? 'h-32' : 'h-48'
+                )}
               />
               <button
                 type="button"
@@ -143,7 +168,7 @@ export default function CourseForm({ initialCourse, onSubmit, loading }: CourseF
             type="button"
             onClick={() => setStatus('DRAFT')}
             className={cn(
-              'flex items-center gap-2 px-5 py-2.5 border text-sm font-medium transition-all',
+              'flex items-center gap-2 px-5 py-2.5 border text-sm font-medium transition-all rounded-xl',
               status === 'DRAFT'
                 ? 'border-ink-800 bg-ink-800 text-white'
                 : 'border-ink-200 text-ink-600 hover:border-ink-400'
@@ -156,7 +181,7 @@ export default function CourseForm({ initialCourse, onSubmit, loading }: CourseF
             type="button"
             onClick={() => setStatus('PUBLISHED')}
             className={cn(
-              'flex items-center gap-2 px-5 py-2.5 border text-sm font-medium transition-all',
+              'flex items-center gap-2 px-5 py-2.5 border text-sm font-medium transition-all rounded-xl',
               status === 'PUBLISHED'
                 ? 'border-green-600 bg-green-600 text-white'
                 : 'border-ink-200 text-ink-600 hover:border-ink-400'
@@ -168,13 +193,31 @@ export default function CourseForm({ initialCourse, onSubmit, loading }: CourseF
         </div>
       </div>
 
+      {errorMessage && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700"
+        >
+          {errorMessage}
+        </div>
+      )}
+
       {/* Submit */}
       <div className="flex items-center gap-4 pt-4 border-t border-ink-100">
-        <button type="submit" disabled={loading} className="btn-primary">
+        <button
+          type="submit"
+          disabled={loading}
+          className={cn('btn-primary', isModal && 'flex-1')}
+        >
           <Save className="w-4 h-4" />
           {loading ? '保存中…' : '保存课程'}
         </button>
-        <button type="button" className="btn-outline">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={loading}
+          className={cn('btn-outline', isModal && 'flex-1')}
+        >
           取消
         </button>
       </div>

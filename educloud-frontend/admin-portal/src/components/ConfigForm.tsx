@@ -43,7 +43,7 @@ export default function ConfigForm({ value, onChange, section }: ConfigFormProps
             </Field>
             <Field label="站点 Logo" full>
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 border border-dashed border-ink-300 flex items-center justify-center bg-ink-50">
+                <div className="w-20 h-20 border border-dashed border-ink-300 flex items-center justify-center bg-ink-50 rounded-xl">
                   {value.logoUrl ? (
                     <img src={value.logoUrl} alt="logo" className="w-full h-full object-contain" />
                   ) : (
@@ -177,7 +177,7 @@ export default function ConfigForm({ value, onChange, section }: ConfigFormProps
               <label className="inline-flex items-center gap-2 cursor-pointer h-[46px]">
                 <input
                   type="checkbox"
-                  className="w-4 h-4 accent-indigo-800"
+                  className="w-4 h-4 accent-brand-500"
                   checked={value.minioUseSSL}
                   onChange={(e) => update('minioUseSSL', e.target.checked)}
                 />
@@ -233,7 +233,7 @@ export default function ConfigForm({ value, onChange, section }: ConfigFormProps
               <label className="inline-flex items-center gap-2 cursor-pointer h-[46px]">
                 <input
                   type="checkbox"
-                  className="w-4 h-4 accent-indigo-800"
+                  className="w-4 h-4 accent-brand-500"
                   checked={value.requireEmailVerify}
                   onChange={(e) => update('requireEmailVerify', e.target.checked)}
                 />
@@ -261,11 +261,11 @@ function ConfigCard({
   return (
     <div className="card-editorial p-6 md:p-8">
       <div className="flex items-start gap-4 mb-6 pb-5 border-b border-ink-100">
-        <span className="flex items-center justify-center w-11 h-11 bg-indigo-800 text-paper shrink-0">
+        <span className="flex items-center justify-center w-11 h-11 bg-gradient-to-br from-brand-500 to-brand-700 text-white shrink-0 rounded-xl shadow-glow-purple">
           <Icon size={20} />
         </span>
         <div>
-          <h3 className="font-display text-xl font-700 text-ink-900">{title}</h3>
+          <h3 className="font-display text-xl font-bold text-ink-900">{title}</h3>
           <p className="text-sm text-ink-500 mt-0.5">{description}</p>
         </div>
       </div>

@@ -92,7 +92,7 @@ export default function AiAssistant() {
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
         <section className="card-editorial flex h-[36rem] max-h-[calc(100dvh-8rem)] min-h-[28rem] min-w-0 flex-col overflow-hidden lg:h-[calc(100dvh-18rem)] lg:max-h-[42rem] lg:min-h-[24rem]">
           <div className="flex shrink-0 items-center gap-3 border-b border-ink-100 px-5 py-4">
-            <div className="flex h-9 w-9 items-center justify-center bg-indigo-800 text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-800 text-white">
               <Bot size={18} />
             </div>
             <div>
@@ -106,11 +106,11 @@ export default function AiAssistant() {
               const assistant = message.role === 'assistant';
               return (
                 <div key={message.id} className={`flex gap-3 ${assistant ? '' : 'flex-row-reverse'}`} data-message-role={message.role}>
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center ${assistant ? 'bg-indigo-800 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${assistant ? 'bg-indigo-800 text-white' : 'bg-amber-100 text-amber-800'}`}>
                     {assistant ? <Sparkles size={17} /> : <UserRound size={17} />}
                   </div>
                   <div className={`max-w-[85%] ${assistant ? '' : 'text-right'}`}>
-                    <div className={`inline-block px-4 py-3 text-left text-sm leading-6 ${assistant ? 'bg-ink-50 text-ink-700' : 'bg-indigo-800 text-white'}`}>
+                    <div className={`inline-block rounded-2xl px-4 py-3 text-left text-sm leading-6 shadow-sm ${assistant ? 'bg-ink-50 text-ink-700' : 'bg-indigo-800 text-white'}`}>
                       {message.content}
                     </div>
                     <p className="mt-1 text-xs text-ink-300">{message.createdAt}</p>
@@ -120,8 +120,8 @@ export default function AiAssistant() {
             })}
             {loading && (
               <div className="flex gap-3">
-                <div className="flex h-9 w-9 items-center justify-center bg-indigo-800 text-white"><Sparkles size={17} /></div>
-                <div className="flex items-center gap-1 bg-ink-50 px-4 py-4" aria-label="AI 助教正在思考">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-800 text-white"><Sparkles size={17} /></div>
+                <div className="flex items-center gap-1 rounded-2xl bg-ink-50 px-4 py-4 shadow-sm" aria-label="AI 助教正在思考">
                   {[0, 1, 2].map((dot) => <span key={dot} className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" style={{ animationDelay: `${dot * 120}ms` }} />)}
                 </div>
               </div>
@@ -129,7 +129,7 @@ export default function AiAssistant() {
           </div>
 
           <div className="shrink-0 border-t border-ink-100 bg-white p-4 sm:p-5">
-            {error && <div className="mb-3 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+            {error && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
             <div className="flex items-end gap-3">
               <textarea
                 value={input}
@@ -143,7 +143,7 @@ export default function AiAssistant() {
                 rows={2}
                 maxLength={1000}
                 placeholder="输入你的学习问题..."
-                className="input-field min-h-[3.25rem] resize-none"
+                className="input-field min-h-[3.25rem] resize-none rounded-xl"
               />
               <button
                 type="button"
@@ -169,7 +169,7 @@ export default function AiAssistant() {
                   type="button"
                   onClick={() => void sendQuestion(question.prompt)}
                   disabled={loading}
-                  className="flex w-full items-start gap-3 border border-ink-100 p-3 text-left transition-colors hover:border-indigo-200 hover:bg-indigo-50/60 disabled:opacity-45"
+                  className="flex w-full items-start gap-3 rounded-xl border border-ink-100 p-3 text-left transition-colors hover:border-indigo-200 hover:bg-indigo-50/60 disabled:opacity-45"
                 >
                   <question.icon className="mt-0.5 shrink-0 text-indigo-700" size={17} />
                   <span>
@@ -180,7 +180,7 @@ export default function AiAssistant() {
               ))}
             </div>
           </div>
-          <div className="border border-amber-200 bg-amber-50 p-5">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
             <h3 className="text-sm font-semibold text-amber-900">提问建议</h3>
             <p className="mt-2 text-xs leading-5 text-amber-800/80">说明课程、当前进度和具体困难，助教给出的步骤会更有针对性。</p>
           </div>

@@ -71,7 +71,7 @@ export default function DataTable<T>({
   };
 
   return (
-    <div className="overflow-x-auto border border-ink-100 bg-white">
+    <div className="overflow-x-auto card-editorial">
       <table className="data-table">
         <thead>
           <tr>

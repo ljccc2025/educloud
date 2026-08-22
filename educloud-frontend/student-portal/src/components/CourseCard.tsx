@@ -18,7 +18,7 @@ export default function CourseCard({ course, index = 0 }: { course: Course; inde
       style={{ animationDelay: `${index * 80}ms` }}
     >
       {/* Cover */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-ink-100">
+      <div className="relative aspect-[16/10] overflow-hidden rounded-t-2xl bg-ink-100">
         <img
           src={course.cover}
           alt={course.title}

@@ -93,7 +93,7 @@ export default function CourseEdit() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={cn(
-                'flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-all -mb-px',
+                'flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-all -mb-px rounded-lg',
                 activeTab === tab.key
                   ? 'border-amber-600 text-indigo-800'
                   : 'border-transparent text-ink-400 hover:text-ink-700'
@@ -153,7 +153,7 @@ export default function CourseEdit() {
                 <img
                   src={course.cover}
                   alt="课程封面"
-                  className="w-full max-w-lg aspect-video object-cover border border-ink-100"
+                  className="w-full max-w-lg aspect-video object-cover border border-ink-100 rounded-2xl"
                 />
                 <p className="text-sm text-ink-500">当前封面预览。如需更换，请在「基本信息」标签页中修改封面 URL。</p>
                 <button

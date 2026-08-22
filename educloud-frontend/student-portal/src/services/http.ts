@@ -1,8 +1,8 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 
 /**
- * EduCloud 学生端真实 API 客户端（M03 联调）。
- * 经 Vite 代理转发到 Gateway（/api -> http://127.0.0.1:8080，可用 VITE_GATEWAY_TARGET 覆盖）；
+ * EduCloud 真实 API 客户端（M03 联调）。
+ * 经 Vite 代理转发到 Gateway（/api -> VITE_GATEWAY_TARGET，默认本机 8080）；
  * refresh_token 为 HttpOnly Cookie（Path=/api/v1/auth），请求带 withCredentials；
  * 401 时自动用 Cookie 刷新一次并重放，失败则清除本地登录态。
  */

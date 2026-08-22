@@ -4,6 +4,7 @@ import type {
   Course,
   LiveRoom,
   Assignment,
+  AssignmentDraftInput,
   Submission,
   Student,
   Exam,
@@ -300,6 +301,10 @@ const mockAssignments: Assignment[] = [
     description: '使用 Spring Boot 3 构建博客系统后端 API，包含文章 CRUD、分类管理与评论功能。',
     dueDate: '2026-08-20T23:59:59',
     totalScore: 100,
+    status: 'PUBLISHED',
+    allowLateSubmission: false,
+    maxAttempts: 1,
+    publishedAt: '2026-08-10T09:00:00',
     submissionCount: 18,
     gradedCount: 12,
     submissions: [
@@ -367,6 +372,10 @@ const mockAssignments: Assignment[] = [
     description: '对给定电商销售数据集进行清洗、探索性分析，输出可视化报告（PDF 或 Notebook）。',
     dueDate: '2026-08-22T23:59:59',
     totalScore: 100,
+    status: 'PUBLISHED',
+    allowLateSubmission: true,
+    maxAttempts: 2,
+    publishedAt: '2026-08-11T09:00:00',
     submissionCount: 15,
     gradedCount: 8,
     submissions: [
@@ -402,6 +411,10 @@ const mockAssignments: Assignment[] = [
     description: '封装 useFetch、useLocalStorage、useDebounce 三个自定义 Hooks，并编写使用示例。',
     dueDate: '2026-08-25T23:59:59',
     totalScore: 100,
+    status: 'PUBLISHED',
+    allowLateSubmission: false,
+    maxAttempts: 1,
+    publishedAt: '2026-08-12T09:00:00',
     submissionCount: 9,
     gradedCount: 0,
     submissions: [
@@ -564,6 +577,39 @@ function delay<T>(data: T, ms = 300): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms));
 }
 
+function cloneAssignment(assignment: Assignment): Assignment {
+  return {
+    ...assignment,
+    submissions: assignment.submissions.map((submission) => ({ ...submission })),
+  };
+}
+
+function requireDraftAssignment(id: string): Assignment {
+  const assignment = mockAssignments.find((item) => item.id === id);
+  if (!assignment) throw new Error('作业不存在');
+  if (assignment.status !== 'DRAFT') throw new Error('只有草稿作业可以修改');
+  return assignment;
+}
+
+function assertDraftInput(data: AssignmentDraftInput): void {
+  if (!data.title.trim()) throw new Error('请输入作业标题');
+  if (!Number.isFinite(data.totalScore) || data.totalScore <= 0) {
+    throw new Error('满分必须大于 0');
+  }
+  if (!Number.isInteger(data.maxAttempts) || data.maxAttempts < 1) {
+    throw new Error('最大提交次数必须是至少为 1 的整数');
+  }
+  if (data.dueDate && Number.isNaN(new Date(data.dueDate).getTime())) {
+    throw new Error('截止时间格式无效');
+  }
+}
+
+function courseForAssignment(courseId: string): Course {
+  const course = mockCourses.find((item) => item.id === courseId);
+  if (!course) throw new Error('所属课程不存在');
+  return course;
+}
+
 // ---------- API Functions ----------
 export interface AuthUser {
   id: string;
@@ -681,8 +727,67 @@ export const api = {
   },
 
   // Assignments
-  getAssignments: () => delay(mockAssignments),
-  getAssignment: (id: string) => delay(mockAssignments.find((a) => a.id === id) ?? null),
+  getAssignments: () => delay(mockAssignments.map(cloneAssignment)),
+  getAssignment: (id: string) => {
+    const assignment = mockAssignments.find((item) => item.id === id);
+    return delay(assignment ? cloneAssignment(assignment) : null);
+  },
+  createAssignmentDraft: (data: AssignmentDraftInput) => {
+    assertDraftInput(data);
+    const course = courseForAssignment(data.courseId);
+    const assignment: Assignment = {
+      id: `a-${Date.now()}`,
+      courseId: course.id,
+      courseName: course.title,
+      title: data.title.trim(),
+      description: data.description.trim(),
+      dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : '',
+      totalScore: data.totalScore,
+      status: 'DRAFT',
+      allowLateSubmission: data.allowLateSubmission,
+      maxAttempts: data.maxAttempts,
+      submissionCount: 0,
+      gradedCount: 0,
+      submissions: [],
+    };
+    mockAssignments.unshift(assignment);
+    return delay(cloneAssignment(assignment));
+  },
+  updateAssignmentDraft: (id: string, data: AssignmentDraftInput) => {
+    assertDraftInput(data);
+    const assignment = requireDraftAssignment(id);
+    const course = courseForAssignment(data.courseId);
+    Object.assign(assignment, {
+      courseId: course.id,
+      courseName: course.title,
+      title: data.title.trim(),
+      description: data.description.trim(),
+      dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : '',
+      totalScore: data.totalScore,
+      allowLateSubmission: data.allowLateSubmission,
+      maxAttempts: data.maxAttempts,
+    });
+    return delay(cloneAssignment(assignment));
+  },
+  publishAssignment: (id: string) => {
+    const assignment = requireDraftAssignment(id);
+    const course = courseForAssignment(assignment.courseId);
+    const dueAt = new Date(assignment.dueDate);
+    if (course.status !== 'PUBLISHED') {
+      throw new Error('当前课程尚未发布，作业只能保存为草稿');
+    }
+    if (!assignment.description.trim()) throw new Error('请输入作业说明');
+    if (Number.isNaN(dueAt.getTime()) || dueAt.getTime() <= Date.now()) {
+      throw new Error('截止时间必须晚于当前时间');
+    }
+    if (assignment.totalScore <= 0) throw new Error('满分必须大于 0');
+    if (!Number.isInteger(assignment.maxAttempts) || assignment.maxAttempts < 1) {
+      throw new Error('最大提交次数必须是至少为 1 的整数');
+    }
+    assignment.status = 'PUBLISHED';
+    assignment.publishedAt = new Date().toISOString();
+    return delay(cloneAssignment(assignment));
+  },
   gradeSubmission: (submissionId: string, score: number, feedback: string) => {
     for (const a of mockAssignments) {
       const sub = a.submissions.find((s) => s.id === submissionId);
@@ -691,7 +796,7 @@ export const api = {
         sub.feedback = feedback;
         sub.status = 'GRADED';
         a.gradedCount = a.submissions.filter((s) => s.status === 'GRADED').length;
-        return delay(sub);
+        return delay({ ...sub });
       }
     }
     return delay(null);

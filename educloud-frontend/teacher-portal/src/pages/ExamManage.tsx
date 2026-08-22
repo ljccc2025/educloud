@@ -213,7 +213,7 @@ export default function ExamManage() {
                   <tr key={exam.id}>
                     <td>
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                        <div className="w-9 h-9 bg-indigo-50 flex items-center justify-center flex-shrink-0 rounded-lg">
                           <FileQuestion className="w-4 h-4 text-indigo-600" />
                         </div>
                         <div>

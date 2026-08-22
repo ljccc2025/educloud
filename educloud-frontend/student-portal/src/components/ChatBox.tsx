@@ -45,7 +45,7 @@ export default function ChatBox({ messages, className }: ChatBoxProps) {
   };
 
   return (
-    <div className={cn('flex flex-col h-full min-h-0 bg-white dark:bg-ink-800 border border-ink-100 dark:border-ink-700 transition-colors', className)}>
+    <div className={cn('flex flex-col h-full min-h-0 overflow-hidden rounded-2xl bg-white dark:bg-ink-800 border border-ink-100 dark:border-ink-700 transition-colors', className)}>
       <div className="px-4 py-3 border-b border-ink-100 dark:border-ink-700 flex items-center justify-between shrink-0">
         <h3 className="font-display text-lg font-semibold text-ink-900 dark:text-white">实时讨论</h3>
         <span className="text-xs text-ink-400 dark:text-ink-300">{localMessages.length} 条消息</span>
@@ -62,7 +62,7 @@ export default function ChatBox({ messages, className }: ChatBoxProps) {
             <div key={msg.id} className={cn('flex gap-3', isSelf && 'flex-row-reverse')}>
               <div
                 className={cn(
-                  'w-8 h-8 flex-shrink-0 flex items-center justify-center text-xs font-semibold',
+                  'w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-semibold',
                   isTeacher
                     ? 'bg-amber-600 text-white'
                     : isSelf
@@ -89,7 +89,7 @@ export default function ChatBox({ messages, className }: ChatBoxProps) {
                 </div>
                 <p
                   className={cn(
-                    'text-sm leading-relaxed inline-block px-3 py-2',
+                    'text-sm leading-relaxed inline-block rounded-2xl px-3 py-2 shadow-sm',
                     isSelf
                       ? 'bg-indigo-800 text-white'
                       : isTeacher
@@ -112,12 +112,12 @@ export default function ChatBox({ messages, className }: ChatBoxProps) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="输入消息..."
-          className="flex-1 px-3 py-2 bg-ink-50 dark:bg-ink-700 border border-ink-200 dark:border-ink-600 text-sm text-ink-800 dark:text-ink-100 placeholder:text-ink-400 focus:outline-none focus:border-indigo-800 dark:focus:border-indigo-300 transition-colors"
+          className="flex-1 rounded-xl px-3 py-2 bg-ink-50 dark:bg-ink-700 border border-ink-200 dark:border-ink-600 text-sm text-ink-800 dark:text-ink-100 placeholder:text-ink-400 focus:outline-none focus:border-indigo-800 dark:focus:border-indigo-300 transition-colors"
         />
         <button
           type="button"
           onClick={handleSend}
-          className="px-4 bg-indigo-800 text-white hover:bg-indigo-900 transition-colors flex items-center justify-center"
+          className="rounded-xl px-4 bg-indigo-800 text-white hover:bg-indigo-900 transition-colors flex items-center justify-center"
         >
           <Send size={16} />
         </button>

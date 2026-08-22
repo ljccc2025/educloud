@@ -78,13 +78,13 @@ export default function CourseAudit() {
             className={cn(
               'px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
               tab === t.key
-                ? 'border-amber-600 text-indigo-800'
+                ? 'border-brand-500 text-brand-500 dark:text-brand-400'
                 : 'border-transparent text-ink-500 hover:text-ink-800',
             )}
           >
             {t.label}
             {t.key === 'PENDING' && (
-              <span className="ml-2 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700">
+              <span className="ml-2 px-1.5 py-0.5 text-xs bg-brand-500/15 text-brand-500 dark:text-brand-400 rounded-md">
                 {pendingCount}
               </span>
             )}
@@ -110,18 +110,18 @@ export default function CourseAudit() {
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute top-3 left-3">
-                  <span className={statusBadge[course.status].cls}>
+                  <span className={cn(statusBadge[course.status].cls, 'rounded-lg')}>
                     {statusBadge[course.status].text}
                   </span>
                 </div>
                 {course.price === 0 && (
                   <div className="absolute top-3 right-3">
-                    <span className="badge bg-green-700 text-paper border-green-700">免费</span>
+                    <span className="badge bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/20 rounded-lg">免费</span>
                   </div>
                 )}
               </div>
               <div className="p-5 flex flex-col flex-1">
-                <h3 className="font-display text-lg font-700 text-ink-900 mb-2 line-clamp-2 leading-snug">
+                <h3 className="font-display text-lg font-bold text-ink-900 mb-2 line-clamp-2 leading-snug">
                   {course.title}
                 </h3>
                 <p className="text-sm text-ink-500 line-clamp-2 mb-4 flex-1">
@@ -133,7 +133,7 @@ export default function CourseAudit() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="badge-indigo">{course.category}</span>
-                  <span className="font-display text-lg font-700 text-ink-900">
+                  <span className="font-display text-lg font-bold text-ink-900">
                     {course.price === 0 ? '免费' : `¥${course.price}`}
                   </span>
                 </div>
@@ -163,7 +163,7 @@ export default function CourseAudit() {
                   )}
                 </div>
                 {course.status === 'REJECTED' && course.rejectReason && (
-                  <div className="mt-3 p-3 bg-red-50 border border-red-100 text-xs text-red-700 flex gap-2">
+                  <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 text-xs text-red-600 dark:text-red-400 rounded-xl flex gap-2">
                     <XCircle size={14} className="shrink-0 mt-0.5" />
                     <span>{course.rejectReason}</span>
                   </div>

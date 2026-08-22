@@ -3,6 +3,7 @@ import { ChevronDown, Video, FileText, Presentation, Clock, HardDrive } from 'lu
 import { useCourseStore } from '../stores/useCourseStore';
 import type { Course, CoursewareType } from '../types';
 import { cn } from '../utils/cn';
+import CourseSelect from '../components/CourseSelect';
 
 const cwTypeConfig: Record<CoursewareType, { label: string; icon: typeof Video; color: string }> = {
   VIDEO: { label: '视频', icon: Video, color: 'text-indigo-600 bg-indigo-50' },
@@ -57,20 +58,11 @@ export default function ContentManage() {
         <label className="block text-xs font-semibold text-ink-500 uppercase tracking-wider mb-2">
           选择课程
         </label>
-        <div className="relative">
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="input-field appearance-none cursor-pointer font-display text-lg pr-10"
-          >
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-400 pointer-events-none" />
-        </div>
+        <CourseSelect
+          courses={courses}
+          value={selectedId}
+          onChange={setSelectedId}
+        />
       </div>
 
       {/* Content */}
@@ -81,11 +73,11 @@ export default function ContentManage() {
       ) : (
         <div className="space-y-3">
           {/* Course summary */}
-          <div className="flex items-center gap-4 p-4 bg-white border border-ink-100">
+          <div className="flex items-center gap-4 p-4 bg-white border border-ink-100 rounded-2xl">
             <img
               src={selectedCourse.cover}
               alt={selectedCourse.title}
-              className="w-24 h-16 object-cover bg-ink-100"
+              className="w-24 h-16 object-cover bg-ink-100 rounded-lg"
             />
             <div className="flex-1">
               <h2 className="font-display text-lg font-semibold text-ink-900">
@@ -114,7 +106,7 @@ export default function ContentManage() {
             selectedCourse.chapters.map((chapter, idx) => {
               const isOpen = openChapters.has(chapter.id);
               return (
-                <div key={chapter.id} className="card-editorial">
+                <div key={chapter.id} className="card-editorial overflow-hidden">
                   <button
                     onClick={() => toggleChapter(chapter.id)}
                     className="w-full flex items-center gap-4 p-4 text-left hover:bg-ink-50/40 transition-colors"
@@ -151,7 +143,7 @@ export default function ContentManage() {
                               key={cw.id}
                               className="flex items-center gap-4 px-4 py-3 border-b border-ink-50 last:border-b-0 hover:bg-indigo-50/20 transition-colors"
                             >
-                              <div className={cn('w-9 h-9 flex items-center justify-center', cfg.color)}>
+                              <div className={cn('w-9 h-9 flex items-center justify-center rounded-lg', cfg.color)}>
                                 <Icon className="w-4 h-4" />
                               </div>
                               <div className="flex-1 min-w-0">

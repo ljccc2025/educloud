@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Pencil, FolderTree, Trash2, Search, Users } from 'lucide-react';
 import { useCourseStore } from '../stores/useCourseStore';
 import type { Course, CourseStatus } from '../types';
 import { cn } from '../utils/cn';
+import CourseCreateModal from '../components/CourseCreateModal';
 
 const statusConfig: Record<CourseStatus, { label: string; cls: string }> = {
   DRAFT: { label: '草稿', cls: 'badge-amber' },
@@ -22,9 +23,11 @@ const categoryLabels: Record<string, string> = {
 
 export default function CourseManage() {
   const navigate = useNavigate();
-  const { courses, loading, fetchCourses, deleteCourse } = useCourseStore();
+  const createButtonRef = useRef<HTMLButtonElement>(null);
+  const { courses, loading, fetchCourses, createCourse, deleteCourse } = useCourseStore();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<CourseStatus | 'ALL'>('ALL');
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     fetchCourses();
@@ -42,6 +45,12 @@ export default function CourseManage() {
     }
   };
 
+  const handleCreate = async (data: Partial<Course>) => {
+    const created = await createCourse(data);
+    setShowCreate(false);
+    navigate(`/courses/edit/${created.id}`);
+  };
+
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Page header */}
@@ -51,7 +60,11 @@ export default function CourseManage() {
           <h1 className="display-heading text-3xl md:text-4xl">我的课程</h1>
           <p className="text-ink-500 mt-2 text-sm">共 {courses.length} 门课程，管理课程内容与发布状态</p>
         </div>
-        <button onClick={() => navigate('/courses/edit/new')} className="btn-primary">
+        <button
+          ref={createButtonRef}
+          onClick={() => setShowCreate(true)}
+          className="btn-primary"
+        >
           <Plus className="w-4 h-4" />
           新建课程
         </button>
@@ -75,7 +88,7 @@ export default function CourseManage() {
               key={s}
               onClick={() => setFilterStatus(s)}
               className={cn(
-                'px-4 py-2 text-sm font-medium border transition-all',
+                'px-4 py-2 text-sm font-medium border transition-all rounded-lg',
                 filterStatus === s
                   ? 'border-indigo-800 bg-indigo-800 text-white'
                   : 'border-ink-200 text-ink-600 hover:border-ink-400'
@@ -118,7 +131,7 @@ export default function CourseManage() {
                         <img
                           src={course.cover}
                           alt={course.title}
-                          className="w-16 h-12 object-cover flex-shrink-0 bg-ink-100"
+                          className="w-16 h-12 object-cover flex-shrink-0 bg-ink-100 rounded-md"
                         />
                         <div className="min-w-0">
                           <p className="font-medium text-ink-800 line-clamp-1">{course.title}</p>
@@ -179,6 +192,14 @@ export default function CourseManage() {
           </table>
         </div>
       </div>
+
+      {showCreate && (
+        <CourseCreateModal
+          onClose={() => setShowCreate(false)}
+          onSubmit={handleCreate}
+          returnFocusRef={createButtonRef}
+        />
+      )}
     </div>
   );
 }

@@ -1,9 +1,29 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Award, Users, TrendingUp, PlayCircle } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Award,
+  BarChart3,
+  BookOpen,
+  Brain,
+  Calculator,
+  Languages,
+  Lightbulb,
+  Monitor,
+  Music2,
+  Palette,
+  PenTool,
+  PlayCircle,
+  Scale,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 import { useCourseStore } from '@/stores/useCourseStore';
 import { categories } from '@/services/api';
 import CourseCard from '@/components/CourseCard';
+import SideRays from '@/components/SideRays/SideRays';
 
 const stats = [
   { icon: BookOpen, value: '200+', label: '精品课程', num: '01' },
@@ -12,13 +32,17 @@ const stats = [
   { icon: TrendingUp, value: '98%', label: '好评率', num: '04' },
 ];
 
-const categoryIcons: Record<string, string> = {
-  '前端开发': '</>',
-  '后端开发': '{ }',
-  '移动开发': 'iOS',
-  '数据科学': 'Py',
-  '云计算': 'K8s',
-  '人工智能': 'ML',
+const categoryIcons: Record<string, LucideIcon> = {
+  计算机: Monitor,
+  数学: Calculator,
+  语言学习: Languages,
+  经济管理: BarChart3,
+  文学艺术: Palette,
+  设计: PenTool,
+  心理学: Brain,
+  法律: Scale,
+  音乐: Music2,
+  哲学: Lightbulb,
 };
 
 export default function Home() {
@@ -33,17 +57,32 @@ export default function Home() {
   return (
     <div>
       {/* Hero Section */}
-      <section className="relative overflow-hidden border-b border-ink-100">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/50 via-paper to-amber-50/30" />
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              'linear-gradient(#1e1b4b 1px, transparent 1px), linear-gradient(90deg, #1e1b4b 1px, transparent 1px)',
-            backgroundSize: '60px 60px',
-          }}
+      <section
+        data-home-hero
+        className="relative -mt-[68px] overflow-hidden border-b border-ink-100 bg-paper pt-[68px] dark:border-ink-800 dark:bg-ink-900"
+      >
+        <SideRays
+          speed={1.1}
+          rayColor1="#EAB308"
+          rayColor2="#96c8ff"
+          intensity={1.25}
+          spread={1.8}
+          origin="top-right"
+          tilt={0}
+          saturation={1.2}
+          blend={0.72}
+          falloff={1.7}
+          opacity={0.62}
         />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-b from-paper/20 via-paper/35 to-paper/95 dark:from-ink-900/20 dark:via-ink-900/35 dark:to-ink-900/95"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-br from-transparent via-transparent to-amber-50/20 dark:to-indigo-900/10"
+        />
+        <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
           <div className="grid md:grid-cols-12 gap-12 items-center">
             <div className="md:col-span-7 animate-fade-up">
               <span className="section-label mb-6">EduCloud 学生端 · 在线学习平台</span>
@@ -69,10 +108,11 @@ export default function Home() {
 
             <div className="md:col-span-5 animate-fade-in animation-delay-300">
               <div className="relative">
-                <div className="absolute -top-6 -left-6 section-number">01</div>
-                <div className="relative bg-white border border-ink-100 p-8 shadow-2xl shadow-indigo-900/5">
+                <div className="relative overflow-hidden bg-white border border-ink-100 p-8 shadow-2xl shadow-indigo-900/5 rounded-2xl">
+                  <span className="pointer-events-none absolute -top-3 -right-1 font-display text-8xl font-black text-indigo-800/[0.05] leading-none select-none">01</span>
+                  <div className="relative">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 bg-indigo-800 flex items-center justify-center">
+                    <div className="w-10 h-10 bg-indigo-800 rounded-xl flex items-center justify-center">
                       <BookOpen size={20} className="text-paper" />
                     </div>
                     <div>
@@ -102,6 +142,7 @@ export default function Home() {
                       <p className="font-display text-2xl font-bold text-amber-600">4.9</p>
                       <p className="text-xs text-ink-400">评分</p>
                     </div>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -159,62 +200,114 @@ export default function Home() {
       </section>
 
       {/* Categories Section */}
-      <section className="bg-ink-900 text-paper py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <span className="inline-flex items-center gap-3 text-xs font-medium uppercase tracking-widest-xl text-amber-500/80">
-              <span className="block w-8 h-px bg-amber-500" />
-              课程分类
-              <span className="block w-8 h-px bg-amber-500" />
-            </span>
-            <h2 className="font-display text-4xl md:text-5xl font-bold mt-4 text-white">
-              探索你的方向
-            </h2>
+      <section
+        data-home-category-section
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20"
+      >
+        <div className="relative">
+          <div className="relative grid gap-5 mb-10 md:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] md:items-end md:gap-12">
+            <div>
+              <span className="section-label mb-4">课程分类</span>
+              <h2 className="display-heading text-4xl md:text-5xl mt-4">
+                探索你的方向
+              </h2>
+            </div>
+            <div className="flex flex-col gap-3 md:items-end">
+              <span
+                aria-hidden="true"
+                data-home-category-number
+                className="section-number pointer-events-none self-end text-right"
+              >
+                02
+              </span>
+              <p
+                data-home-category-description
+                className="max-w-md text-sm leading-7 text-ink-500"
+              >
+                从感兴趣的领域开始，找到适合当前阶段的课程，把注意力留给真正想学习的内容。
+              </p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {categories.map((cat) => (
-              <Link
-                key={cat.name}
-                to="/courses"
-                className="group bg-ink-800 border border-ink-700 p-6 text-center hover:border-amber-600 hover:bg-ink-800/80 transition-all duration-300"
-              >
-                <div className="font-display text-3xl font-bold text-amber-500 mb-2 group-hover:scale-110 transition-transform">
-                  {categoryIcons[cat.name] ?? '+'}
-                </div>
-                <p className="text-sm font-medium text-paper">{cat.name}</p>
-                <p className="text-xs text-ink-400 mt-1">{cat.courseCount} 门课程</p>
-              </Link>
-            ))}
+          <div
+            data-home-category-grid
+            className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4"
+          >
+            {categories.map((cat) => {
+              const Icon = categoryIcons[cat.name] ?? BookOpen;
+              return (
+                <Link
+                  key={cat.name}
+                  data-home-category-card
+                  to={`/courses?category=${encodeURIComponent(cat.name)}`}
+                  className="card-editorial group relative flex min-h-[150px] flex-col justify-between p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 motion-reduce:transition-none"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-800 transition-colors duration-200 group-hover:bg-amber-50 group-hover:text-amber-700 motion-reduce:transition-none">
+                      <Icon size={20} strokeWidth={1.7} aria-hidden="true" />
+                    </span>
+                    <ArrowUpRight
+                      size={17}
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                      className="text-ink-300 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-amber-600 motion-reduce:transition-none motion-reduce:!transform-none"
+                    />
+                  </div>
+                  <div>
+                    <p className="font-display text-base font-bold text-ink-900">
+                      {cat.name}
+                    </p>
+                    <p className="mt-1 text-xs text-ink-400">{cat.courseCount} 门课程</p>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="relative bg-indigo-800 p-12 md:p-16 overflow-hidden">
+      <section
+        data-home-cta-section
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20"
+      >
+        <div
+          data-home-cta-panel
+          className="relative overflow-hidden rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50/90 via-white to-indigo-50/80 p-8 shadow-[0_20px_60px_rgba(30,27,75,0.06)] md:p-10 lg:p-12"
+        >
           <div
-            className="absolute inset-0 opacity-10"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)',
-              backgroundSize: '30px 30px',
-            }}
+            aria-hidden="true"
+            data-home-cta-decoration
+            className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-amber-200/25 blur-3xl"
           />
-          <div className="relative max-w-2xl">
-            <h2 className="font-display text-3xl md:text-4xl font-bold text-white mb-4">
-              准备好开始学习了吗？
-            </h2>
-            <p className="text-indigo-200 mb-8 leading-relaxed">
-              加入 50,000+ 名学员，在 EduCloud 开启你的技术成长之路。首单立减 50 元，限时优惠中。
-            </p>
-            <Link to="/courses" className="inline-flex items-center gap-2 px-8 py-4 bg-amber-600 text-white font-medium text-sm hover:bg-amber-500 transition-colors">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-28 right-32 h-64 w-64 rounded-full bg-indigo-200/25 blur-3xl"
+          />
+          <div
+            data-home-cta-content
+            className="relative grid gap-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-12"
+          >
+            <div className="max-w-2xl">
+              <h2 className="font-display text-3xl font-bold text-ink-900 md:text-4xl">
+                准备好开始学习了吗？
+              </h2>
+              <p className="mt-4 leading-relaxed text-ink-500">
+                加入 50,000+ 名学员，在 EduCloud 开启你的技术成长之路。首单立减 50 元，限时优惠中。
+              </p>
+            </div>
+            <Link
+              data-home-cta-link
+              to="/courses"
+              className="group inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-xl bg-indigo-800 px-7 py-3.5 text-sm font-medium text-white transition-all duration-200 hover:bg-indigo-900 hover:shadow-lg hover:shadow-indigo-800/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white motion-reduce:transition-none md:self-auto"
+            >
               立即开始
-              <ArrowRight size={16} />
+              <ArrowRight
+                size={16}
+                aria-hidden="true"
+                className="transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:!transform-none"
+              />
             </Link>
-          </div>
-          <div className="absolute -right-8 -bottom-8 section-number !text-white/10 !text-[12rem] md:!text-[16rem]">
-            {'>'}
           </div>
         </div>
       </section>

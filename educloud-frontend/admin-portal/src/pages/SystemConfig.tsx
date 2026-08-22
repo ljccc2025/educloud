@@ -71,7 +71,7 @@ export default function SystemConfig() {
             <div className="text-xs uppercase tracking-widest text-ink-400 mb-2">服务状态</div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
-              <span className="font-display text-xl font-700 text-green-700">运行中</span>
+              <span className="font-display text-xl font-bold text-green-600 dark:text-green-400">运行中</span>
             </div>
             <div className="text-xs text-ink-400 mt-2">运行时长 {stats.uptime} · {stats.nodeCount} 节点</div>
           </div>
@@ -89,7 +89,7 @@ export default function SystemConfig() {
                 className={cn(
                   'w-full flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors',
                   active === tab.key
-                    ? 'bg-indigo-50 text-indigo-800 font-medium border-l-2 border-amber-600'
+                    ? 'bg-brand-500/10 text-brand-500 dark:text-brand-400 font-medium border-l-2 border-brand-500 rounded-r-lg'
                     : 'text-ink-500 hover:text-indigo-800 hover:bg-ink-50 border-l-2 border-transparent',
                 )}
               >
@@ -118,7 +118,7 @@ function StatusItem({ label, value, percent }: { label: string; value: string; p
   return (
     <div className="stat-card">
       <div className="text-xs uppercase tracking-widest text-ink-400 mb-2">{label}</div>
-      <div className="font-display text-2xl font-700 text-ink-900 mb-3">{value}</div>
+      <div className="font-display text-2xl font-bold text-ink-900 mb-3">{value}</div>
       <div className="progress-track">
         <div className={cn('progress-fill', color)} style={{ width: `${percent}%` }} />
       </div>

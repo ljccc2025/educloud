@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import StatsCard from '../components/StatsCard';
 import { dashboardApi } from '../services/api';
+import { useChartColors } from '../hooks/useChartColors';
 import type {
   DashboardStats,
   UserGrowthPoint,
@@ -33,8 +34,6 @@ import type {
   OrderStatusStat,
   ActivityItem,
 } from '../types';
-
-const PIE_COLORS = ['#1e1b4b', '#d97706', '#a8a29e', '#d6d3d1'];
 
 const activityIcon = {
   user: UserPlus,
@@ -44,10 +43,10 @@ const activityIcon = {
 };
 
 const activityColor = {
-  user: 'bg-indigo-50 text-indigo-800',
-  course: 'bg-amber-50 text-amber-700',
-  order: 'bg-green-50 text-green-700',
-  system: 'bg-ink-100 text-ink-600',
+  user: 'bg-brand-500/15 text-brand-500 dark:text-brand-400',
+  course: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  order: 'bg-green-500/15 text-green-600 dark:text-green-400',
+  system: 'bg-ink-300/30 text-ink-500',
 };
 
 export default function Dashboard() {
@@ -56,6 +55,7 @@ export default function Dashboard() {
   const [categories, setCategories] = useState<CategoryStat[]>([]);
   const [orderStats, setOrderStats] = useState<OrderStatusStat[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const chartColors = useChartColors();
 
   useEffect(() => {
     void Promise.all([
@@ -126,51 +126,52 @@ export default function Dashboard() {
         <div className="lg:col-span-2 card-editorial p-6 animate-fade-up opacity-0 animation-delay-100">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="font-display text-xl font-700 text-ink-900">用户增长趋势</h2>
+              <h2 className="font-display text-xl font-bold text-ink-900">用户增长趋势</h2>
               <p className="text-sm text-ink-500">近 7 天累计用户与新增用户</p>
             </div>
             <span className="badge-indigo">7 天</span>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={growth} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12, fill: '#78716c' }}
-                axisLine={{ stroke: '#d6d3d1' }}
+                tick={{ fontSize: 12, fill: chartColors.text }}
+                axisLine={{ stroke: chartColors.axis }}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 12, fill: '#78716c' }}
+                tick={{ fontSize: 12, fill: chartColors.text }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
                 contentStyle={{
-                  background: '#fff',
-                  border: '1px solid #e7e5e4',
-                  borderRadius: 0,
+                  background: chartColors.tooltipBg,
+                  border: `1px solid ${chartColors.tooltipBorder}`,
+                  borderRadius: '12px',
                   fontSize: 13,
+                  color: chartColors.tooltipText,
                 }}
-                labelStyle={{ color: '#1e1b4b', fontWeight: 600 }}
+                labelStyle={{ color: chartColors.tooltipLabel, fontWeight: 600 }}
               />
               <Line
                 type="monotone"
                 dataKey="users"
                 name="累计用户"
-                stroke="#1e1b4b"
+                stroke={chartColors.primary}
                 strokeWidth={2.5}
-                dot={{ fill: '#1e1b4b', r: 4 }}
+                dot={{ fill: chartColors.primary, r: 4 }}
                 activeDot={{ r: 6 }}
               />
               <Line
                 type="monotone"
                 dataKey="newUsers"
                 name="新增用户"
-                stroke="#d97706"
+                stroke={chartColors.secondary}
                 strokeWidth={2}
                 strokeDasharray="5 3"
-                dot={{ fill: '#d97706', r: 3 }}
+                dot={{ fill: chartColors.secondary, r: 3 }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -179,7 +180,7 @@ export default function Dashboard() {
         {/* Order status pie */}
         <div className="card-editorial p-6 animate-fade-up opacity-0 animation-delay-200">
           <div className="mb-6">
-            <h2 className="font-display text-xl font-700 text-ink-900">订单状态分布</h2>
+            <h2 className="font-display text-xl font-bold text-ink-900">订单状态分布</h2>
             <p className="text-sm text-ink-500">全部订单状态占比</p>
           </div>
           <ResponsiveContainer width="100%" height={220}>
@@ -195,15 +196,16 @@ export default function Dashboard() {
                 paddingAngle={2}
               >
                 {orderStats.map((_, index) => (
-                  <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  <Cell key={index} fill={chartColors.pie[index % chartColors.pie.length]} />
                 ))}
               </Pie>
               <Tooltip
                 contentStyle={{
-                  background: '#fff',
-                  border: '1px solid #e7e5e4',
-                  borderRadius: 0,
+                  background: chartColors.tooltipBg,
+                  border: `1px solid ${chartColors.tooltipBorder}`,
+                  borderRadius: '12px',
                   fontSize: 13,
+                  color: chartColors.tooltipText,
                 }}
               />
             </PieChart>
@@ -213,7 +215,7 @@ export default function Dashboard() {
               <div key={item.name} className="flex items-center gap-2 text-sm">
                 <span
                   className="w-3 h-3 shrink-0"
-                  style={{ backgroundColor: PIE_COLORS[i] }}
+                  style={{ backgroundColor: chartColors.pie[i] }}
                 />
                 <span className="text-ink-600">{item.name}</span>
                 <span className="ml-auto font-medium text-ink-900">{item.value}</span>
@@ -229,34 +231,35 @@ export default function Dashboard() {
         <div className="lg:col-span-2 card-editorial p-6 animate-fade-up opacity-0 animation-delay-300">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="font-display text-xl font-700 text-ink-900">课程分类分布</h2>
+              <h2 className="font-display text-xl font-bold text-ink-900">课程分类分布</h2>
               <p className="text-sm text-ink-500">各分类课程数量统计</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={categories} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 12, fill: '#78716c' }}
-                axisLine={{ stroke: '#d6d3d1' }}
+                tick={{ fontSize: 12, fill: chartColors.text }}
+                axisLine={{ stroke: chartColors.axis }}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 12, fill: '#78716c' }}
+                tick={{ fontSize: 12, fill: chartColors.text }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
                 contentStyle={{
-                  background: '#fff',
-                  border: '1px solid #e7e5e4',
-                  borderRadius: 0,
+                  background: chartColors.tooltipBg,
+                  border: `1px solid ${chartColors.tooltipBorder}`,
+                  borderRadius: '12px',
                   fontSize: 13,
+                  color: chartColors.tooltipText,
                 }}
-                cursor={{ fill: 'rgba(30,27,75,0.04)' }}
+                cursor={{ fill: chartColors.cursor }}
               />
-              <Bar dataKey="count" name="课程数" fill="#1e1b4b" radius={[0, 0, 0, 0]} barSize={36} />
+              <Bar dataKey="count" name="课程数" fill={chartColors.primary} radius={[4, 4, 0, 0]} barSize={36} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -264,8 +267,8 @@ export default function Dashboard() {
         {/* Activity feed */}
         <div className="card-editorial p-6 animate-fade-up opacity-0 animation-delay-500">
           <div className="flex items-center gap-2 mb-6">
-            <Activity size={18} className="text-amber-600" />
-            <h2 className="font-display text-xl font-700 text-ink-900">最近动态</h2>
+            <Activity size={18} className="text-amber-500" />
+            <h2 className="font-display text-xl font-bold text-ink-900">最近动态</h2>
           </div>
           <div className="space-y-4">
             {activities.map((act) => {
@@ -273,7 +276,7 @@ export default function Dashboard() {
               return (
                 <div key={act.id} className="flex gap-3">
                   <span
-                    className={`flex items-center justify-center w-8 h-8 shrink-0 ${activityColor[act.type]}`}
+                    className={`flex items-center justify-center w-8 h-8 shrink-0 rounded-xl ${activityColor[act.type]}`}
                   >
                     <Icon size={14} />
                   </span>
@@ -281,7 +284,7 @@ export default function Dashboard() {
                     <p className="text-sm text-ink-700 leading-relaxed">
                       <span className="font-medium text-ink-900">{act.user}</span>{' '}
                       {act.action}
-                      <span className="text-indigo-800"> {act.target}</span>
+                      <span className="text-brand-500 dark:text-brand-400"> {act.target}</span>
                     </p>
                     <span className="text-xs text-ink-400 mt-1 block">{act.time}</span>
                   </div>

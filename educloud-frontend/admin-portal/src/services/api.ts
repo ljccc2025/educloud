@@ -350,7 +350,7 @@ function generateMonthlyRevenue() {
 
 // ---------- API 函数 ----------
 
-// 认证
+// 认证（M03 联调：经 Gateway 与 educloud-user 服务对接）
 export interface AuthUser {
   id: string;
   username: string;
@@ -373,7 +373,6 @@ function mapAuthAdmin(a: AuthUser): AdminUser {
 }
 
 export const authApi = {
-  // M03 联调：经 Gateway 与 educloud-user 服务对接
   login: async (loginName: string, password: string): Promise<{ token: string; admin: AdminUser }> => {
     const resp = await http.post<ApiEnvelope<{ accessToken: string; expiresIn: number; user: AuthUser }>>(
       '/auth/login',

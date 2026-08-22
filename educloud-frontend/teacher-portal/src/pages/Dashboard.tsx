@@ -48,7 +48,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 animate-fade-up">
       {/* Welcome */}
-      <section className="relative overflow-hidden bg-indigo-800 text-paper p-8 md:p-12">
+      <section className="relative overflow-hidden bg-indigo-800 text-paper p-8 md:p-12 rounded-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="relative">
           <p className="section-label !text-amber-400/80 mb-3">
@@ -73,7 +73,7 @@ export default function Dashboard() {
             className={`stat-card animate-fade-up animation-delay-${(i + 1) * 100}`}
           >
             <div className="flex items-start justify-between mb-4">
-              <div className={`w-10 h-10 flex items-center justify-center bg-ink-50 ${card.accent}`}>
+              <div className={`w-10 h-10 flex items-center justify-center bg-ink-50 rounded-lg ${card.accent}`}>
                 <card.icon className="w-5 h-5" strokeWidth={1.5} />
               </div>
               <TrendingUp className="w-4 h-4 text-green-500" />
@@ -105,7 +105,7 @@ export default function Dashboard() {
                   key={act.id}
                   className="flex items-start gap-4 py-3 border-b border-ink-50 last:border-b-0"
                 >
-                  <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600">
+                  <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg">
                     <Icon className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -134,7 +134,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               {upcomingLives.slice(0, 4).map((room) => (
                 <div key={room.id} className="flex gap-3 group">
-                  <div className="relative w-20 h-14 flex-shrink-0 overflow-hidden bg-ink-100">
+                  <div className="relative w-20 h-14 flex-shrink-0 overflow-hidden bg-ink-100 rounded-lg">
                     <img
                       src={room.thumbnail}
                       alt={room.title}

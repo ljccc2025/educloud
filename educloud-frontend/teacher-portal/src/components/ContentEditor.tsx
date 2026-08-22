@@ -147,7 +147,7 @@ export default function ContentEditor({
                       key={cw.id}
                       className="flex items-center gap-3 px-4 py-3 border-b border-ink-50 last:border-b-0 hover:bg-ink-50/40 transition-colors"
                     >
-                      <div className={cn('w-9 h-9 flex items-center justify-center', cfg.color)}>
+                      <div className={cn('w-9 h-9 flex items-center justify-center rounded-lg', cfg.color)}>
                         <Icon className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -170,7 +170,7 @@ export default function ContentEditor({
                       </div>
                       <button
                         onClick={() => onRemoveCourseware(chapter.id, cw.id)}
-                        className="text-ink-300 hover:text-red-600 transition-colors"
+                        className="text-ink-300 hover:text-red-600 transition-colors rounded-lg p-1"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -180,7 +180,7 @@ export default function ContentEditor({
 
                 {/* Add courseware form */}
                 {showAddFor === chapter.id && (
-                  <div className="p-4 bg-indigo-50/30 border-t border-ink-100 space-y-3">
+                  <div className="p-4 bg-indigo-50/30 border-t border-ink-100 space-y-3 rounded-b-2xl">
                     <div className="flex gap-2">
                       {(Object.keys(cwTypeConfig) as CoursewareType[]).map((t) => {
                         const cfg = cwTypeConfig[t];
@@ -191,7 +191,7 @@ export default function ContentEditor({
                             type="button"
                             onClick={() => setNewCwType(t)}
                             className={cn(
-                              'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-all',
+                              'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border transition-all rounded-lg',
                               newCwType === t
                                 ? 'border-indigo-800 bg-indigo-800 text-white'
                                 : 'border-ink-200 bg-white text-ink-600 hover:border-ink-400'

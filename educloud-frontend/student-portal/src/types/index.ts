@@ -147,11 +147,28 @@ export interface Exam {
   passScore: number;
 }
 
-// 订单状态
-export type OrderStatus = 'PAID' | 'PENDING' | 'REFUNDED' | 'CANCELLED';
+// 订单状态：与后端业务订单状态保持一致，支付处理状态不混入订单状态。
+export type OrderStatus =
+  | 'PENDING_PAYMENT'
+  | 'PAID'
+  | 'CANCELLED'
+  | 'CLOSED'
+  | 'REFUNDING'
+  | 'PARTIALLY_REFUNDED'
+  | 'REFUNDED';
 
 // 支付方式
 export type PaymentMethod = 'ALIPAY' | 'WECHAT';
+
+// 单次支付尝试状态
+export type PaymentAttemptStatus =
+  | 'ACTIVE'
+  | 'SUCCESS'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export type MockPaymentOutcome = 'SUCCESS' | 'FAILED' | 'CANCELLED';
 
 // 订单
 export interface Order {
@@ -160,10 +177,30 @@ export interface Order {
   courseId: number;
   courseTitle: string;
   courseCover: string;
-  amount: number;
-  paymentMethod: PaymentMethod;
+  originalAmount: number;
+  payableAmount: number;
+  currency: 'CNY';
+  paymentMethod?: PaymentMethod;
   status: OrderStatus;
   createdAt: string;
+  expiresAt: string;
+  paidAt?: string;
+}
+
+export interface PaymentStatusSnapshot {
+  paymentId: string;
+  attemptId: string;
+  orderId: string;
+  channel: PaymentMethod;
+  status: PaymentAttemptStatus;
+  failureCode?: string;
+  providerCreatedAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentRequest {
+  orderId: string;
+  channel: PaymentMethod;
 }
 
 // 用户

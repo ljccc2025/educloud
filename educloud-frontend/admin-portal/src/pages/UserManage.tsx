@@ -208,10 +208,10 @@ export default function UserManage() {
                   key={p}
                   onClick={() => setPage(p)}
                   className={cn(
-                    'w-10 h-10 text-sm font-medium border transition-colors',
+                    'w-10 h-10 rounded-xl text-sm font-medium border transition-colors',
                     p === page
-                      ? 'bg-indigo-800 text-paper border-indigo-800'
-                      : 'bg-white border-ink-200 text-ink-600 hover:border-indigo-800 hover:text-indigo-800',
+                      ? 'bg-brand-500 text-white border-brand-500 shadow-glow-purple'
+                      : 'bg-surface border-ink-300 text-ink-600 hover:border-brand-500 hover:text-brand-500 dark:hover:text-brand-400',
                   )}
                 >
                   {p}

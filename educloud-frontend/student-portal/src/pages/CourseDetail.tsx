@@ -1,25 +1,70 @@
-import { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  useParams,
+  Link,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import {
   Star, Users, Clock, Play, FileText, HelpCircle, ChevronDown,
   ShoppingCart, Check, Award, BookOpen,
 } from 'lucide-react';
 import { useCourseStore } from '@/stores/useCourseStore';
 import { useCartStore } from '@/stores/useCartStore';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { courseApi } from '@/services/api';
 import ProgressBar from '@/components/ProgressBar';
 import { cn } from '@/utils/cn';
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { currentCourse, loading, fetchCourse } = useCourseStore();
   const { addToCart, isInCart } = useCartStore();
+  const token = useAuthStore((state) => state.token);
   const [openChapter, setOpenChapter] = useState<number | null>(1);
   const [added, setAdded] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+  const [purchaseError, setPurchaseError] = useState('');
 
   useEffect(() => {
     if (id) fetchCourse(id);
   }, [id, fetchCourse]);
+
+  const enrollFreeCourse = useCallback(async () => {
+    const course = currentCourse;
+    if (!course || course.price !== 0 || course.enrolled || enrolling) return;
+
+    if (!token) {
+      const redirect = `/courses/${course.id}?intent=enroll`;
+      navigate(`/login?redirect=${encodeURIComponent(redirect)}`);
+      return;
+    }
+
+    setEnrolling(true);
+    setPurchaseError('');
+    try {
+      await courseApi.enroll(course.id);
+      await fetchCourse(String(course.id));
+      navigate(`/learn/${course.id}`);
+    } catch {
+      setPurchaseError('免费选课失败，请稍后重试');
+    } finally {
+      setEnrolling(false);
+    }
+  }, [currentCourse, enrolling, fetchCourse, navigate, token]);
+
+  useEffect(() => {
+    if (
+      searchParams.get('intent') === 'enroll' &&
+      token &&
+      currentCourse?.price === 0 &&
+      !currentCourse.enrolled
+    ) {
+      void enrollFreeCourse();
+    }
+  }, [currentCourse, enrollFreeCourse, searchParams, token]);
 
   if (loading || !currentCourse) {
     return (
@@ -120,34 +165,47 @@ export default function CourseDetail() {
                     <Play size={16} />
                     继续学习
                   </Link>
-                ) : (
+                ) : course.price === 0 ? (
                   <button
                     type="button"
-                    onClick={handleAddToCart}
-                    className={cn(
-                      'w-full py-3 font-medium text-sm transition-all duration-300 flex items-center justify-center gap-2',
-                      added || inCart
-                        ? 'bg-green-600 text-white'
-                        : 'bg-amber-600 text-white hover:bg-amber-500'
-                    )}
+                    disabled={enrolling}
+                    onClick={enrollFreeCourse}
+                    className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {added || inCart ? (
-                      <><Check size={16} /> 已加入购物车</>
-                    ) : (
-                      <><ShoppingCart size={16} /> 加入购物车</>
-                    )}
+                    {enrolling ? '正在加入…' : '免费加入学习'}
                   </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleAddToCart}
+                      className={cn(
+                        'w-full py-3 font-medium text-sm transition-all duration-300 flex items-center justify-center gap-2',
+                        added || inCart
+                          ? 'bg-green-600 text-white'
+                          : 'bg-amber-600 text-white hover:bg-amber-500'
+                      )}
+                    >
+                      {added || inCart ? (
+                        <><Check size={16} /> 已加入购物车</>
+                      ) : (
+                        <><ShoppingCart size={16} /> 加入购物车</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/checkout/${course.id}`)}
+                      className="btn-outline w-full"
+                    >
+                      立即购买
+                    </button>
+                  </>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleAddToCart();
-                    navigate('/courses');
-                  }}
-                  className="btn-outline w-full"
-                >
-                  立即购买
-                </button>
+                {purchaseError && (
+                  <p role="alert" className="text-sm text-red-600">
+                    {purchaseError}
+                  </p>
+                )}
               </div>
               <div className="border-t border-ink-100 pt-4 space-y-2 text-xs text-ink-500">
                 <p className="flex items-center gap-2"><Check size={14} className="text-green-600" /> 永久访问课程内容</p>
@@ -256,7 +314,7 @@ export default function CourseDetail() {
                 {course.reviews.map((review) => (
                   <div key={review.id} className="card-editorial p-5">
                     <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
                         <span className="text-sm font-semibold text-indigo-800">
                           {review.userName.charAt(0)}
                         </span>

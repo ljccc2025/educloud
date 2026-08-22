@@ -5,13 +5,14 @@ import type {
   Assignment, Exam, Order, StudentUser, HomeStats,
   CategoryShowcase, Category, CourseLevel, PaginatedResponse,
 } from '../types';
+import { createMockCheckoutApi } from './mockCheckoutApi';
 
 // ---------- helpers ----------
 const delay = <T>(data: T, ms = 300): Promise<T> =>
   new Promise((r) => setTimeout(() => r(data), ms));
 
 const avatar = (seed: string) =>
-  `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=1e1b4b,d97706,4f46e5,b45309&textColor=ffffff`;
+  `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=1e1b4b,d97706,4f46e5,b45309&textColor=ffffff&fontWeight=500&fontSize=24`;
 
 const cover = (seed: number) =>
   `https://picsum.photos/seed/edu${seed}/600/360`;
@@ -299,20 +300,34 @@ export const exams: Exam[] = [
 function generateOrders(): Order[] {
   const list: Order[] = [];
   const methods: Order['paymentMethod'][] = ['ALIPAY', 'WECHAT'];
-  const statuses: Order['status'][] = ['PAID', 'PAID', 'PAID', 'PENDING', 'REFUNDED', 'CANCELLED'];
+  const statuses: Order['status'][] = [
+    'PAID',
+    'PAID',
+    'PAID',
+    'PENDING_PAYMENT',
+    'REFUNDED',
+    'CANCELLED',
+  ];
   const purchased = courses.filter((c) => c.price > 0).slice(0, 8);
   purchased.forEach((c, i) => {
     const createdAt = dayjs().subtract(i * 12 + 3, 'day');
+    const status = statuses[i % statuses.length];
     list.push({
       id: String(i + 1),
       orderNo: `EC${createdAt.format('YYYYMMDD')}${String(20000 + i).padStart(5, '0')}`,
       courseId: c.id,
       courseTitle: c.title,
       courseCover: c.cover,
-      amount: c.price,
+      originalAmount: c.originalPrice ?? c.price,
+      payableAmount: c.price,
+      currency: 'CNY',
       paymentMethod: methods[i % methods.length],
-      status: statuses[i % statuses.length],
+      status,
       createdAt: createdAt.format('YYYY-MM-DD HH:mm:ss'),
+      expiresAt: createdAt.add(30, 'minute').format('YYYY-MM-DD HH:mm:ss'),
+      paidAt: status === 'PAID'
+        ? createdAt.add(2, 'minute').format('YYYY-MM-DD HH:mm:ss')
+        : undefined,
     });
   });
   return list;
@@ -425,27 +440,19 @@ export const examApi = {
   getAll: (): Promise<Exam[]> => delay(exams),
 };
 
-export const orderApi = {
-  getAll: (): Promise<Order[]> => delay(orders),
-  create: (courseId: number): Promise<Order> => {
-    const c = courses.find((x) => x.id === courseId)!;
-    const order: Order = {
-      id: String(orders.length + 1),
-      orderNo: `EC${dayjs().format('YYYYMMDD')}${String(30000 + orders.length).padStart(5, '0')}`,
-      courseId: c.id,
-      courseTitle: c.title,
-      courseCover: c.cover,
-      amount: c.price,
-      paymentMethod: 'ALIPAY',
-      status: 'PAID',
-      createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-    };
-    orders.unshift(order);
-    c.enrolled = true;
-    c.progress = 0;
-    return delay(order, 800);
+export const { orderApi, paymentApi } = createMockCheckoutApi({
+  seedOrders: orders,
+  courses: {
+    getCourse: (courseId) => courses.find((course) => course.id === courseId),
+    grantCourseAccess: (courseId) => {
+      const course = courses.find((item) => item.id === courseId);
+      if (course) {
+        course.enrolled = true;
+        course.progress = 0;
+      }
+    },
   },
-};
+});
 
 export const userApi = {
   getProfile: (): Promise<StudentUser> => delay(currentUser),
@@ -503,15 +510,6 @@ export const authApi = {
       // 服务端已尽力撤销；本地始终清理。
     }
     localStorage.removeItem(TOKEN_KEY);
-  },
-  register: async (payload: {
-    username: string;
-    password: string;
-    email: string;
-    phone: string;
-    displayName?: string;
-  }): Promise<void> => {
-    await http.post('/auth/register', payload);
   },
 };
 

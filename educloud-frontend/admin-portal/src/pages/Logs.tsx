@@ -134,33 +134,33 @@ export default function Logs() {
       {/* Summary badges */}
       <div className="grid grid-cols-3 gap-4 animate-fade-up opacity-0 animation-delay-200">
         <div className="stat-card flex items-center gap-3">
-          <span className="flex items-center justify-center w-10 h-10 bg-indigo-50 text-indigo-800">
+          <span className="flex items-center justify-center w-10 h-10 bg-indigo-50 text-indigo-800 rounded-xl">
             <Info size={18} />
           </span>
           <div>
-            <div className="font-display text-2xl font-700 text-ink-900">
+            <div className="font-display text-2xl font-bold text-ink-900">
               {logs.filter((l) => l.level === 'INFO').length}
             </div>
             <div className="text-xs text-ink-400 uppercase tracking-wider">信息</div>
           </div>
         </div>
         <div className="stat-card flex items-center gap-3">
-          <span className="flex items-center justify-center w-10 h-10 bg-amber-50 text-amber-700">
+          <span className="flex items-center justify-center w-10 h-10 bg-amber-50 text-amber-700 rounded-xl">
             <AlertTriangle size={18} />
           </span>
           <div>
-            <div className="font-display text-2xl font-700 text-ink-900">
+            <div className="font-display text-2xl font-bold text-ink-900">
               {logs.filter((l) => l.level === 'WARN').length}
             </div>
             <div className="text-xs text-ink-400 uppercase tracking-wider">警告</div>
           </div>
         </div>
         <div className="stat-card flex items-center gap-3">
-          <span className="flex items-center justify-center w-10 h-10 bg-red-50 text-red-700">
+          <span className="flex items-center justify-center w-10 h-10 bg-red-50 text-red-700 rounded-xl">
             <XCircle size={18} />
           </span>
           <div>
-            <div className="font-display text-2xl font-700 text-ink-900">
+            <div className="font-display text-2xl font-bold text-ink-900">
               {logs.filter((l) => l.level === 'ERROR').length}
             </div>
             <div className="text-xs text-ink-400 uppercase tracking-wider">错误</div>

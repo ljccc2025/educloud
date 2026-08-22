@@ -55,7 +55,7 @@ export default function Assignments() {
             type="button"
             onClick={() => setFilter(tab.value)}
             className={cn(
-              'px-5 py-3 text-sm font-medium transition-colors border',
+              'px-5 py-3 text-sm font-medium transition-colors border rounded-xl',
               filter === tab.value
                 ? 'bg-indigo-800 text-white border-indigo-800'
                 : 'bg-white text-ink-600 border-ink-200 hover:border-indigo-800 hover:text-indigo-800'

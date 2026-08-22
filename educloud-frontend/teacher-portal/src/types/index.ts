@@ -59,6 +59,18 @@ export interface LiveRoom {
   description?: string;
 }
 
+export type AssignmentStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED';
+
+export interface AssignmentDraftInput {
+  courseId: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  totalScore: number;
+  allowLateSubmission: boolean;
+  maxAttempts: number;
+}
+
 export interface Assignment {
   id: string;
   title: string;
@@ -67,6 +79,10 @@ export interface Assignment {
   description: string;
   dueDate: string;
   totalScore: number;
+  status: AssignmentStatus;
+  allowLateSubmission: boolean;
+  maxAttempts: number;
+  publishedAt?: string;
   submissionCount: number;
   gradedCount: number;
   submissions: Submission[];

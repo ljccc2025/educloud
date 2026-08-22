@@ -46,7 +46,7 @@ export default function LivePreview({ room, onStart, onEnd }: LivePreviewProps) 
 
         {/* Viewer count */}
         {room.status === 'LIVING' && (
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-0.5 bg-red-600/90 text-white text-xs font-medium backdrop-blur-sm">
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-0.5 bg-red-600/90 text-white text-xs font-medium backdrop-blur-sm rounded-md">
             <Users className="w-3 h-3" />
             {room.viewerCount}
           </div>
@@ -103,7 +103,7 @@ export default function LivePreview({ room, onStart, onEnd }: LivePreviewProps) 
           {room.status === 'CREATED' && onStart && (
             <button
               onClick={() => onStart(room.id)}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors rounded-xl"
             >
               <Play className="w-4 h-4" />
               开始直播
@@ -112,14 +112,14 @@ export default function LivePreview({ room, onStart, onEnd }: LivePreviewProps) 
           {room.status === 'LIVING' && onEnd && (
             <button
               onClick={() => onEnd(room.id)}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-ink-800 text-white text-sm font-medium hover:bg-ink-900 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-ink-800 text-white text-sm font-medium hover:bg-ink-900 transition-colors rounded-xl"
             >
               <Square className="w-4 h-4" />
               结束直播
             </button>
           )}
           {room.status === 'ENDED' && (
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-ink-200 text-ink-600 text-sm font-medium hover:border-ink-400 transition-colors">
+            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-ink-200 text-ink-600 text-sm font-medium hover:border-ink-400 transition-colors rounded-xl">
               查看回放
             </button>
           )}

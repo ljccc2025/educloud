@@ -7,10 +7,13 @@ import { cn } from '@/utils/cn';
 import dayjs from 'dayjs';
 
 const statusConfig: Record<OrderStatus, { label: string; className: string; icon: typeof Clock }> = {
+  PENDING_PAYMENT: { label: '待支付', className: 'badge-amber', icon: Clock },
   PAID: { label: '已支付', className: 'badge-green', icon: CheckCircle },
-  PENDING: { label: '待支付', className: 'badge-amber', icon: Clock },
-  REFUNDED: { label: '已退款', className: 'badge-red', icon: XCircle },
   CANCELLED: { label: '已取消', className: 'badge-red', icon: XCircle },
+  CLOSED: { label: '已关闭', className: 'badge-red', icon: XCircle },
+  REFUNDING: { label: '退款中', className: 'badge-amber', icon: Clock },
+  PARTIALLY_REFUNDED: { label: '部分退款', className: 'badge-amber', icon: Clock },
+  REFUNDED: { label: '已退款', className: 'badge-red', icon: XCircle },
 };
 
 export default function Orders() {
@@ -26,7 +29,7 @@ export default function Orders() {
 
   const totalSpent = orders
     .filter((o) => o.status === 'PAID')
-    .reduce((sum, o) => sum + o.amount, 0);
+    .reduce((sum, o) => sum + o.payableAmount, 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -105,7 +108,7 @@ export default function Orders() {
                         </Link>
                       </td>
                       <td>
-                        <span className="font-display font-bold text-ink-900">¥{order.amount}</span>
+                        <span className="font-display font-bold text-ink-900">¥{order.payableAmount}</span>
                       </td>
                       <td>
                         <span className={cn(config.className)}>
@@ -119,10 +122,13 @@ export default function Orders() {
                         </span>
                       </td>
                       <td className="text-right">
-                        {order.status === 'PENDING' ? (
-                          <button type="button" className="btn-primary !px-4 !py-2 text-xs">
-                            去支付
-                          </button>
+                        {order.status === 'PENDING_PAYMENT' ? (
+                          <Link
+                            to={`/checkout/${order.courseId}`}
+                            className="btn-primary !px-4 !py-2 text-xs"
+                          >
+                            继续支付
+                          </Link>
                         ) : order.status === 'PAID' ? (
                           <Link
                             to={`/learn/${order.courseId}`}

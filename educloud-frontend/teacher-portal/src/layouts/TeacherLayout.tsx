@@ -9,13 +9,13 @@ import {
   FileQuestion,
   Users,
   BarChart3,
-  Bell,
   Search,
   LogOut,
   Menu,
   X,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
+import NotificationPopover from '../features/notifications/NotificationPopover';
 
 const navItems = [
   { to: '/', label: '工作台', icon: LayoutDashboard, end: true },
@@ -37,6 +37,7 @@ const breadcrumbMap: Record<string, string> = {
   '/exams': '考试管理',
   '/students': '学生管理',
   '/analytics': '数据分析',
+  '/notifications': '通知中心',
 };
 
 export default function TeacherLayout() {
@@ -64,13 +65,13 @@ export default function TeacherLayout() {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed lg:sticky top-0 left-0 z-40 h-screen w-64 bg-white border-r border-ink-100 flex flex-col transition-transform duration-300',
+          'fixed lg:sticky top-0 left-0 z-40 h-screen w-64 bg-white border-r border-ink-100 flex flex-col transition-transform duration-300 rounded-r-2xl',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-ink-100">
-          <div className="w-9 h-9 bg-indigo-800 flex items-center justify-center">
+          <div className="w-9 h-9 bg-indigo-800 flex items-center justify-center rounded-lg">
             <BookOpen className="w-5 h-5 text-amber-400" strokeWidth={2} />
           </div>
           <div>
@@ -79,7 +80,7 @@ export default function TeacherLayout() {
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="ml-auto lg:hidden text-ink-400"
+            className="ml-auto lg:hidden text-ink-400 rounded-lg p-1 hover:bg-ink-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -106,7 +107,7 @@ export default function TeacherLayout() {
 
         {/* User card */}
         <div className="p-4 border-t border-ink-100">
-          <div className="flex items-center gap-3 p-3 bg-ink-50/50">
+          <div className="flex items-center gap-3 p-3 bg-ink-50/50 rounded-xl">
             <img
               src="https://api.dicebear.com/7.x/avataaars/svg?seed=zhangming&backgroundColor=1e1b4b"
               alt="张明教授"
@@ -118,7 +119,7 @@ export default function TeacherLayout() {
             </div>
             <button
               onClick={handleLogout}
-              className="text-ink-300 hover:text-red-600 transition-colors"
+              className="text-ink-300 hover:text-red-600 transition-colors rounded-lg p-1 hover:bg-white"
               title="退出登录"
             >
               <LogOut className="w-4 h-4" />
@@ -134,7 +135,7 @@ export default function TeacherLayout() {
           <div className="flex items-center gap-4 px-6 py-4">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden text-ink-600"
+              className="lg:hidden text-ink-600 rounded-lg p-1 hover:bg-ink-50"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -153,17 +154,14 @@ export default function TeacherLayout() {
                 <input
                   type="text"
                   placeholder="搜索课程、学生、作业……"
-                  className="w-full pl-10 pr-4 py-2 bg-white border border-ink-200 text-sm text-ink-700 placeholder:text-ink-300 focus:outline-none focus:border-indigo-800 transition-colors"
+                  className="w-full pl-10 pr-4 py-2 bg-white border border-ink-200 text-sm text-ink-700 placeholder:text-ink-300 focus:outline-none focus:border-indigo-800 transition-colors rounded-xl"
                 />
               </div>
             </div>
 
             {/* Right actions */}
             <div className="ml-auto flex items-center gap-3">
-              <button className="relative p-2 text-ink-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full" />
-              </button>
+              <NotificationPopover />
               <img
                 src="https://api.dicebear.com/7.x/avataaars/svg?seed=zhangming&backgroundColor=1e1b4b"
                 alt="头像"

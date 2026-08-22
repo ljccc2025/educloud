@@ -60,7 +60,7 @@ export default function OrderManage() {
     {
       key: 'orderNo',
       header: '订单号',
-      render: (o) => <span className="font-mono text-xs text-indigo-800">{o.orderNo}</span>,
+      render: (o) => <span className="font-mono text-xs text-brand-500 dark:text-brand-400">{o.orderNo}</span>,
     },
     {
       key: 'user',
@@ -84,14 +84,14 @@ export default function OrderManage() {
       sortable: true,
       sortValue: (o) => o.amount,
       render: (o) => (
-        <span className="font-display font-700 text-ink-900">¥{o.amount.toFixed(2)}</span>
+        <span className="font-display font-bold text-ink-900">¥{o.amount.toFixed(2)}</span>
       ),
     },
     {
       key: 'paymentMethod',
       header: '支付方式',
       render: (o) => (
-        <span className={cn('badge', o.paymentMethod === 'ALIPAY' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-green-50 text-green-700 border border-green-200')}>
+        <span className={cn('badge', o.paymentMethod === 'ALIPAY' ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20' : 'bg-green-500/15 text-green-600 dark:text-green-400 border border-green-500/20')}>
           {paymentLabel[o.paymentMethod]}
         </span>
       ),

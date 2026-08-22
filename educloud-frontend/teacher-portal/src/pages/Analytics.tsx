@@ -41,7 +41,7 @@ export default function Analytics() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card) => (
           <div key={card.label} className="stat-card">
-            <div className={cn('w-10 h-10 flex items-center justify-center mb-4', card.color)}>
+            <div className={cn('w-10 h-10 flex items-center justify-center mb-4 rounded-lg', card.color)}>
               <card.icon className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <p className="font-display text-3xl font-bold text-ink-900">
@@ -69,13 +69,13 @@ export default function Analytics() {
           </div>
           <div className="flex items-end gap-3 h-56">
             {enrollment.map((d, i) => (
-              <div key={d.month} className="flex-1 flex flex-col items-center gap-2 group">
+              <div key={d.month} className="h-full flex-1 flex flex-col items-center gap-2 group">
                 <span className="text-xs font-semibold text-indigo-800 opacity-0 group-hover:opacity-100 transition-opacity">
                   {d.count}
                 </span>
-                <div className="w-full relative flex items-end h-full">
+                <div className="w-full relative flex flex-1 min-h-0 items-end">
                   <div
-                    className="w-full bg-indigo-800/80 group-hover:bg-indigo-800 transition-all duration-500 relative"
+                    className="w-full bg-indigo-800/80 group-hover:bg-indigo-800 transition-all duration-500 relative rounded-t-lg"
                     style={{
                       height: `${(d.count / maxEnrollment) * 100}%`,
                       animationDelay: `${i * 80}ms`,
@@ -104,13 +104,13 @@ export default function Analytics() {
           </div>
           <div className="flex items-end gap-3 h-56">
             {revenue.map((d, i) => (
-              <div key={d.month} className="flex-1 flex flex-col items-center gap-2 group">
+              <div key={d.month} className="h-full flex-1 flex flex-col items-center gap-2 group">
                 <span className="text-xs font-semibold text-green-700 opacity-0 group-hover:opacity-100 transition-opacity">
                   ¥{d.amount.toLocaleString()}
                 </span>
-                <div className="w-full relative flex items-end h-full">
+                <div className="w-full relative flex flex-1 min-h-0 items-end">
                   <div
-                    className="w-full bg-gradient-to-t from-green-600 to-green-400 group-hover:from-green-700 group-hover:to-green-500 transition-all duration-500"
+                    className="w-full bg-gradient-to-t from-green-600 to-green-400 group-hover:from-green-700 group-hover:to-green-500 transition-all duration-500 rounded-t-lg"
                     style={{
                       height: `${(d.amount / maxRevenue) * 100}%`,
                       animationDelay: `${i * 80}ms`,
@@ -141,10 +141,10 @@ export default function Analytics() {
                   <span className="text-ink-700 font-medium">{d.label}</span>
                   <span className="font-display font-bold text-ink-900">{d.value}%</span>
                 </div>
-                <div className="h-3 bg-ink-100 overflow-hidden">
+                <div className="h-3 bg-ink-100 overflow-hidden rounded-full">
                   <div
                     className={cn(
-                      'h-full transition-all duration-700',
+                      'h-full transition-all duration-700 rounded-full',
                       i % 3 === 0 ? 'bg-indigo-800' : i % 3 === 1 ? 'bg-amber-500' : 'bg-green-600'
                     )}
                     style={{
@@ -184,7 +184,7 @@ export default function Analytics() {
                 <tr key={row.rank}>
                   <td>
                     <span className={cn(
-                      'font-display text-xl font-bold w-8 h-8 flex items-center justify-center',
+                      'font-display text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full',
                       row.rank <= 3 ? 'text-amber-600' : 'text-ink-300'
                     )}>
                       {row.rank}
