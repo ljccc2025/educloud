@@ -1,6 +1,7 @@
 package com.educloud.file;
 
 import com.educloud.file.config.FileProperties;
+import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.mapper.FileUploadSessionMapper;
 import io.minio.MinioClient;
@@ -91,6 +92,11 @@ class FileApplicationContextTest {
         @Bean
         FileObjectMapper fileObjectMapper() {
             return mock(FileObjectMapper.class);
+        }
+
+        @Bean
+        FileBindingMapper fileBindingMapper() {
+            return mock(FileBindingMapper.class);
         }
     }
 }
