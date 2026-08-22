@@ -47,14 +47,15 @@ public class UserAdminController {
     @PreAuthorize("hasAuthority('user:read')")
     public ApiResponse<PageResponse<UserAdminItem>> page(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int pageSize) {
-        return responses.success(userAdminService.page(page, pageSize));
+            @RequestParam(defaultValue = "20") int pageSize,
+            @AuthenticationPrincipal Jwt jwt) {
+        return responses.success(userAdminService.page(page, pageSize, Long.valueOf(jwt.getSubject())));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('user:read')")
-    public ApiResponse<UserAdminItem> detail(@PathVariable Long id) {
-        return responses.success(userAdminService.detail(id));
+    public ApiResponse<UserAdminItem> detail(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        return responses.success(userAdminService.detail(id, Long.valueOf(jwt.getSubject())));
     }
 
     @PatchMapping("/{id}/status")

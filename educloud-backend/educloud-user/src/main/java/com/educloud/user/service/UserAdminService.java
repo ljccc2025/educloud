@@ -17,6 +17,7 @@ import com.educloud.user.mapper.SysUserRoleMapper;
 import com.educloud.user.mapper.UserProfileMapper;
 import com.educloud.user.messaging.OutboxWriter;
 import com.educloud.user.support.AuditWriter;
+import com.educloud.user.support.FileClient;
 import com.educloud.user.support.Masking;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,6 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,6 +34,7 @@ import java.util.Objects;
 /**
  * 管理端用户查询与角色分配。依据：API 规范第 7 节（分页脱敏、user:read / rbac:assign；
  * 无权感知返回 404 由控制器权限决定）与 M03 设计规格第 10 节。
+ * M04 任务 14：detail/page 以当前管理员为 subject 批量授权组装 avatarUrl（每页一次调用）。
  */
 @Service
 public class UserAdminService {
@@ -44,6 +48,7 @@ public class UserAdminService {
     private final OutboxWriter outboxWriter;
     private final AuditWriter auditWriter;
     private final ObjectMapper objectMapper;
+    private final FileClient fileClient;
 
     public UserAdminService(
             SysUserMapper sysUserMapper,
@@ -52,7 +57,8 @@ public class UserAdminService {
             SysUserRoleMapper sysUserRoleMapper,
             OutboxWriter outboxWriter,
             AuditWriter auditWriter,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            FileClient fileClient) {
         this.sysUserMapper = Objects.requireNonNull(sysUserMapper, "sysUserMapper");
         this.userProfileMapper = Objects.requireNonNull(userProfileMapper, "userProfileMapper");
         this.sysRoleMapper = Objects.requireNonNull(sysRoleMapper, "sysRoleMapper");
@@ -60,9 +66,14 @@ public class UserAdminService {
         this.outboxWriter = Objects.requireNonNull(outboxWriter, "outboxWriter");
         this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+        this.fileClient = Objects.requireNonNull(fileClient, "fileClient");
     }
 
     public PageResponse<UserAdminItem> page(int page, int pageSize) {
+        return page(page, pageSize, null);
+    }
+
+    public PageResponse<UserAdminItem> page(int page, int pageSize, Long actorId) {
         int boundedSize = Math.min(Math.max(pageSize, 1), MAX_PAGE_SIZE);
         Page<SysUserEntity> result = sysUserMapper.selectPage(
                 new Page<>(Math.max(page, 1), boundedSize),
@@ -78,8 +89,9 @@ public class UserAdminService {
                     .stream()
                     .collect(java.util.stream.Collectors.toMap(
                             UserProfileEntity::getUserId, p -> p, (a, b) -> a));
+            Map<Long, String> avatarUrls = grantAvatarUrls(records, profiles, actorId);
             items = records.stream()
-                    .map(user -> toItem(user, profiles.get(user.getId())))
+                    .map(user -> toItem(user, profiles.get(user.getId()), avatarUrlOf(profiles.get(user.getId()), avatarUrls)))
                     .toList();
         }
         return PageResponse.of(
@@ -90,11 +102,25 @@ public class UserAdminService {
     }
 
     public UserAdminItem detail(Long userId) {
+        return detail(userId, null);
+    }
+
+    public UserAdminItem detail(Long userId, Long actorId) {
         SysUserEntity user = sysUserMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
         }
-        return toItem(user);
+        UserProfileEntity profile = userProfileMapper.selectOne(
+                new QueryWrapper<UserProfileEntity>().eq("user_id", user.getId()));
+        String avatarUrl = null;
+        if (profile != null && profile.getAvatarFileId() != null && actorId != null) {
+            avatarUrl = fileClient.grantAvatarUrls(
+                    List.of(profile.getAvatarFileId()),
+                    actorId,
+                    Map.of(profile.getAvatarFileId(), user.getId()))
+                    .get(profile.getAvatarFileId());
+        }
+        return toItem(user, profile, avatarUrl);
     }
 
     @Transactional
@@ -153,13 +179,34 @@ public class UserAdminService {
                 "ADMIN"));
     }
 
-    private UserAdminItem toItem(SysUserEntity user) {
-        UserProfileEntity profile = userProfileMapper.selectOne(
-                new QueryWrapper<UserProfileEntity>().eq("user_id", user.getId()));
-        return toItem(user, profile);
+    /** 一页一次批量授权：收集非空 avatarFileId（去重）后单次调用 FileClient。 */
+    private Map<Long, String> grantAvatarUrls(
+            List<SysUserEntity> records,
+            Map<Long, UserProfileEntity> profiles,
+            Long actorId) {
+        List<Long> fileIds = new ArrayList<>();
+        Map<Long, Long> ownerByFileId = new HashMap<>();
+        for (SysUserEntity user : records) {
+            UserProfileEntity profile = profiles.get(user.getId());
+            if (profile != null && profile.getAvatarFileId() != null) {
+                fileIds.add(profile.getAvatarFileId());
+                ownerByFileId.put(profile.getAvatarFileId(), user.getId());
+            }
+        }
+        List<Long> distinctFileIds = fileIds.stream().distinct().toList();
+        if (distinctFileIds.isEmpty() || actorId == null) {
+            return Map.of();
+        }
+        return fileClient.grantAvatarUrls(distinctFileIds, actorId, ownerByFileId);
     }
 
-    private UserAdminItem toItem(SysUserEntity user, UserProfileEntity profile) {
+    private static String avatarUrlOf(UserProfileEntity profile, Map<Long, String> avatarUrls) {
+        return profile == null || profile.getAvatarFileId() == null
+                ? null
+                : avatarUrls.get(profile.getAvatarFileId());
+    }
+
+    private UserAdminItem toItem(SysUserEntity user, UserProfileEntity profile, String avatarUrl) {
         return new UserAdminItem(
                 String.valueOf(user.getId()),
                 user.getUsername(),
@@ -169,7 +216,8 @@ public class UserAdminService {
                 user.getStatus(),
                 profile == null ? user.getUsername() : profile.getDisplayName(),
                 user.getCreatedAt(),
-                user.getVersion());
+                user.getVersion(),
+                avatarUrl);
     }
 
     private String payload(Long userId, List<String> roleCodes) {

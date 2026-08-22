@@ -86,7 +86,7 @@ class MethodSecurityAndAdminEndpointsTest {
                 .apply(SecurityMockMvcConfigurers.springSecurity())
                 .build();
 
-        when(context.getBean(UserAdminService.class).page(1, 20))
+        when(context.getBean(UserAdminService.class).page(1, 20, 1L))
                 .thenReturn(PageResponse.of(List.of(), 1, 20, 0));
         when(context.getBean(RoleService.class).create(
                 org.mockito.ArgumentMatchers.any(),
@@ -116,7 +116,8 @@ class MethodSecurityAndAdminEndpointsTest {
         mockMvc.perform(get("/api/v1/users").with(jwt()))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/users")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("user:read"))))
+                        .with(jwt().jwt(jwt -> jwt.subject("1"))
+                                .authorities(new SimpleGrantedAuthority("user:read"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(0));
     }

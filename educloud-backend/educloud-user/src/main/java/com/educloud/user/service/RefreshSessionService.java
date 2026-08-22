@@ -187,7 +187,8 @@ public class RefreshSessionService {
                                 displayName,
                                 user.getUserType(),
                                 roles,
-                                permissions)));
+                                permissions,
+                                null)));
     }
 
     public record RefreshResult(String refreshTokenRaw, LoginResponse response) {

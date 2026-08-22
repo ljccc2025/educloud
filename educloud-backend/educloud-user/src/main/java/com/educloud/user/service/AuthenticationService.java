@@ -192,7 +192,8 @@ public class AuthenticationService {
                                 displayName,
                                 user.getUserType(),
                                 roles,
-                                permissions)));
+                                permissions,
+                                null)));
     }
 
     private void registerFailedAttempt(SysUserEntity user, String ip, String userAgent, String requestId) {

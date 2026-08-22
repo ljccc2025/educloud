@@ -65,6 +65,16 @@ educloud:
       bootstrap-key: ${EDUCLOUD_USER_INTERNAL_BOOTSTRAP_KEY:}
       allowed-client-ids: ${EDUCLOUD_USER_INTERNAL_ALLOWED_CLIENT_IDS:}
       audience: ${EDUCLOUD_USER_INTERNAL_AUDIENCE:educloud-user}
+    # M04 任务 14: File 服务内部联调。默认禁用，本地无 File 服务时 User 完全可用；
+    # enabled=true 时 FileClient 以 user-service 服务令牌调用 File /internal/v1/**。
+    file:
+      endpoint: ${EDUCLOUD_USER_FILE_ENDPOINT:http://127.0.0.1:8087}
+      client-id: ${EDUCLOUD_USER_FILE_CLIENT_ID:user-service}
+      client-secret: ${EDUCLOUD_USER_FILE_CLIENT_SECRET:}
+      enabled: ${EDUCLOUD_USER_FILE_ENABLED:false}
+      timeout: ${EDUCLOUD_USER_FILE_TIMEOUT:3s}
+    inbox:
+      poll-interval: ${EDUCLOUD_USER_INBOX_POLL_INTERVAL:5000}
     password:
       min-length: ${EDUCLOUD_USER_PASSWORD_MIN_LENGTH:8}
       max-length: ${EDUCLOUD_USER_PASSWORD_MAX_LENGTH:128}
