@@ -1,6 +1,5 @@
 package com.educloud.file.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.educloud.file.config.FileProperties;
 import com.educloud.file.dto.request.CreateUploadSessionRequest;
@@ -26,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -165,12 +163,17 @@ public class UploadSessionService {
 
         FileProperties.Upload upload = properties.upload();
         long maxSizeBytes = upload.maxSizeBytes();
+        if (maxSizeBytes > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "maxSizeBytes 超出 int 范围，无法作为 sha256 读取上限: " + maxSizeBytes);
+        }
         if (stat.size() > maxSizeBytes) {
             throw new FileTooLargeException("对象实际大小超过上限: " + stat.size() + " > " + maxSizeBytes);
         }
-        if (stat.contentType() != null && !contentTypePolicy.isAllowed(stat.contentType())) {
+        String actualContentType = stat.contentType();
+        if (actualContentType == null || !contentTypePolicy.isAllowed(actualContentType)) {
             throw new FileTypeNotAllowedException(
-                    "对象实际 Content-Type 不在白名单: " + stat.contentType());
+                    "对象实际 Content-Type 不在白名单: " + actualContentType);
         }
 
         String sha256 = storageGateway.sha256(bucket, objectKey, Math.toIntExact(maxSizeBytes));
@@ -180,7 +183,7 @@ public class UploadSessionService {
         object.setId(IdWorker.getId());
         object.setObjectKey(objectKey);
         object.setOriginalName(session.getOriginalName());
-        object.setContentType(session.getContentType());
+        object.setContentType(stat.contentType());
         object.setSizeBytes(stat.size());
         object.setSha256(sha256);
         object.setBucket(bucket);
@@ -196,21 +199,5 @@ public class UploadSessionService {
         return object;
     }
 
-    /**
-     * 批量过期：把超过 maxAge（按 created_at 计龄）的 PENDING 会话置 EXPIRED。
-     *
-     * <p>供任务 12 清理任务调用；幂等（仅处理 PENDING 行）。</p>
-     */
-    public void expireOverdue(Duration maxAge) {
-        Instant cutoff = clock.instant().minus(maxAge);
-        List<FileUploadSessionEntity> overdue = sessionMapper.selectList(
-                new LambdaQueryWrapper<FileUploadSessionEntity>()
-                        .eq(FileUploadSessionEntity::getStatus, STATUS_PENDING)
-                        .lt(FileUploadSessionEntity::getCreatedAt, cutoff));
-        for (FileUploadSessionEntity session : overdue) {
-            session.setStatus(STATUS_EXPIRED);
-            sessionMapper.updateById(session);
-        }
-    }
 }
 

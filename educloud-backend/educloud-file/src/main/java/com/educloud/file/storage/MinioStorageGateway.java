@@ -53,7 +53,7 @@ public class MinioStorageGateway implements StorageGateway {
                     .method(Method.PUT)
                     .bucket(bucket)
                     .object(objectKey)
-                    .expiry(Math.toIntExact(ttl.getSeconds()))
+                    .expiry(expirySeconds(ttl))
                     .build();
             return minioClient.getPresignedObjectUrl(args);
         } catch (MinioException | IOException | GeneralSecurityException e) {
@@ -69,7 +69,7 @@ public class MinioStorageGateway implements StorageGateway {
                     .method(Method.GET)
                     .bucket(bucket)
                     .object(objectKey)
-                    .expiry(Math.toIntExact(ttl.getSeconds()))
+                    .expiry(expirySeconds(ttl))
                     .build();
             return minioClient.getPresignedObjectUrl(args);
         } catch (MinioException | IOException | GeneralSecurityException e) {
@@ -77,6 +77,17 @@ public class MinioStorageGateway implements StorageGateway {
                     "生成 presigned GET URL 失败: bucket=" + bucket + ", object=" + objectKey, e);
         }
     }
+
+    /**
+     * minio-java 的 expiry 是 int 且上限 7 天：超过上限的 TTL 前置钳制，
+     * 避免 Math.toIntExact 溢出与 builder 校验拒绝。
+     */
+    private static int expirySeconds(Duration ttl) {
+        long seconds = ttl.getSeconds();
+        return (int) Math.min(seconds, MAX_EXPIRY_SECONDS);
+    }
+
+    private static final int MAX_EXPIRY_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
     @Override
     public ObjectStat stat(String bucket, String objectKey) {

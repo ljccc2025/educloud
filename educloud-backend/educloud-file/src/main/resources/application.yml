@@ -39,6 +39,8 @@ spring:
 educloud:
   file:
     # M04: 配置项全量声明，依据：2026-08-22-educloud-file-design.md 第 10 节。
+    # environment 与 Gateway/user 的 EDUCLOUD_ENVIRONMENT 同源，用于 Redis key 命名空间。
+    environment: ${EDUCLOUD_ENVIRONMENT:local}
     storage:
       endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
       access-key: ${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:}}

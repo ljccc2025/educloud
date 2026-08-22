@@ -40,7 +40,7 @@ public final class StorageTestRateLimitFilter extends OncePerRequestFilter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StorageTestRateLimitFilter.class);
     private static final String STORAGE_TEST_PATH = "/api/v1/files/storage-tests";
-    private static final String REDIS_KEY_PREFIX = "educloud:file:ratelimit:storage-test";
+    private static final String REDIS_KEY_PREFIX_TEMPLATE = "educloud:%s:file:ratelimit:storage-test";
 
     private final JwtDecoder jwtDecoder;
     private final StringRedisTemplate redis;
@@ -69,7 +69,8 @@ public final class StorageTestRateLimitFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String subject = userSubject(request);
         try {
-            String key = REDIS_KEY_PREFIX + ":" + subject;
+            String key = String.format(REDIS_KEY_PREFIX_TEMPLATE, properties.environment())
+                    + ":" + subject;
             Long count = redis.opsForValue().increment(key);
             if (count == null) {
                 // Redis 返回空值视为依赖异常：失败关闭（503），防止绕过限流。

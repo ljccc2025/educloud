@@ -1,5 +1,7 @@
 package com.educloud.file.service;
 
+import com.educloud.common.error.BusinessException;
+import com.educloud.common.error.CommonErrorCode;
 import com.educloud.file.config.FileProperties;
 import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
@@ -74,6 +76,7 @@ public class DownloadGrantService {
         try {
             return doGrantSingle(ownerService, req);
         } catch (GrantPurposeNotAllowedException | FileAccessDeniedException failure) {
+            auditWriter.writeGrantSingle(req.fileId(), req.subjectUserId(), false);
             metrics.recordGrantDenied();
             throw failure;
         }
@@ -114,23 +117,30 @@ public class DownloadGrantService {
         try {
             purposePolicy.validate(req.subjectType(), req.subjectUserId(), req.purpose());
         } catch (GrantPurposeNotAllowedException e) {
-            auditWriter.writeGrantBatchDenied(req.items().get(0).fileId(), req.subjectUserId());
+            // 批量 purpose 越权无具体文件可归属：审计 fileId 用 0L 哨兵。
+            auditWriter.writeGrantBatchDenied(0L, req.subjectUserId());
             metrics.recordGrantDenied();
             throw e;
         }
         Duration ttl = resolveTtl(req.requestedTtl());
 
-        List<BatchItemResult> results = new ArrayList<>(req.items().size());
+        // 第一遍：全量只做绑定校验（不生成 URL/不审计），任一伪造立即整批 403。
+        List<FileBindingEntity> validatedBindings = new ArrayList<>(req.items().size());
         for (BatchItem item : req.items()) {
-            FileBindingEntity binding;
             try {
-                binding = findExactBindingOrRejectForgery(
-                        ownerService, item.ownerType(), item.ownerId(), item.fileId());
+                validatedBindings.add(findExactBindingOrRejectForgery(
+                        ownerService, item.ownerType(), item.ownerId(), item.fileId()));
             } catch (FileAccessDeniedException e) {
                 auditWriter.writeGrantBatchDenied(item.fileId(), req.subjectUserId());
                 metrics.recordGrantDenied();
                 throw e;
             }
+        }
+        // 第二遍：全部通过后才生成 URL 与结果。
+        List<BatchItemResult> results = new ArrayList<>(req.items().size());
+        for (int i = 0; i < req.items().size(); i++) {
+            BatchItem item = req.items().get(i);
+            FileBindingEntity binding = validatedBindings.get(i);
             if (binding == null) {
                 results.add(new BatchItemResult(
                         item.requestKey(), item.fileId(), GrantStatus.UNAVAILABLE, null, null));
@@ -155,19 +165,23 @@ public class DownloadGrantService {
 
     private void validateBatchShape(GrantBatchRequest req) {
         if (req.items() == null || req.items().isEmpty()) {
-            throw new IllegalArgumentException("批量 grant items 不能为空");
+            throw new BusinessException(
+                    CommonErrorCode.VALIDATION_FAILED, "批量 grant items 不能为空");
         }
         if (req.items().size() > MAX_BATCH_ITEMS) {
-            throw new IllegalArgumentException(
+            throw new BusinessException(
+                    CommonErrorCode.VALIDATION_FAILED,
                     "批量 grant items 超过上限: " + req.items().size() + " > " + MAX_BATCH_ITEMS);
         }
         Set<String> keys = new HashSet<>(req.items().size());
         for (BatchItem item : req.items()) {
             if (item == null) {
-                throw new IllegalArgumentException("批量 grant item 不能为 null");
+                throw new BusinessException(
+                        CommonErrorCode.VALIDATION_FAILED, "批量 grant item 不能为 null");
             }
             if (item.requestKey() == null || !keys.add(item.requestKey())) {
-                throw new IllegalArgumentException(
+                throw new BusinessException(
+                        CommonErrorCode.VALIDATION_FAILED,
                         "批量 grant requestKey 缺失或重复: " + item.requestKey());
             }
         }
@@ -200,7 +214,8 @@ public class DownloadGrantService {
 
     private Duration resolveTtl(Duration requestedTtl) {
         if (requestedTtl != null && requestedTtl.isNegative()) {
-            throw new IllegalArgumentException("requestedTtl 不能为负: " + requestedTtl);
+            throw new BusinessException(
+                    CommonErrorCode.VALIDATION_FAILED, "requestedTtl 不能为负: " + requestedTtl);
         }
         FileProperties.DownloadGrant grant = properties.downloadGrant();
         Duration effective = requestedTtl == null ? grant.defaultTtl() : requestedTtl;

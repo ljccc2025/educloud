@@ -18,7 +18,18 @@ public record FileProperties(
         Cleanup cleanup,
         StorageTest storageTest,
         Internal internal,
-        Jwt jwt) {
+        Jwt jwt,
+        String environment) {
+
+    /**
+     * environment 默认 local：与 user SessionProperties 同源（同一 EDUCLOUD_ENVIRONMENT），
+     * 用于 Redis key 环境命名空间（storage-tests 限频），避免多环境共享 Redis 互相挤占。
+     */
+    public FileProperties {
+        if (environment == null || environment.isBlank()) {
+            environment = "local";
+        }
+    }
 
     /** MinIO 存储连接与私有 bucket。密钥不进 API 响应与日志（规格第 9 节）。 */
     public record Storage(

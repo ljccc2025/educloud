@@ -1,5 +1,6 @@
 package com.educloud.file.support;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
@@ -18,10 +19,12 @@ public final class ObjectKeyFactory {
 
     private final String bucket;
     private final ContentTypePolicy contentTypePolicy;
+    private final Clock clock;
 
-    public ObjectKeyFactory(String bucket, ContentTypePolicy contentTypePolicy) {
+    public ObjectKeyFactory(String bucket, ContentTypePolicy contentTypePolicy, Clock clock) {
         this.bucket = Objects.requireNonNull(bucket, "bucket");
         this.contentTypePolicy = Objects.requireNonNull(contentTypePolicy, "contentTypePolicy");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
@@ -31,7 +34,7 @@ public final class ObjectKeyFactory {
      */
     public String create(String owner, String contentType) {
         String ext = contentTypePolicy.extension(contentType);
-        return bucket + "/" + owner + "/" + LocalDate.now().format(DATE_FORMAT)
+        return bucket + "/" + owner + "/" + LocalDate.now(clock).format(DATE_FORMAT)
                 + "/" + UUID.randomUUID() + "." + ext;
     }
 }

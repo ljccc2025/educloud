@@ -6,6 +6,8 @@ import com.educloud.file.support.ObjectKeyFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Clock;
+
 /**
  * 上传支持组件注册：{@link ContentTypePolicy}（白名单 + 大小上限）与
  * {@link ObjectKeyFactory}（服务端对象键）。
@@ -23,8 +25,9 @@ public class FileSupportConfiguration {
     }
 
     @Bean
-    ObjectKeyFactory objectKeyFactory(FileProperties properties, ContentTypePolicy contentTypePolicy) {
-        return new ObjectKeyFactory(properties.storage().bucket(), contentTypePolicy);
+    ObjectKeyFactory objectKeyFactory(
+            FileProperties properties, ContentTypePolicy contentTypePolicy, Clock clock) {
+        return new ObjectKeyFactory(properties.storage().bucket(), contentTypePolicy, clock);
     }
 
     @Bean
