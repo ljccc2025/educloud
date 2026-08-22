@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { http, TOKEN_KEY, type ApiEnvelope } from './http';
+import { http, TOKEN_KEY, apiErrorText, type ApiEnvelope } from './http';
 import type {
   Course, Chapter, Review, LiveRoom, ChatMessage,
   Assignment, Exam, Order, StudentUser, HomeStats,
@@ -498,6 +498,25 @@ export const authApi = {
     const token = resp.data.data.accessToken;
     localStorage.setItem(TOKEN_KEY, token);
     return { token, user: mapAuthUser(resp.data.data.user) };
+  },
+  register: async (payload: {
+    username: string;
+    password: string;
+    email: string;
+    phone: string;
+    displayName?: string;
+  }): Promise<void> => {
+    try {
+      await http.post<ApiEnvelope<null>>('/auth/register', {
+        username: payload.username,
+        password: payload.password,
+        email: payload.email,
+        phone: payload.phone,
+        displayName: payload.displayName,
+      });
+    } catch (e) {
+      throw new Error(apiErrorText(e));
+    }
   },
   me: async (): Promise<StudentUser> => {
     const resp = await http.get<ApiEnvelope<AuthUser>>('/me');
