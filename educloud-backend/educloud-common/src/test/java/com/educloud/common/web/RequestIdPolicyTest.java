@@ -21,6 +21,7 @@ class RequestIdPolicyTest {
         assertThat(policy.resolve("")).isEqualTo(GENERATED.toString());
         assertThat(policy.resolve("contains space")).isEqualTo(GENERATED.toString());
         assertThat(policy.resolve("x".repeat(65))).isEqualTo(GENERATED.toString());
+        assertThat(policy.resolve("x".repeat(40))).isEqualTo("x".repeat(36));
         assertThat(policy.resolve("中文")).isEqualTo(GENERATED.toString());
     }
 }
