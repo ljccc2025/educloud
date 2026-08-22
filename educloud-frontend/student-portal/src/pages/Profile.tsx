@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   User, Mail, Calendar, BookOpen, Award, Clock,
@@ -6,9 +6,11 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { currentUser } from '@/services/api';
+import { uploadAvatar } from '@/services/file';
+import { http, apiErrorText } from '@/services/http';
 
 export default function Profile() {
-  const { user } = useAuthStore();
+  const { user, refresh } = useAuthStore();
   const displayUser = user ?? currentUser;
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
@@ -17,6 +19,30 @@ export default function Profile() {
     bio: displayUser.bio,
   });
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setAvatarError('头像图片不能超过 10MB');
+      return;
+    }
+    setUploading(true);
+    setAvatarError(null);
+    try {
+      const fileId = await uploadAvatar(file);
+      await http.put('/me/profile', { avatarFileId: fileId });
+      await refresh();
+    } catch (err) {
+      setAvatarError(apiErrorText(err));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSave = () => {
     setEditing(false);
@@ -65,10 +91,37 @@ export default function Profile() {
       {/* Profile Header */}
       <div className="bg-white border border-ink-100 p-8 mb-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-          <div className="w-24 h-24 bg-gradient-to-br from-indigo-700 to-indigo-900 flex items-center justify-center flex-shrink-0">
-            <span className="font-display text-4xl font-bold text-paper">
-              {displayUser.realName.charAt(0)}
-            </span>
+          <div className="flex flex-col items-center sm:items-start gap-3 flex-shrink-0">
+            <div className="relative w-24 h-24">
+              <img
+                src={displayUser.avatarUrl || displayUser.avatar}
+                alt="用户头像"
+                className="w-24 h-24 object-cover bg-indigo-50 border border-ink-100"
+              />
+              {uploading && (
+                <span className="absolute inset-0 flex items-center justify-center bg-ink-900/40 text-white text-xs font-medium">
+                  上传中…
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="btn-outline text-sm px-3 py-1.5"
+            >
+              更换头像
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+            {avatarError && (
+              <p className="text-sm text-red-600 max-w-[12rem]">{avatarError}</p>
+            )}
           </div>
           <div className="flex-1">
             <h2 className="font-display text-2xl font-bold text-ink-900">{displayUser.realName}</h2>

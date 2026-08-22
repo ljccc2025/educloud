@@ -86,9 +86,9 @@ export default function AdminLayout() {
       <div className="border-t border-ink-200/60 p-4">
         <div className="flex items-center gap-3 mb-3 px-1">
           <img
-            src={admin?.avatar}
+            src={admin?.avatarUrl ?? admin?.avatar}
             alt={admin?.realName}
-            className="w-9 h-9 rounded-full bg-ink-100 border border-ink-300"
+            className="w-9 h-9 rounded-full bg-ink-100 border border-ink-300 object-cover"
           />
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-ink-800 truncate">
@@ -164,9 +164,9 @@ export default function AdminLayout() {
             </button>
             <div className="hidden sm:flex items-center gap-2.5 pl-3 ml-1 border-l border-ink-300">
               <img
-                src={admin?.avatar}
+                src={admin?.avatarUrl ?? admin?.avatar}
                 alt={admin?.realName}
-                className="w-8 h-8 rounded-full bg-ink-100 border border-ink-300"
+                className="w-8 h-8 rounded-full bg-ink-100 border border-ink-300 object-cover"
               />
               <div className="text-sm">
                 <span className="font-medium text-ink-800">

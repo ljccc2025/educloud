@@ -470,6 +470,7 @@ export interface AuthUser {
   userType: string;
   roles: string[];
   permissions: string[];
+  avatarUrl?: string;
 }
 
 function mapAuthUser(a: AuthUser): StudentUser {
@@ -479,7 +480,8 @@ function mapAuthUser(a: AuthUser): StudentUser {
     realName: a.displayName || a.username,
     email: '',
     phone: '',
-    avatar: avatar(a.username),
+    avatar: a.avatarUrl ?? avatar(a.username),
+    avatarUrl: a.avatarUrl,
     bio: '',
     joinDate: new Date().toISOString().slice(0, 10),
     learnedCourses: 0,

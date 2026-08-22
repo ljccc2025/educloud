@@ -35,6 +35,7 @@ export interface AdminUser {
   realName: string;
   email: string;
   avatar: string;
+  avatarUrl?: string;
   role: string;
   lastLogin: string;
 }
@@ -358,6 +359,7 @@ export interface AuthUser {
   userType: string;
   roles: string[];
   permissions: string[];
+  avatarUrl?: string;
 }
 
 function mapAuthAdmin(a: AuthUser): AdminUser {
@@ -366,7 +368,8 @@ function mapAuthAdmin(a: AuthUser): AdminUser {
     username: a.username,
     realName: a.displayName || a.username,
     email: '',
-    avatar: avatar(a.username),
+    avatar: a.avatarUrl ?? avatar(a.username),
+    avatarUrl: a.avatarUrl,
     role: a.roles[0] ?? 'ADMIN',
     lastLogin: dayjs().format('YYYY-MM-DD HH:mm:ss'),
   };

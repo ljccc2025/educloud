@@ -211,6 +211,7 @@ export interface StudentUser {
   email: string;
   phone: string;
   avatar: string;
+  avatarUrl?: string;
   bio: string;
   joinDate: string;
   learnedCourses: number;

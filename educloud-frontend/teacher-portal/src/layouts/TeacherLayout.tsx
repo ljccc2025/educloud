@@ -44,6 +44,7 @@ const breadcrumbMap: Record<string, string> = {
 export default function TeacherLayout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const pathParts = location.pathname.split('/').filter(Boolean);
@@ -112,13 +113,13 @@ export default function TeacherLayout() {
         <div className="p-4 border-t border-ink-100">
           <div className="flex items-center gap-3 p-3 bg-ink-50/50 rounded-xl">
             <img
-              src="https://api.dicebear.com/7.x/avataaars/svg?seed=zhangming&backgroundColor=1e1b4b"
-              alt="张明教授"
-              className="w-10 h-10 rounded-full bg-indigo-100"
+              src={user?.avatarUrl ?? 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangming&backgroundColor=1e1b4b'}
+              alt={user?.name ?? '张明教授'}
+              className="w-10 h-10 rounded-full bg-indigo-100 object-cover"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-ink-800 truncate">张明教授</p>
-              <p className="text-xs text-ink-400 truncate">高级讲师</p>
+              <p className="text-sm font-medium text-ink-800 truncate">{user?.name ?? '张明教授'}</p>
+              <p className="text-xs text-ink-400 truncate">{user?.title ?? '高级讲师'}</p>
             </div>
             <button
               onClick={handleLogout}
@@ -166,9 +167,9 @@ export default function TeacherLayout() {
             <div className="ml-auto flex items-center gap-3">
               <NotificationPopover />
               <img
-                src="https://api.dicebear.com/7.x/avataaars/svg?seed=zhangming&backgroundColor=1e1b4b"
+                src={user?.avatarUrl ?? 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangming&backgroundColor=1e1b4b'}
                 alt="头像"
-                className="w-9 h-9 rounded-full bg-indigo-100 cursor-pointer ring-2 ring-transparent hover:ring-amber-400 transition-all"
+                className="w-9 h-9 rounded-full bg-indigo-100 object-cover cursor-pointer ring-2 ring-transparent hover:ring-amber-400 transition-all"
               />
             </div>
           </div>

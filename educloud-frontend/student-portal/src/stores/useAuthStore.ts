@@ -11,6 +11,7 @@ interface AuthState {
   login: (loginName: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   restore: () => Promise<void>;
+  refresh: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -48,6 +49,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('student_token');
       set({ user: null, token: null, loading: false });
     }
+  },
+  refresh: async () => {
+    if (!get().token) return;
+    const user = await authApi.me();
+    set({ user });
   },
   clearError: () => set({ error: null }),
 }));

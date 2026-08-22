@@ -618,6 +618,7 @@ export interface AuthUser {
   userType: string;
   roles: string[];
   permissions: string[];
+  avatarUrl?: string;
 }
 
 function mapAuthUser(a: AuthUser): User {
@@ -625,7 +626,8 @@ function mapAuthUser(a: AuthUser): User {
     id: a.id,
     name: a.displayName || a.username,
     email: a.username,
-    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(a.username)}&backgroundColor=1e1b4b`,
+    avatar: a.avatarUrl ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(a.username)}&backgroundColor=1e1b4b`,
+    avatarUrl: a.avatarUrl,
     role: a.userType === 'ADMIN' ? 'admin' : 'teacher',
     title: a.roles.join('、') || 'EduCloud 教师',
     bio: '',
