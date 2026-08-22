@@ -43,6 +43,15 @@ export default function Login() {
           setError('两次输入的密码不一致');
           return;
         }
+        // HTML pattern 在 React 的 v 模式下对连字符解析有兼容问题，改用 JS 校验（与后端规则一致）。
+        if (!/^[A-Za-z0-9_.-]+$/.test(username)) {
+          setError('用户名只能包含字母、数字、下划线、点和连字符');
+          return;
+        }
+        if (!/^[0-9+ -]{5,32}$/.test(phone)) {
+          setError('手机号格式不正确');
+          return;
+        }
         await authApi.register({
           username,
           password,
@@ -174,7 +183,6 @@ export default function Login() {
                     required
                     minLength={3}
                     maxLength={32}
-                    pattern="[-A-Za-z0-9_.]+"
                     className="input-field pl-11"
                   />
                 </div>
@@ -192,7 +200,6 @@ export default function Login() {
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="手机号（用于找回账号）"
                     required
-                    pattern="[-0-9+ ]{5,32}"
                     className="input-field pl-11"
                   />
                 </div>
