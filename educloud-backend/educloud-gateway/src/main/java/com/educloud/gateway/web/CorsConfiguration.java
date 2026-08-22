@@ -21,6 +21,7 @@ public class CorsConfiguration {
             "Content-Type",
             "X-Request-Id",
             "Idempotency-Key",
+            "X-Device-Id",
             "If-Match",
             "Accept-Language");
     private static final List<String> EXPOSED_HEADERS = List.of(

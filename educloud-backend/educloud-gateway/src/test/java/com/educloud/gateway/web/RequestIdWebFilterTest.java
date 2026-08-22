@@ -80,7 +80,8 @@ class RequestIdWebFilterTest {
         }).block();
 
         assertThat(requestId).hasSize(64);
-        assertThat(downstream.get()).isEqualTo(requestId);
+        // 超长合法 ID 截断到 36（与审计表 request_id VARCHAR(36) 契约对齐）。
+        assertThat(downstream.get()).isEqualTo(requestId.substring(0, 36));
     }
 
     @Test

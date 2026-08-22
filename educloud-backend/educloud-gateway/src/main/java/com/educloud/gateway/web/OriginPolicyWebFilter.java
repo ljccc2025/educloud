@@ -30,6 +30,7 @@ public final class OriginPolicyWebFilter implements WebFilter, Ordered {
             "content-type",
             "x-request-id",
             "idempotency-key",
+            "x-device-id",
             "if-match",
             "accept-language");
 
