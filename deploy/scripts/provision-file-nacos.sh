@@ -171,10 +171,9 @@ fi
 
 expected_permissions="$temporary_directory/expected-permissions"
 actual_permissions="$temporary_directory/actual-permissions"
-cat >"$expected_permissions" <<EOF
-r	${namespace}:${discovery_group}:naming/educloud-file
-w	${namespace}:${discovery_group}:naming/educloud-file
-EOF
+# M04 审查修复：heredoc 中的制表符易被编辑器改写/丢失，改用 printf 显式生成真实 TAB（与 read_permissions 的 python 输出一致）。
+printf 'r\t%s:%s:naming/educloud-file\n' "$namespace" "$discovery_group" >"$expected_permissions"
+printf 'w\t%s:%s:naming/educloud-file\n' "$namespace" "$discovery_group" >>"$expected_permissions"
 sort -u "$expected_permissions" -o "$expected_permissions"
 
 read_permissions() {
