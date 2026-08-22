@@ -4,10 +4,12 @@ import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
 import com.educloud.file.exception.FileAccessDeniedException;
 import com.educloud.file.exception.FileBoundException;
+import com.educloud.file.exception.UploadSessionExpiredException;
 import com.educloud.file.exception.VersionConflictException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.messaging.FileEventPublisher;
+import com.educloud.file.storage.FileStorageException;
 import com.educloud.file.storage.StorageGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,18 +17,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -132,7 +138,7 @@ class FileObjectServiceTest {
         when(bindingMapper.countActiveByFileId(FILE_ID)).thenReturn(0L);
         when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
 
-        service.deleteIfUnbound(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON);
+        inTransaction(() -> service.deleteIfUnbound(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON));
 
         verify(storageGateway).deleteObject(BUCKET, OBJECT_KEY);
 
@@ -161,16 +167,67 @@ class FileObjectServiceTest {
         // 拦截器按旧 version 生成 WHERE 条件，0 行命中即版本冲突（不 mock 则默认返回 0）。
         when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(0);
 
-        assertThatThrownBy(() -> service.deleteIfUnbound(
-                FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON))
+        assertThatThrownBy(() -> inTransaction(() -> service.deleteIfUnbound(
+                FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON)))
                 .isInstanceOf(VersionConflictException.class);
 
-        verify(storageGateway).deleteObject(BUCKET, OBJECT_KEY);
+        verify(storageGateway, never()).deleteObject(anyString(), anyString());
         verify(objectMapper).updateById(root);
         // 冲突时版本保持读出的旧值，不得在内存中自增。
         assertThat(root.getVersion()).isEqualTo(1);
         verify(eventPublisher, never()).fileDeleted(anyLong(), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyLong());
+    }
+
+    @Test
+    void deleteIfUnboundDoesNotDeleteObjectWhenTransactionRollsBack() {
+        FileObjectEntity root = availableFile();
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .thenReturn(ownerBinding());
+        when(bindingMapper.countActiveByFileId(FILE_ID)).thenReturn(0L);
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
+        // Outbox 写入失败导致事务回滚：afterCommit 不应触发，MinIO 对象必须保留。
+        doThrow(new IllegalStateException("outbox down"))
+                .when(eventPublisher).fileDeleted(anyLong(), anyString(), anyString(),
+                        anyString(), anyString(), anyString(), anyLong());
+
+        assertThatThrownBy(() -> inTransaction(() -> service.deleteIfUnbound(
+                FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON)))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(storageGateway, never()).deleteObject(anyString(), anyString());
+    }
+
+    @Test
+    void deleteIfUnboundSwallowsAfterCommitDeletionFailure() {
+        FileObjectEntity root = availableFile();
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .thenReturn(ownerBinding());
+        when(bindingMapper.countActiveByFileId(FILE_ID)).thenReturn(0L);
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
+        // DB 已提交后 afterCommit 删除失败：不向调用方抛错、不回滚 DB，由清理任务兜底。
+        doThrow(new FileStorageException("minio down"))
+                .when(storageGateway).deleteObject(BUCKET, OBJECT_KEY);
+
+        assertThatCode(() -> inTransaction(() -> service.deleteIfUnbound(
+                FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON)))
+                .doesNotThrowAnyException();
+
+        verify(objectMapper).updateById(root);
+        verify(eventPublisher).fileDeleted(
+                eq(FILE_ID), eq(OBJECT_KEY), eq(OWNER_SERVICE), eq(OWNER_TYPE),
+                eq(OWNER_ID), eq(REASON), eq(2L));
+    }
+
+    @Test
+    void completeUploadDeclaresNoRollbackForExpiredSession() throws Exception {
+        Transactional annotation = FileObjectService.class
+                .getMethod("completeUpload", Long.class, Long.class)
+                .getAnnotation(Transactional.class);
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.noRollbackFor()).contains(UploadSessionExpiredException.class);
     }
 
     @Test
@@ -186,6 +243,11 @@ class FileObjectServiceTest {
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
         verify(eventPublisher, never()).fileDeleted(anyLong(), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyLong());
+    }
+
+    private void inTransaction(Runnable action) {
+        new TransactionTemplate(new TestTransactionManager())
+                .executeWithoutResult(status -> action.run());
     }
 
     private FileObjectEntity availableFile() {

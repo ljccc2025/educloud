@@ -15,8 +15,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.PlatformTransactionManager;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -32,7 +30,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -88,7 +85,7 @@ class FileCleanupServiceTest {
                 eventPublisher,
                 properties,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                mock(PlatformTransactionManager.class),
+                new TestTransactionManager(),
                 metrics);
     }
 
@@ -177,6 +174,7 @@ class FileCleanupServiceTest {
         when(sessionMapper.selectExpired(NOW, BATCH_SIZE)).thenReturn(List.of(orphan, completed));
         when(sessionMapper.selectByIdForUpdate(SESSION_ID_1)).thenReturn(orphan);
         when(sessionMapper.selectByIdForUpdate(SESSION_ID_2)).thenReturn(completed);
+        when(sessionMapper.updateById(any(FileUploadSessionEntity.class))).thenReturn(1);
         // 第一个会话对象键无 AVAILABLE file_object（删孤儿对象），第二个已登记（跳过）。
         when(objectMapper.selectCount(any())).thenReturn(0L, 1L);
 
@@ -210,15 +208,74 @@ class FileCleanupServiceTest {
 
         verify(storageGateway).deleteObject(BUCKET, OBJECT_KEY_1);
         verify(storageGateway).deleteObject(BUCKET, OBJECT_KEY_2);
-        // 失败项事务回滚不发布事件，第二项正常完成并发布 FileDeleted。
+        // DB 更新与 FileDeleted（Outbox）在事务内已提交；afterCommit 删除失败不回滚事件。
+        verify(eventPublisher).fileDeleted(
+                eq(FILE_ID_1), eq(OBJECT_KEY_1), isNull(), isNull(), isNull(),
+                eq(CLEANUP_REASON), eq(2L));
         verify(eventPublisher).fileDeleted(
                 eq(FILE_ID_2), eq(OBJECT_KEY_2), isNull(), isNull(), isNull(),
                 eq(CLEANUP_REASON), eq(2L));
-        // 全局断言：整个批次只发布一次事件（失败项未发布）。
-        verify(eventPublisher, times(1)).fileDeleted(anyLong(), anyString(), any(),
+        verify(eventPublisher, times(2)).fileDeleted(anyLong(), anyString(), any(),
                 any(), any(), anyString(), anyLong());
-        // 删除成功项计数一次；deleteObject 抛异常的失败项不计数。
+        // 删除成功项计数一次；afterCommit 删除失败的项不计数（A8 兜底重试）。
         verify(metrics, times(1)).recordCleanupDeleted();
+    }
+
+    @Test
+    void cleanupDeletedObjectsRetriesStorageDeletionForDelayedRows() {
+        FileObjectEntity stale = deletedFile(FILE_ID_1, OBJECT_KEY_1);
+        when(objectMapper.selectDeletedCandidates(NOW.minus(RETENTION), BATCH_SIZE))
+                .thenReturn(List.of(stale));
+
+        service.cleanupDeletedObjects();
+
+        verify(storageGateway).deleteObject(BUCKET, OBJECT_KEY_1);
+        verify(metrics).recordCleanupDeleted();
+        // A8 只补删 MinIO 对象，不回写 DB（DB 已是 DELETED）。
+        verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+    }
+
+    @Test
+    void cleanupDeletedObjectsContinuesWhenStorageDeleteFails() {
+        FileObjectEntity stale = deletedFile(FILE_ID_1, OBJECT_KEY_1);
+        when(objectMapper.selectDeletedCandidates(NOW.minus(RETENTION), BATCH_SIZE))
+                .thenReturn(List.of(stale));
+        doThrow(new IllegalStateException("minio unavailable"))
+                .when(storageGateway).deleteObject(BUCKET, OBJECT_KEY_1);
+
+        assertThatCode(service::cleanupDeletedObjects).doesNotThrowAnyException();
+
+        verify(metrics, never()).recordCleanupDeleted();
+    }
+
+    @Test
+    void expiredUnboundFileDoesNotDeleteObjectWhenTransactionRollsBack() {
+        FileObjectEntity root = availableFile(FILE_ID_1, OBJECT_KEY_1);
+        when(objectMapper.selectUnboundCandidates(NOW.minus(RETENTION), BATCH_SIZE))
+                .thenReturn(List.of(root));
+        when(objectMapper.selectByIdForUpdate(FILE_ID_1)).thenReturn(root);
+        when(bindingMapper.countActiveByFileId(FILE_ID_1)).thenReturn(0L);
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
+        // Outbox 写入失败 → 事务回滚 → afterCommit 不触发，MinIO 对象保留。
+        doThrow(new IllegalStateException("outbox down"))
+                .when(eventPublisher).fileDeleted(anyLong(), anyString(), any(),
+                        any(), any(), anyString(), anyLong());
+
+        assertThatCode(service::cleanupUnboundFiles).doesNotThrowAnyException();
+
+        verify(storageGateway, never()).deleteObject(anyString(), anyString());
+        verify(metrics, never()).recordCleanupDeleted();
+    }
+
+    private FileObjectEntity deletedFile(long fileId, String objectKey) {
+        FileObjectEntity root = new FileObjectEntity();
+        root.setId(fileId);
+        root.setObjectKey(objectKey);
+        root.setBucket(BUCKET);
+        root.setStatus("DELETED");
+        root.setDeletedAt(NOW.minus(Duration.ofDays(2)));
+        root.setVersion(2);
+        return root;
     }
 
     private FileObjectEntity availableFile(long fileId, String objectKey) {

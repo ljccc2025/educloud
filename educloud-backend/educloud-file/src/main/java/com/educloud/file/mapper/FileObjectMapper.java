@@ -27,7 +27,16 @@ public interface FileObjectMapper extends BaseMapper<FileObjectEntity> {
      * <p>任务 12 未绑定文件清理的批次入口；真实删除前由服务层在事务内二次确认
      * 活跃绑定并走乐观锁（updateById 0 行即跳过）。</p>
      */
-    @Select("SELECT * FROM file_object WHERE status='AVAILABLE' AND uploaded_at < #{retentionTime}"
-            + " ORDER BY uploaded_at ASC LIMIT #{limit}")
+    @Select("SELECT * FROM file_object o WHERE o.status='AVAILABLE' AND o.uploaded_at < #{retentionTime}"
+            + " AND NOT EXISTS (SELECT 1 FROM file_binding b WHERE b.file_id = o.id AND b.unbound_at IS NULL)"
+            + " ORDER BY o.uploaded_at ASC LIMIT #{limit}")
     List<FileObjectEntity> selectUnboundCandidates(Instant retentionTime, int limit);
+
+    /**
+     * 清理兜底候选：已置 DELETED 且删除时间早于保留期截止时间的文件（afterCommit 删除失败
+     * 的残留对象），按删除时间升序限量返回。服务层只补删 MinIO 对象，不回写 DB。
+     */
+    @Select("SELECT * FROM file_object WHERE status='DELETED' AND deleted_at < #{retentionTime}"
+            + " ORDER BY deleted_at ASC LIMIT #{limit}")
+    List<FileObjectEntity> selectDeletedCandidates(Instant retentionTime, int limit);
 }

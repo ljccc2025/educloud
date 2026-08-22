@@ -7,9 +7,11 @@ import com.educloud.file.entity.FileAccessAuditEntity;
 import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
 import com.educloud.file.entity.FileUploadSessionEntity;
+import org.apache.ibatis.annotations.Select;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.time.Instant;
 import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -111,6 +113,30 @@ class FileMapperContractTest {
         when(mapper.selectOne(any())).thenReturn(entity);
         assertThat(mapper.selectOne(any())).isSameAs(entity);
         verify(mapper).selectOne(any());
+    }
+
+    @Test
+    void unboundCandidatesSqlExcludesActiveBindings() throws Exception {
+        Select select = FileObjectMapper.class
+                .getMethod("selectUnboundCandidates", Instant.class, int.class)
+                .getAnnotation(Select.class);
+        String sql = String.join(" ", select.value());
+        assertThat(sql)
+                .contains("SELECT * FROM file_object o")
+                .contains("NOT EXISTS (SELECT 1 FROM file_binding b WHERE b.file_id = o.id AND b.unbound_at IS NULL)")
+                .contains("ORDER BY o.uploaded_at ASC LIMIT #{limit}");
+    }
+
+    @Test
+    void deletedCandidatesSqlTargetsDelayedDeletedRows() throws Exception {
+        Select select = FileObjectMapper.class
+                .getMethod("selectDeletedCandidates", Instant.class, int.class)
+                .getAnnotation(Select.class);
+        String sql = String.join(" ", select.value());
+        assertThat(sql)
+                .contains("status='DELETED'")
+                .contains("deleted_at < #{retentionTime}")
+                .contains("LIMIT #{limit}");
     }
 
     @Test
