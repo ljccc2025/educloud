@@ -5,8 +5,8 @@ import java.util.function.Function;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * 测试镜像解析器：支持 `EDUCLOUD_TEST_MYSQL_IMAGE` / `EDUCLOUD_TEST_RABBITMQ_IMAGE` 私有镜像覆盖
- * （沿用 M01/M02 的 TestContainerImages 模式）。
+ * 测试镜像解析器：支持 `EDUCLOUD_TEST_MYSQL_IMAGE` / `EDUCLOUD_TEST_RABBITMQ_IMAGE` /
+ * `EDUCLOUD_TEST_REDIS_IMAGE` 私有镜像覆盖（沿用 M01/M02 的 TestContainerImages 模式）。
  * 依据：M02 提交 ab01feb「allow private integration images」与模块契约「Testcontainers 镜像固定可覆盖来源」。
  */
 public final class TestContainerImages {
@@ -16,6 +16,9 @@ public final class TestContainerImages {
 
     static final String RABBITMQ_IMAGE_ENV = "EDUCLOUD_TEST_RABBITMQ_IMAGE";
     private static final String DEFAULT_RABBITMQ_IMAGE = "rabbitmq:3.13-management-alpine";
+
+    static final String REDIS_IMAGE_ENV = "EDUCLOUD_TEST_REDIS_IMAGE";
+    private static final String DEFAULT_REDIS_IMAGE = "redis:7.2.5-alpine";
 
     private TestContainerImages() {
     }
@@ -34,6 +37,14 @@ public final class TestContainerImages {
 
     static DockerImageName rabbitmq(Function<String, String> environment) {
         return resolve(RABBITMQ_IMAGE_ENV, DEFAULT_RABBITMQ_IMAGE, environment);
+    }
+
+    public static DockerImageName redis() {
+        return redis(System::getenv);
+    }
+
+    static DockerImageName redis(Function<String, String> environment) {
+        return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment);
     }
 
     static DockerImageName resolve(
