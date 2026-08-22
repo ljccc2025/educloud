@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -203,6 +204,33 @@ class FileBindingServiceTest {
 
         verify(bindingMapper, never()).updateById(any(FileBindingEntity.class));
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+    }
+
+    @Test
+    void hasActiveBindingByOwnerServiceIsTrueWhenOwnerServiceBound() {
+        FileBindingEntity binding = new FileBindingEntity();
+        binding.setOwnerService(OWNER_SERVICE);
+        binding.setUnboundAt(null);
+        when(bindingMapper.findActiveByFileId(FILE_ID)).thenReturn(List.of(binding));
+
+        assertThat(service.hasActiveBindingByOwnerService(FILE_ID, OWNER_SERVICE)).isTrue();
+    }
+
+    @Test
+    void hasActiveBindingByOwnerServiceIsFalseWhenOwnerServiceNotBound() {
+        FileBindingEntity other = new FileBindingEntity();
+        other.setOwnerService("course");
+        other.setUnboundAt(null);
+        when(bindingMapper.findActiveByFileId(FILE_ID)).thenReturn(List.of(other));
+
+        assertThat(service.hasActiveBindingByOwnerService(FILE_ID, OWNER_SERVICE)).isFalse();
+    }
+
+    @Test
+    void hasActiveBindingByOwnerServiceIsFalseWhenNoActiveBindings() {
+        when(bindingMapper.findActiveByFileId(FILE_ID)).thenReturn(null);
+
+        assertThat(service.hasActiveBindingByOwnerService(FILE_ID, OWNER_SERVICE)).isFalse();
     }
 
     private FileObjectEntity availableFile() {

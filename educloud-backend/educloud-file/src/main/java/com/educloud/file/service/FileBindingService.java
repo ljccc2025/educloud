@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -127,5 +128,20 @@ public class FileBindingService {
             throw new VersionConflictException(
                     "文件对象版本冲突，解绑失败: fileId=" + fileId);
         }
+    }
+
+    /**
+     * 文件当前是否有该属主服务的活跃绑定（unbound_at IS NULL）。
+     *
+     * <p>供内部 availability 接口校验调用方（clientId 推导出的 ownerService）是否
+     * 对该文件有可见绑定；无任何活跃绑定返回 false。</p>
+     */
+    public boolean hasActiveBindingByOwnerService(Long fileId, String ownerService) {
+        List<FileBindingEntity> active = bindingMapper.findActiveByFileId(fileId);
+        if (active == null || active.isEmpty()) {
+            return false;
+        }
+        return active.stream()
+                .anyMatch(binding -> ownerService.equals(binding.getOwnerService()));
     }
 }

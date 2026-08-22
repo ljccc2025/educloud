@@ -1,6 +1,8 @@
 package com.educloud.file.service;
 
+import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
+import com.educloud.file.exception.FileAccessDeniedException;
 import com.educloud.file.exception.FileBoundException;
 import com.educloud.file.exception.VersionConflictException;
 import com.educloud.file.mapper.FileBindingMapper;
@@ -27,12 +29,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * M04 任务 5：文件对象服务单元测试（mock UploadSessionService/Mapper/StorageGateway）。
+ * M04 任务 5/10：文件对象服务单元测试（mock UploadSessionService/Mapper/StorageGateway）。
  *
- * <p>依据：2026-08-22-educloud-file-plan.md 任务 5 —— completeUpload 委托
- * UploadSessionService.complete（事件任务 11 接）；deleteIfUnbound 先锁根并查活跃绑定，
- * 有则 FileBoundException，否则删 MinIO 对象 + 行置 DELETED + deleted_at；
- * 文件不存在按幂等返回（本实现选择幂等语义，任务要求二选一）。</p>
+ * <p>依据：2026-08-22-educloud-file-plan.md 任务 5/10 —— completeUpload 委托
+ * UploadSessionService.complete（事件任务 11 接）；deleteIfUnbound 先锁根并校验调用方
+ * 对该文件“曾绑定”（无 → FileAccessDeniedException），再查活跃绑定（有 → FileBoundException），
+ * 否则删 MinIO 对象 + 行置 DELETED + deleted_at；文件不存在按幂等返回。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class FileObjectServiceTest {
@@ -42,6 +44,9 @@ class FileObjectServiceTest {
     private static final long FILE_ID = 1001L;
     private static final String BUCKET = "educloud-files";
     private static final String OBJECT_KEY = "educloud-files/user-42/20260822/abc.png";
+    private static final String OWNER_SERVICE = "user";
+    private static final String OWNER_TYPE = "USER_PROFILE";
+    private static final String OWNER_ID = "u-42";
     private static final String REASON = "manual-cleanup";
     private static final Instant NOW = Instant.parse("2026-08-22T11:30:00Z");
 
@@ -75,12 +80,31 @@ class FileObjectServiceTest {
     }
 
     @Test
+    void deleteIfUnboundRejectsWhenOwnerNeverBound() {
+        FileObjectEntity root = availableFile();
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .thenReturn(null);
+
+        assertThatThrownBy(() -> service.deleteIfUnbound(
+                FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON))
+                .isInstanceOf(FileAccessDeniedException.class);
+
+        verify(bindingMapper, never()).countActiveByFileId(anyLong());
+        verify(storageGateway, never()).deleteObject(anyString(), anyString());
+        verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+    }
+
+    @Test
     void deleteIfUnboundRejectsWhenActiveBindingExists() {
         FileObjectEntity root = availableFile();
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .thenReturn(ownerBinding());
         when(bindingMapper.countActiveByFileId(FILE_ID)).thenReturn(1L);
 
-        assertThatThrownBy(() -> service.deleteIfUnbound(FILE_ID, REASON))
+        assertThatThrownBy(() -> service.deleteIfUnbound(
+                FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON))
                 .isInstanceOf(FileBoundException.class);
 
         verify(storageGateway, never()).deleteObject(anyString(), anyString());
@@ -91,10 +115,12 @@ class FileObjectServiceTest {
     void deleteIfUnboundDeletesObjectAndMarksRowDeleted() {
         FileObjectEntity root = availableFile();
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .thenReturn(ownerBinding());
         when(bindingMapper.countActiveByFileId(FILE_ID)).thenReturn(0L);
         when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
 
-        service.deleteIfUnbound(FILE_ID, REASON);
+        service.deleteIfUnbound(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON);
 
         verify(storageGateway).deleteObject(BUCKET, OBJECT_KEY);
 
@@ -113,11 +139,14 @@ class FileObjectServiceTest {
     void deleteIfUnboundThrowsVersionConflictWhenRootUpdateMisses() {
         FileObjectEntity root = availableFile();
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .thenReturn(ownerBinding());
         when(bindingMapper.countActiveByFileId(FILE_ID)).thenReturn(0L);
         // 拦截器按旧 version 生成 WHERE 条件，0 行命中即版本冲突（不 mock 则默认返回 0）。
         when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(0);
 
-        assertThatThrownBy(() -> service.deleteIfUnbound(FILE_ID, REASON))
+        assertThatThrownBy(() -> service.deleteIfUnbound(
+                FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON))
                 .isInstanceOf(VersionConflictException.class);
 
         verify(storageGateway).deleteObject(BUCKET, OBJECT_KEY);
@@ -131,8 +160,9 @@ class FileObjectServiceTest {
         // 文件不存在按幂等返回（不抛、不触碰存储/绑定表），注释见 FileObjectService.deleteIfUnbound。
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(null);
 
-        service.deleteIfUnbound(FILE_ID, REASON);
+        service.deleteIfUnbound(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, REASON);
 
+        verify(bindingMapper, never()).findByOwner(anyLong(), anyString(), anyString(), anyString());
         verify(bindingMapper, never()).countActiveByFileId(anyLong());
         verify(storageGateway, never()).deleteObject(anyString(), anyString());
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
@@ -146,5 +176,16 @@ class FileObjectServiceTest {
         root.setStatus("AVAILABLE");
         root.setVersion(1);
         return root;
+    }
+
+    private FileBindingEntity ownerBinding() {
+        FileBindingEntity binding = new FileBindingEntity();
+        binding.setId(9L);
+        binding.setFileId(FILE_ID);
+        binding.setOwnerService(OWNER_SERVICE);
+        binding.setOwnerType(OWNER_TYPE);
+        binding.setOwnerId(OWNER_ID);
+        binding.setBoundAt(Instant.parse("2026-08-22T10:00:00Z"));
+        return binding;
     }
 }
