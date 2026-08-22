@@ -56,6 +56,10 @@ if port_free 8082; then
   USER_JWT_PRIVATE_KEY_LOCATION=/tmp/educloud-live/private.pem \
   EDUCLOUD_USER_JWT_ISSUER="${EDUCLOUD_USER_JWT_ISSUER:-https://issuer.educloud.local}" \
   EDUCLOUD_USER_JWT_AUDIENCE="${EDUCLOUD_USER_JWT_AUDIENCE:-educloud-api}" \
+  EDUCLOUD_USER_INTERNAL_BOOTSTRAP_KEY="$EDUCLOUD_USER_INTERNAL_BOOTSTRAP_KEY" \
+  EDUCLOUD_USER_FILE_ENDPOINT="${EDUCLOUD_USER_FILE_ENDPOINT:-http://127.0.0.1:8087}" \
+  EDUCLOUD_USER_FILE_CLIENT_ID="${EDUCLOUD_USER_FILE_CLIENT_ID:-user-service}" \
+  EDUCLOUD_USER_FILE_CLIENT_SECRET="$EDUCLOUD_USER_FILE_CLIENT_SECRET" \
   EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
   setsid nohup java -jar educloud-backend/educloud-user/target/educloud-user-1.0.0-SNAPSHOT.jar \
     > /tmp/educloud-live/user.log 2>&1 < /dev/null &
