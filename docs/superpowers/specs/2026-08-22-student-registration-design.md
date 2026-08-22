@@ -85,7 +85,7 @@
 - 新增 security/RegistrationRateLimitFilter（jakarta Servlet Filter，Order 高于业务过滤器；仅匹配 POST /api/v1/auth/register）
 - 新增 config/RegistrationRateLimitProperties（前缀 educloud.user.registration.rate-limit）：
   - enabled（默认 true）、ip-max-attempts（5）、device-max-attempts（3）、window（5m）、redis-key-prefix（默认 educloud:{env}:ratelimit）
-- 新错误码 RATE_LIMITED(429, "Too many registration attempts") 加入 UserErrorCode（不动 common）
+- 错误码复用 CommonErrorCode.RATE_LIMITED(429) / CommonErrorCode.DEPENDENCY_UNAVAILABLE(503)（已存在，不改动 common 与 user 错误码）
 - 429/503 响应由 Filter 直接写出（复用 ApiResponseFactory/对象序列化），不进入 Controller/GlobalExceptionHandler
 
 ### 4.4 过滤链顺序
