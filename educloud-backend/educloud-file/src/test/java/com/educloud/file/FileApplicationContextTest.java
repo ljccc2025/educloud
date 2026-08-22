@@ -1,6 +1,8 @@
 package com.educloud.file;
 
 import com.educloud.file.config.FileProperties;
+import com.educloud.file.mapper.FileObjectMapper;
+import com.educloud.file.mapper.FileUploadSessionMapper;
 import io.minio.MinioClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
@@ -20,7 +22,9 @@ import static org.mockito.Mockito.mock;
  * 外部依赖（MySQL/Redis/RabbitMQ/Nacos）在测试中通过自动配置排除与开关关闭；
  * StringRedisTemplate/ConnectionFactory/MinioClient 以 mock bean 满足外部连接依赖
  * （mock 使用独立 bean 名，避免与 FileStorageConfiguration 的 minioClient 同名冲突；
- * MinioClient 构建本身为懒连接、不发网络请求）。Outbox 相关 Mapper 属后续任务
+ * MinioClient 构建本身为懒连接、不发网络请求）。MyBatis-Plus Mapper 在无 DataSource
+ * 时不注册，故 UploadSessionService 依赖的 Mapper 以 mock bean 满足（与
+ * UserApplicationContextTest 同法）。Outbox 相关 Mapper 属后续任务
  * （任务 11 Outbox 事件发布），任务 0 尚无对应类，故不在本测试中 mock。</p>
  */
 class FileApplicationContextTest {
@@ -77,6 +81,16 @@ class FileApplicationContextTest {
         @Bean
         MinioClient minioClientMock() {
             return mock(MinioClient.class);
+        }
+
+        @Bean
+        FileUploadSessionMapper fileUploadSessionMapper() {
+            return mock(FileUploadSessionMapper.class);
+        }
+
+        @Bean
+        FileObjectMapper fileObjectMapper() {
+            return mock(FileObjectMapper.class);
         }
     }
 }
