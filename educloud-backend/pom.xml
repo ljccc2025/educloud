@@ -16,6 +16,7 @@
         <module>educloud-common</module>
         <module>educloud-gateway</module>
         <module>educloud-user</module>
+        <module>educloud-file</module>
     </modules>
 
     <properties>
@@ -39,6 +40,8 @@
         <mybatis-plus.version>3.5.12</mybatis-plus.version>
         <!-- M03: 版本依据：springdoc-openapi 官方配套矩阵（https://springdoc.org/、https://github.com/springdoc/springdoc-openapi），2.5.0 为与 Spring Boot 3.2.x 配套的官方版本线；2.8.x 面向 Spring Boot 3.4+。 -->
         <springdoc.version>2.5.0</springdoc.version>
+        <!-- M04: 版本依据：minio-java 官方发布（https://github.com/minio/minio-java/releases），8.5.7 与架构文档钦定版本一致。 -->
+        <minio.version>8.5.7</minio.version>
     </properties>
 
     <dependencyManagement>
@@ -73,6 +76,12 @@
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc.version}</version>
+            </dependency>
+            <!-- M04: MinIO SDK（架构文档钦定，minio-java 8.5.7）。 -->
+            <dependency>
+                <groupId>io.minio</groupId>
+                <artifactId>minio</artifactId>
+                <version>${minio.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

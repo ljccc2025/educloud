@@ -1,0 +1,109 @@
+server:
+  port: ${SERVER_PORT:8087}
+  shutdown: graceful
+
+spring:
+  application:
+    name: educloud-file
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    # M04: 本地通过未提交的 .env 注入；生产由 Kubernetes Secret 注入。账号 file_app 无库级写权限（见 deploy/docker-compose/mysql/init/001-create-databases.sh）。
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_file?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    username: file_app
+    password: ${EDUCLOUD_FILE_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_DEFAULT_USER:}
+    password: ${RABBITMQ_DEFAULT_PASS:}
+    # M04: 与 compose 的 RABBITMQ_DEFAULT_VHOST 对齐（默认 educloud）；缺省会让凭据在 vhost "/" 上认证失败。
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:educloud}
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_FILE_NACOS_USERNAME:}
+      password: ${EDUCLOUD_FILE_NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
+
+educloud:
+  file:
+    # M04: 配置项全量声明，依据：2026-08-22-educloud-file-design.md 第 10 节。
+    storage:
+      endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+      access-key: ${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:}}
+      secret-key: ${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:}}
+      bucket: ${EDUCLOUD_FILE_BUCKET:educloud-files}
+    upload:
+      max-size-bytes: ${EDUCLOUD_FILE_MAX_SIZE:10485760}   # 10MB
+      allowed-content-types: ${EDUCLOUD_FILE_ALLOWED_TYPES:image/jpeg,image/png,image/webp,image/gif,application/pdf}
+      put-url-ttl: ${EDUCLOUD_FILE_PUT_URL_TTL:5m}
+      session-ttl: ${EDUCLOUD_FILE_SESSION_TTL:15m}
+    download-grant:
+      default-ttl: ${EDUCLOUD_FILE_GRANT_TTL:5m}
+      max-ttl: ${EDUCLOUD_FILE_GRANT_MAX_TTL:15m}
+      purposes: ${EDUCLOUD_FILE_GRANT_PURPOSES:PROFILE_AVATAR,PUBLIC_CATALOG}
+    cleanup:
+      unbound-retention: ${EDUCLOUD_FILE_UNBOUND_RETENTION:24h}
+      session-expiry: ${EDUCLOUD_FILE_SESSION_EXPIRY:15m}
+      batch-size: ${EDUCLOUD_FILE_CLEANUP_BATCH:50}
+    storage-test:
+      rate-limit: ${EDUCLOUD_FILE_STORAGE_TEST_RATE:1}
+      window: ${EDUCLOUD_FILE_STORAGE_TEST_WINDOW:1m}
+    internal:
+      bootstrap-key: ${EDUCLOUD_FILE_INTERNAL_BOOTSTRAP_KEY:}
+      allowed-client-ids: ${EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS:user-service}
+      audience: ${EDUCLOUD_FILE_INTERNAL_AUDIENCE:educloud-file}
+    jwt:
+      # User 公钥 JWKS（用户令牌验签），任务 8 的 JwtDecoderConfiguration 消费。
+      jwks-location: ${FILE_JWKS_LOCATION:}
+      issuer: ${EDUCLOUD_FILE_JWT_ISSUER:https://issuer.educloud.local}
+      audience: ${EDUCLOUD_FILE_JWT_AUDIENCE:educloud-api}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: isDeleted
+
+management:
+  server:
+    address: ${FILE_MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${FILE_MANAGEMENT_PORT:8088}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        # M04 任务 0: fileDependencies 健康组由任务 13（可观测性）实现后加入。
+        readiness:
+          include: readinessState
+      show-details: never
+  tracing:
+    sampling:
+      probability: ${EDUCLOUD_FILE_TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://127.0.0.1:9411/api/v2/spans}
+
+logging:
+  level:
+    com.educloud.file: INFO
