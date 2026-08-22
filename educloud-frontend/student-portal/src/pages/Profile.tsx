@@ -9,6 +9,10 @@ import { currentUser } from '@/services/api';
 import { uploadAvatar } from '@/services/file';
 import { http, apiErrorText } from '@/services/http';
 
+// M04 审查修复：presigned 头像 URL 5 分钟过期后破图，onError 兜底回退占位头像。
+const FALLBACK_AVATAR =
+  'https://api.dicebear.com/7.x/initials/svg?seed=educloud&backgroundColor=1e1b4b&textColor=ffffff&fontWeight=500&fontSize=24';
+
 export default function Profile() {
   const { user, refresh } = useAuthStore();
   const displayUser = user ?? currentUser;
@@ -21,6 +25,8 @@ export default function Profile() {
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarUploaded, setAvatarUploaded] = useState(false);
+  const [avatarRefreshPending, setAvatarRefreshPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,6 +39,8 @@ export default function Profile() {
     }
     setUploading(true);
     setAvatarError(null);
+    setAvatarUploaded(false);
+    setAvatarRefreshPending(false);
     try {
       const fileId = await uploadAvatar(file);
       // PATCH 为全量更新：displayName 必填（后端 @NotBlank），带上当前档案字段。
@@ -42,7 +50,14 @@ export default function Profile() {
         locale: 'zh-CN',
         avatarFileId: fileId,
       });
-      await refresh();
+      // 上传与 PATCH 已成功：refresh 只刷新本地状态，失败不应误报头像上传错误。
+      setAvatarUploaded(true);
+      try {
+        await refresh();
+      } catch {
+        // 头像已保存，仅本地状态未刷新：提示稍后刷新可见，不显示错误。
+        setAvatarRefreshPending(true);
+      }
     } catch (err) {
       setAvatarError(apiErrorText(err));
     } finally {
@@ -102,6 +117,11 @@ export default function Profile() {
               <img
                 src={displayUser.avatarUrl || displayUser.avatar}
                 alt="用户头像"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  img.onerror = null;
+                  img.src = FALLBACK_AVATAR;
+                }}
                 className="w-24 h-24 object-cover bg-indigo-50 border border-ink-100"
               />
               {uploading && (
@@ -127,6 +147,12 @@ export default function Profile() {
             />
             {avatarError && (
               <p className="text-sm text-red-600 max-w-[12rem]">{avatarError}</p>
+            )}
+            {avatarUploaded && !avatarRefreshPending && (
+              <p className="text-sm text-green-600 max-w-[12rem]">头像已上传</p>
+            )}
+            {avatarUploaded && avatarRefreshPending && (
+              <p className="text-sm text-amber-600 max-w-[12rem]">头像已上传，稍后刷新可见</p>
             )}
           </div>
           <div className="flex-1">

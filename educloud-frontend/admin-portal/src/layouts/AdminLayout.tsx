@@ -21,6 +21,10 @@ import {
 import { useAuthStore } from '../stores/useAuthStore';
 import { useThemeStore } from '../stores/useThemeStore';
 
+// M04 审查修复：presigned 头像 URL 5 分钟过期后破图，onError 兜底回退占位头像。
+const FALLBACK_AVATAR =
+  'https://api.dicebear.com/7.x/initials/svg?seed=educloud&backgroundColor=1e1b4b&textColor=ffffff';
+
 const navItems = [
   { to: '/', label: '数据看板', icon: LayoutDashboard, end: true },
   { to: '/users', label: '用户管理', icon: Users },
@@ -88,6 +92,11 @@ export default function AdminLayout() {
           <img
             src={admin?.avatarUrl ?? admin?.avatar}
             alt={admin?.realName}
+            onError={(e) => {
+              const img = e.currentTarget;
+              img.onerror = null;
+              img.src = FALLBACK_AVATAR;
+            }}
             className="w-9 h-9 rounded-full bg-ink-100 border border-ink-300 object-cover"
           />
           <div className="flex-1 min-w-0">
@@ -166,6 +175,11 @@ export default function AdminLayout() {
               <img
                 src={admin?.avatarUrl ?? admin?.avatar}
                 alt={admin?.realName}
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  img.onerror = null;
+                  img.src = FALLBACK_AVATAR;
+                }}
                 className="w-8 h-8 rounded-full bg-ink-100 border border-ink-300 object-cover"
               />
               <div className="text-sm">

@@ -18,6 +18,10 @@ import { cn } from '../utils/cn';
 import NotificationPopover from '../features/notifications/NotificationPopover';
 import { useAuthStore } from '../stores/useAuthStore';
 
+// M04 审查修复：presigned 头像 URL 5 分钟过期后破图，onError 兜底回退占位头像。
+const FALLBACK_AVATAR =
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangming&backgroundColor=1e1b4b';
+
 const navItems = [
   { to: '/', label: '工作台', icon: LayoutDashboard, end: true },
   { to: '/courses', label: '课程管理', icon: BookOpen, end: false },
@@ -115,6 +119,11 @@ export default function TeacherLayout() {
             <img
               src={user?.avatarUrl ?? 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangming&backgroundColor=1e1b4b'}
               alt={user?.name ?? '张明教授'}
+              onError={(e) => {
+                const img = e.currentTarget;
+                img.onerror = null;
+                img.src = FALLBACK_AVATAR;
+              }}
               className="w-10 h-10 rounded-full bg-indigo-100 object-cover"
             />
             <div className="flex-1 min-w-0">
@@ -169,6 +178,11 @@ export default function TeacherLayout() {
               <img
                 src={user?.avatarUrl ?? 'https://api.dicebear.com/7.x/avataaars/svg?seed=zhangming&backgroundColor=1e1b4b'}
                 alt="头像"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  img.onerror = null;
+                  img.src = FALLBACK_AVATAR;
+                }}
                 className="w-9 h-9 rounded-full bg-indigo-100 object-cover cursor-pointer ring-2 ring-transparent hover:ring-amber-400 transition-all"
               />
             </div>

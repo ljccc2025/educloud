@@ -21,6 +21,10 @@ const navLinks = [
 
 const SCROLL_THRESHOLD = 8;
 
+// M04 审查修复：presigned 头像 URL 5 分钟过期后破图，onError 兜底回退占位头像。
+const FALLBACK_AVATAR =
+  'https://api.dicebear.com/7.x/initials/svg?seed=educloud&backgroundColor=1e1b4b&textColor=ffffff&fontWeight=500&fontSize=24';
+
 export default function Navbar() {
   const navigate = useNavigate();
   const { token, logout, user } = useAuthStore();
@@ -190,6 +194,11 @@ export default function Navbar() {
                   <img
                     src={user?.avatarUrl ?? currentUser.avatar}
                     alt="用户头像"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      img.onerror = null;
+                      img.src = FALLBACK_AVATAR;
+                    }}
                     className="block h-8 w-8 rounded-full bg-indigo-100 border border-ink-200 dark:border-ink-700 object-cover"
                   />
                 </Link>
