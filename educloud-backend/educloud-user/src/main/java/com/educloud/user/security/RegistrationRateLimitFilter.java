@@ -16,6 +16,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -29,6 +32,7 @@ import java.util.Map;
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public final class RegistrationRateLimitFilter extends OncePerRequestFilter {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(RegistrationRateLimitFilter.class);
     private static final String REGISTER_PATH = "/api/v1/auth/register";
 
     private final StringRedisTemplate redis;
@@ -72,10 +76,13 @@ public final class RegistrationRateLimitFilter extends OncePerRequestFilter {
                     properties.ipMaxAttempts(), response)) {
                 return;
             }
-            chain.doFilter(request, response);
         } catch (Exception failure) {
+            // Redis 不可用：失败关闭（拒绝注册防绕过），并记录原因。
+            LOGGER.error("Registration rate limit check failed; rejecting with 503", failure);
             writeError(response, CommonErrorCode.DEPENDENCY_UNAVAILABLE, 503, null);
+            return;
         }
+        chain.doFilter(request, response);
     }
 
     private boolean exceeded(String subKey, String hashedValue, int maxAttempts, HttpServletResponse response)
