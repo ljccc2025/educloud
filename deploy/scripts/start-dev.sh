@@ -60,6 +60,7 @@ if port_free 8082; then
   EDUCLOUD_USER_FILE_ENDPOINT="${EDUCLOUD_USER_FILE_ENDPOINT:-http://127.0.0.1:8087}" \
   EDUCLOUD_USER_FILE_CLIENT_ID="${EDUCLOUD_USER_FILE_CLIENT_ID:-user-service}" \
   EDUCLOUD_USER_FILE_CLIENT_SECRET="$EDUCLOUD_USER_FILE_CLIENT_SECRET" \
+  EDUCLOUD_USER_FILE_ENABLED="${EDUCLOUD_USER_FILE_ENABLED:-true}" \
   EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
   setsid nohup java -jar educloud-backend/educloud-user/target/educloud-user-1.0.0-SNAPSHOT.jar \
     > /tmp/educloud-live/user.log 2>&1 < /dev/null &
