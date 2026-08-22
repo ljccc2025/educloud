@@ -174,7 +174,7 @@ export default function Login() {
                     required
                     minLength={3}
                     maxLength={32}
-                    pattern="[A-Za-z0-9_.\\-]+"
+                    pattern="[-A-Za-z0-9_.]+"
                     className="input-field pl-11"
                   />
                 </div>
@@ -192,7 +192,7 @@ export default function Login() {
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="手机号（用于找回账号）"
                     required
-                    pattern="[0-9+ \\-]{5,32}"
+                    pattern="[-0-9+ ]{5,32}"
                     className="input-field pl-11"
                   />
                 </div>
