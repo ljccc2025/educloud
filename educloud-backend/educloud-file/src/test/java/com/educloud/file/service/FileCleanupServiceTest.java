@@ -7,6 +7,7 @@ import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.mapper.FileUploadSessionMapper;
 import com.educloud.file.messaging.FileEventPublisher;
+import com.educloud.file.observability.FileMetrics;
 import com.educloud.file.storage.StorageGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,8 @@ class FileCleanupServiceTest {
     private StorageGateway storageGateway;
     @Mock
     private FileEventPublisher eventPublisher;
+    @Mock
+    private FileMetrics metrics;
 
     private FileCleanupService service;
     private FileProperties properties;
@@ -85,7 +88,8 @@ class FileCleanupServiceTest {
                 eventPublisher,
                 properties,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                mock(PlatformTransactionManager.class));
+                mock(PlatformTransactionManager.class),
+                metrics);
     }
 
     @Test
@@ -128,6 +132,7 @@ class FileCleanupServiceTest {
         verify(eventPublisher).fileDeleted(
                 eq(FILE_ID_1), eq(OBJECT_KEY_1), isNull(), isNull(), isNull(),
                 eq(CLEANUP_REASON), eq(2L));
+        verify(metrics).recordCleanupDeleted();
     }
 
     @Test
@@ -144,6 +149,7 @@ class FileCleanupServiceTest {
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
         verify(eventPublisher, never()).fileDeleted(anyLong(), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyLong());
+        verify(metrics, never()).recordCleanupDeleted();
     }
 
     @Test
@@ -184,6 +190,7 @@ class FileCleanupServiceTest {
                 .containsExactly("EXPIRED", "EXPIRED");
         verify(storageGateway).deleteObject(BUCKET, OBJECT_KEY_1);
         verify(storageGateway, never()).deleteObject(BUCKET, OBJECT_KEY_2);
+        verify(metrics).recordCleanupDeleted();
     }
 
     @Test
@@ -210,6 +217,8 @@ class FileCleanupServiceTest {
         // 全局断言：整个批次只发布一次事件（失败项未发布）。
         verify(eventPublisher, times(1)).fileDeleted(anyLong(), anyString(), any(),
                 any(), any(), anyString(), anyLong());
+        // 删除成功项计数一次；deleteObject 抛异常的失败项不计数。
+        verify(metrics, times(1)).recordCleanupDeleted();
     }
 
     private FileObjectEntity availableFile(long fileId, String objectKey) {

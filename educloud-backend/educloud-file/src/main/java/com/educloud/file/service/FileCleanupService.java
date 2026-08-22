@@ -8,6 +8,7 @@ import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.mapper.FileUploadSessionMapper;
 import com.educloud.file.messaging.FileEventPublisher;
+import com.educloud.file.observability.FileMetrics;
 import com.educloud.file.storage.StorageGateway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,7 @@ public class FileCleanupService {
     private final FileProperties properties;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
+    private final FileMetrics metrics;
 
     public FileCleanupService(
             FileObjectMapper objectMapper,
@@ -59,7 +61,8 @@ public class FileCleanupService {
             FileEventPublisher eventPublisher,
             FileProperties properties,
             Clock clock,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            FileMetrics metrics) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.bindingMapper = Objects.requireNonNull(bindingMapper, "bindingMapper");
         this.sessionMapper = Objects.requireNonNull(sessionMapper, "sessionMapper");
@@ -69,6 +72,7 @@ public class FileCleanupService {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.transactionTemplate = new TransactionTemplate(
                 Objects.requireNonNull(transactionManager, "transactionManager"));
+        this.metrics = Objects.requireNonNull(metrics, "metrics");
     }
 
     /** 定时入口：先清未绑定文件，再清过期会话（两者互不依赖，各自分批容错）。 */
@@ -131,6 +135,7 @@ public class FileCleanupService {
             return;
         }
         storageGateway.deleteObject(root.getBucket(), root.getObjectKey());
+        metrics.recordCleanupDeleted();
         // 清理事件无属主；aggregateVersion=删除后根版本（与 FileObjectService.deleteIfUnbound 一致）。
         eventPublisher.fileDeleted(
                 fileId, root.getObjectKey(), null, null, null, REASON_UNBOUND, versionAfterDelete);
@@ -149,6 +154,7 @@ public class FileCleanupService {
                         .eq(FileObjectEntity::getStatus, STATUS_AVAILABLE)) > 0;
         if (!hasAvailableObject) {
             storageGateway.deleteObject(session.getBucket(), session.getObjectKey());
+            metrics.recordCleanupDeleted();
         }
     }
 }

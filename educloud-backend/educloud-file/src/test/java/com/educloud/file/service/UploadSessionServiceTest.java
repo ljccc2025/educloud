@@ -12,6 +12,7 @@ import com.educloud.file.exception.UploadSessionNotFoundException;
 import com.educloud.file.exception.UploadSessionStateException;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.mapper.FileUploadSessionMapper;
+import com.educloud.file.observability.FileMetrics;
 import com.educloud.file.storage.FileTooLargeException;
 import com.educloud.file.storage.FileTypeNotAllowedException;
 import com.educloud.file.storage.StorageGateway;
@@ -63,6 +64,8 @@ class UploadSessionServiceTest {
     private FileObjectMapper objectMapper;
     @Mock
     private StorageGateway storageGateway;
+    @Mock
+    private FileMetrics metrics;
 
     private UploadSessionService service;
     private ContentTypePolicy contentTypePolicy;
@@ -82,7 +85,8 @@ class UploadSessionServiceTest {
                 objectKeyFactory,
                 contentTypePolicy,
                 properties,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                metrics);
     }
 
     @Test
@@ -117,6 +121,7 @@ class UploadSessionServiceTest {
         assertThat(session.getVersion()).isEqualTo(1);
         verify(storageGateway).presignedPutUrl(
                 eq(BUCKET), eq(session.getObjectKey()), eq("image/png"), eq(Duration.ofMinutes(5)));
+        verify(metrics).recordUploadCreated();
     }
 
     @Test
@@ -128,6 +133,7 @@ class UploadSessionServiceTest {
         verify(sessionMapper, never()).insert(any(FileUploadSessionEntity.class));
         verify(storageGateway, never())
                 .presignedPutUrl(anyString(), anyString(), anyString(), any(Duration.class));
+        verify(metrics).recordUploadFailed();
     }
 
     @Test
@@ -172,6 +178,7 @@ class UploadSessionServiceTest {
 
         verify(sessionMapper).updateById(org.mockito.ArgumentMatchers.<FileUploadSessionEntity>argThat(s ->
                 "COMPLETED".equals(s.getStatus()) && s.getId().equals(SESSION_ID)));
+        verify(metrics).recordUploadCompleted();
     }
 
     @Test
@@ -186,6 +193,7 @@ class UploadSessionServiceTest {
 
         verify(objectMapper, never()).insert(any(FileObjectEntity.class));
         verify(sessionMapper, never()).updateById(any(FileUploadSessionEntity.class));
+        verify(metrics).recordUploadFailed();
     }
 
     @Test

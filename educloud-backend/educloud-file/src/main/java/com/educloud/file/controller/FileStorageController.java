@@ -4,6 +4,7 @@ import com.educloud.common.api.ApiResponse;
 import com.educloud.common.api.ApiResponseFactory;
 import com.educloud.file.dto.response.StorageStatusResponse;
 import com.educloud.file.dto.response.StorageTestResponse;
+import com.educloud.file.observability.FileMetrics;
 import com.educloud.file.support.StorageStatusService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,10 +29,15 @@ public class FileStorageController {
 
     private final StorageStatusService storageStatusService;
     private final ApiResponseFactory responses;
+    private final FileMetrics metrics;
 
-    public FileStorageController(StorageStatusService storageStatusService, ApiResponseFactory responses) {
+    public FileStorageController(
+            StorageStatusService storageStatusService,
+            ApiResponseFactory responses,
+            FileMetrics metrics) {
         this.storageStatusService = Objects.requireNonNull(storageStatusService, "storageStatusService");
         this.responses = Objects.requireNonNull(responses, "responses");
+        this.metrics = Objects.requireNonNull(metrics, "metrics");
     }
 
     @GetMapping("/storage-status")
@@ -43,6 +49,8 @@ public class FileStorageController {
     @PostMapping("/storage-tests")
     @PreAuthorize("hasAuthority('file:storage:test')")
     public ApiResponse<StorageTestResponse> runTest(@AuthenticationPrincipal Jwt jwt) {
-        return responses.success(storageStatusService.runTest(Long.valueOf(jwt.getSubject())));
+        StorageTestResponse response = storageStatusService.runTest(Long.valueOf(jwt.getSubject()));
+        metrics.recordStorageTest();
+        return responses.success(response);
     }
 }

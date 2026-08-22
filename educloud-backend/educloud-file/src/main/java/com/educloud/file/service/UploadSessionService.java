@@ -14,6 +14,7 @@ import com.educloud.file.exception.UploadSessionNotFoundException;
 import com.educloud.file.exception.UploadSessionStateException;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.mapper.FileUploadSessionMapper;
+import com.educloud.file.observability.FileMetrics;
 import com.educloud.file.storage.FileTooLargeException;
 import com.educloud.file.storage.FileTypeNotAllowedException;
 import com.educloud.file.storage.StorageGateway;
@@ -51,6 +52,7 @@ public class UploadSessionService {
     private final ContentTypePolicy contentTypePolicy;
     private final FileProperties properties;
     private final Clock clock;
+    private final FileMetrics metrics;
 
     public UploadSessionService(
             FileUploadSessionMapper sessionMapper,
@@ -59,7 +61,8 @@ public class UploadSessionService {
             ObjectKeyFactory objectKeyFactory,
             ContentTypePolicy contentTypePolicy,
             FileProperties properties,
-            Clock clock) {
+            Clock clock,
+            FileMetrics metrics) {
         this.sessionMapper = Objects.requireNonNull(sessionMapper, "sessionMapper");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.storageGateway = Objects.requireNonNull(storageGateway, "storageGateway");
@@ -67,6 +70,7 @@ public class UploadSessionService {
         this.contentTypePolicy = Objects.requireNonNull(contentTypePolicy, "contentTypePolicy");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.metrics = Objects.requireNonNull(metrics, "metrics");
     }
 
     /**
@@ -76,6 +80,15 @@ public class UploadSessionService {
      * put URL TTL 与会话 TTL 来自 {@link FileProperties#upload()}。</p>
      */
     public UploadSessionResponse create(Long uploaderId, CreateUploadSessionRequest req) {
+        try {
+            return doCreate(uploaderId, req);
+        } catch (RuntimeException failure) {
+            metrics.recordUploadFailed();
+            throw failure;
+        }
+    }
+
+    private UploadSessionResponse doCreate(Long uploaderId, CreateUploadSessionRequest req) {
         contentTypePolicy.validate(req.contentType(), req.expectedSizeBytes());
 
         FileProperties.Upload upload = properties.upload();
@@ -99,6 +112,7 @@ public class UploadSessionService {
         session.setCreatedAt(now);
         session.setVersion(1);
         sessionMapper.insert(session);
+        metrics.recordUploadCreated();
 
         return new UploadSessionResponse(session.getId(), uploadUrl, upload.putUrlTtl().toSeconds());
     }
@@ -111,6 +125,15 @@ public class UploadSessionService {
      */
     @Transactional(noRollbackFor = UploadSessionExpiredException.class)
     public FileObjectEntity complete(Long uploaderId, Long sessionId) {
+        try {
+            return doComplete(uploaderId, sessionId);
+        } catch (RuntimeException failure) {
+            metrics.recordUploadFailed();
+            throw failure;
+        }
+    }
+
+    private FileObjectEntity doComplete(Long uploaderId, Long sessionId) {
         FileUploadSessionEntity session = sessionMapper.selectByIdForUpdate(sessionId);
         if (session == null) {
             throw new UploadSessionNotFoundException("上传会话不存在: sessionId=" + sessionId);
@@ -169,6 +192,7 @@ public class UploadSessionService {
 
         session.setStatus(STATUS_COMPLETED);
         sessionMapper.updateById(session);
+        metrics.recordUploadCompleted();
         return object;
     }
 

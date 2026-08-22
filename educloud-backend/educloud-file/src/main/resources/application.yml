@@ -94,9 +94,9 @@ management:
       group:
         liveness:
           include: livenessState
-        # M04 任务 0: fileDependencies 健康组由任务 13（可观测性）实现后加入。
+        # M04 任务 13: readiness 组合并依赖健康组（mysql/redis/rabbitmq/minio 聚合）。
         readiness:
-          include: readinessState
+          include: readinessState,fileDependencies
       show-details: never
   tracing:
     sampling:

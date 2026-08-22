@@ -7,6 +7,7 @@ import com.educloud.file.exception.FileAccessDeniedException;
 import com.educloud.file.exception.GrantPurposeNotAllowedException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
+import com.educloud.file.observability.FileMetrics;
 import com.educloud.file.storage.StorageGateway;
 import com.educloud.file.support.FileAccessAuditWriter;
 import com.educloud.file.support.GrantPurposePolicy;
@@ -44,6 +45,7 @@ public class DownloadGrantService {
     private final FileAccessAuditWriter auditWriter;
     private final FileProperties properties;
     private final Clock clock;
+    private final FileMetrics metrics;
 
     public DownloadGrantService(
             FileBindingMapper bindingMapper,
@@ -52,7 +54,8 @@ public class DownloadGrantService {
             GrantPurposePolicy purposePolicy,
             FileAccessAuditWriter auditWriter,
             FileProperties properties,
-            Clock clock) {
+            Clock clock,
+            FileMetrics metrics) {
         this.bindingMapper = Objects.requireNonNull(bindingMapper, "bindingMapper");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.storageGateway = Objects.requireNonNull(storageGateway, "storageGateway");
@@ -60,6 +63,7 @@ public class DownloadGrantService {
         this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.metrics = Objects.requireNonNull(metrics, "metrics");
     }
 
     /**
@@ -67,6 +71,15 @@ public class DownloadGrantService {
      * owner 伪造 → {@link FileAccessDeniedException}。
      */
     public GrantResult grantSingle(String ownerService, GrantSingleRequest req) {
+        try {
+            return doGrantSingle(ownerService, req);
+        } catch (GrantPurposeNotAllowedException | FileAccessDeniedException failure) {
+            metrics.recordGrantDenied();
+            throw failure;
+        }
+    }
+
+    private GrantResult doGrantSingle(String ownerService, GrantSingleRequest req) {
         purposePolicy.validate(req.subjectType(), req.subjectUserId(), req.purpose());
         Duration ttl = resolveTtl(req.requestedTtl());
 
@@ -74,18 +87,21 @@ public class DownloadGrantService {
                 ownerService, req.ownerType(), req.ownerId(), req.fileId());
         if (binding == null) {
             auditWriter.writeGrantSingle(req.fileId(), req.subjectUserId(), false);
+            metrics.recordGrantDenied();
             return new GrantResult(GrantStatus.UNAVAILABLE, null, null);
         }
 
         FileObjectEntity file = objectMapper.selectById(req.fileId());
         if (file == null || !FileObjectService.STATUS_AVAILABLE.equals(file.getStatus())) {
             auditWriter.writeGrantSingle(req.fileId(), req.subjectUserId(), false);
+            metrics.recordGrantDenied();
             return new GrantResult(GrantStatus.UNAVAILABLE, null, null);
         }
 
         Instant expiresAt = clock.instant().plus(ttl);
         String url = storageGateway.presignedGetUrl(file.getBucket(), file.getObjectKey(), ttl);
         auditWriter.writeGrantSingle(req.fileId(), req.subjectUserId(), true);
+        metrics.recordGrantGranted();
         return new GrantResult(GrantStatus.GRANTED, url, expiresAt);
     }
 
@@ -99,6 +115,7 @@ public class DownloadGrantService {
             purposePolicy.validate(req.subjectType(), req.subjectUserId(), req.purpose());
         } catch (GrantPurposeNotAllowedException e) {
             auditWriter.writeGrantBatchDenied(req.items().get(0).fileId(), req.subjectUserId());
+            metrics.recordGrantDenied();
             throw e;
         }
         Duration ttl = resolveTtl(req.requestedTtl());
@@ -111,23 +128,27 @@ public class DownloadGrantService {
                         ownerService, item.ownerType(), item.ownerId(), item.fileId());
             } catch (FileAccessDeniedException e) {
                 auditWriter.writeGrantBatchDenied(item.fileId(), req.subjectUserId());
+                metrics.recordGrantDenied();
                 throw e;
             }
             if (binding == null) {
                 results.add(new BatchItemResult(
                         item.requestKey(), item.fileId(), GrantStatus.UNAVAILABLE, null, null));
+                metrics.recordGrantDenied();
                 continue;
             }
             FileObjectEntity file = objectMapper.selectById(item.fileId());
             if (file == null || !FileObjectService.STATUS_AVAILABLE.equals(file.getStatus())) {
                 results.add(new BatchItemResult(
                         item.requestKey(), item.fileId(), GrantStatus.UNAVAILABLE, null, null));
+                metrics.recordGrantDenied();
                 continue;
             }
             Instant expiresAt = clock.instant().plus(ttl);
             String url = storageGateway.presignedGetUrl(file.getBucket(), file.getObjectKey(), ttl);
             results.add(new BatchItemResult(
                     item.requestKey(), item.fileId(), GrantStatus.GRANTED, url, expiresAt));
+            metrics.recordGrantGranted();
         }
         return new BatchGrantResult(results);
     }

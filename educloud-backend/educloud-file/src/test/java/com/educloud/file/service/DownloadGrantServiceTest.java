@@ -7,6 +7,7 @@ import com.educloud.file.exception.FileAccessDeniedException;
 import com.educloud.file.exception.GrantPurposeNotAllowedException;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
+import com.educloud.file.observability.FileMetrics;
 import com.educloud.file.service.DownloadGrantService.BatchGrantResult;
 import com.educloud.file.service.DownloadGrantService.BatchItem;
 import com.educloud.file.service.DownloadGrantService.BatchItemResult;
@@ -69,6 +70,8 @@ class DownloadGrantServiceTest {
     private StorageGateway storageGateway;
     @Mock
     private FileAccessAuditWriter auditWriter;
+    @Mock
+    private FileMetrics metrics;
 
     private DownloadGrantService service;
     private FileProperties properties;
@@ -80,7 +83,7 @@ class DownloadGrantServiceTest {
                 new GrantPurposePolicy(properties.downloadGrant().purposes());
         service = new DownloadGrantService(
                 bindingMapper, objectMapper, storageGateway, purposePolicy, auditWriter,
-                properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                properties, Clock.fixed(NOW, ZoneOffset.UTC), metrics);
     }
 
     @Test
@@ -98,6 +101,7 @@ class DownloadGrantServiceTest {
         assertThat(result.url()).isEqualTo("https://minio.example/educloud-files/abc.png?X-Amz-Signature=s1");
         assertThat(result.expiresAt()).isEqualTo(NOW.plus(DEFAULT_TTL));
         verify(storageGateway).presignedGetUrl(BUCKET, OBJECT_KEY, DEFAULT_TTL);
+        verify(metrics).recordGrantGranted();
     }
 
     @Test
@@ -131,6 +135,7 @@ class DownloadGrantServiceTest {
         assertThat(result.expiresAt()).isNull();
         verify(objectMapper, never()).selectById(FILE_ID);
         verify(storageGateway, never()).presignedGetUrl(anyString(), anyString(), any(Duration.class));
+        verify(metrics).recordGrantDenied();
     }
 
     @Test
@@ -146,6 +151,7 @@ class DownloadGrantServiceTest {
                 .isInstanceOf(FileAccessDeniedException.class);
 
         verify(storageGateway, never()).presignedGetUrl(anyString(), anyString(), any(Duration.class));
+        verify(metrics).recordGrantDenied();
     }
 
     @Test
@@ -219,6 +225,7 @@ class DownloadGrantServiceTest {
                 .isInstanceOf(FileAccessDeniedException.class);
 
         verify(auditWriter).writeGrantBatchDenied(FILE_ID, SUBJECT_USER_ID);
+        verify(metrics).recordGrantDenied();
     }
 
     @Test
@@ -263,6 +270,8 @@ class DownloadGrantServiceTest {
         assertThat(result.items().get(2).url()).isNull();
         assertThat(result.items().get(2).expiresAt()).isNull();
         verify(auditWriter, never()).writeGrantBatchDenied(anyLong(), anyLong());
+        verify(metrics).recordGrantGranted();
+        verify(metrics, org.mockito.Mockito.times(2)).recordGrantDenied();
     }
 
     @Test

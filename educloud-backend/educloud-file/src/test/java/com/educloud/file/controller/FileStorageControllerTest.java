@@ -5,6 +5,7 @@ import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.common.web.RequestIdPolicy;
 import com.educloud.common.web.ServletRequestContextAccessor;
 import com.educloud.file.config.FileProperties;
+import com.educloud.file.observability.FileMetrics;
 import com.educloud.file.security.SecurityConfiguration;
 import com.educloud.file.storage.StorageGateway;
 import com.educloud.file.support.FileAccessAuditWriter;
@@ -58,6 +59,9 @@ class FileStorageControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private FileMetrics metrics;
 
     @Test
     void statusRejectsMissingToken() throws Exception {
@@ -131,6 +135,7 @@ class FileStorageControllerTest {
         verify(auditWriter).write(
                 eq(0L), eq(1001L), eq(FileAccessAuditWriter.ACTION_STORAGE_TEST),
                 eq(FileAccessAuditWriter.RESULT_SUCCESS));
+        verify(metrics).recordStorageTest();
     }
 
     @Test
@@ -147,6 +152,7 @@ class FileStorageControllerTest {
         verify(auditWriter).write(
                 eq(0L), eq(1001L), eq(FileAccessAuditWriter.ACTION_STORAGE_TEST),
                 eq(FileAccessAuditWriter.RESULT_FAILURE));
+        verify(metrics).recordStorageTest();
     }
 
     @TestConfiguration(proxyBeanMethods = false)

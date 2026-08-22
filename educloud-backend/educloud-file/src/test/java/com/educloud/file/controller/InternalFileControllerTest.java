@@ -10,6 +10,7 @@ import com.educloud.file.entity.FileObjectEntity;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.messaging.FileEventPublisher;
+import com.educloud.file.observability.FileMetrics;
 import com.educloud.file.security.SecurityConfiguration;
 import com.educloud.file.service.DownloadGrantService;
 import com.educloud.file.service.FileBindingService;
@@ -97,6 +98,9 @@ class InternalFileControllerTest {
 
     @MockBean
     private FileAccessAuditWriter auditWriter;
+
+    @MockBean
+    private com.educloud.file.observability.FileMetrics metrics;
 
     @MockBean
     private JwtDecoder jwtDecoder;
