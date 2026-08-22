@@ -383,7 +383,13 @@ export const authApi = {
     );
     const token = resp.data.data.accessToken;
     localStorage.setItem(TOKEN_KEY, token);
-    return { token, admin: mapAuthAdmin(resp.data.data.user) };
+    const fromLogin = mapAuthAdmin(resp.data.data.user);
+    try {
+      // 登录响应不含 avatarUrl（M04：仅 /me 经 File 批量授权解析），补一次 me() 拿真实头像。
+      return { token, admin: await authApi.me() };
+    } catch {
+      return { token, admin: fromLogin };
+    }
   },
   me: async (): Promise<AdminUser> => {
     const resp = await http.get<ApiEnvelope<AuthUser>>('/me');

@@ -643,7 +643,13 @@ export const api = {
     );
     const token = resp.data.data.accessToken;
     localStorage.setItem(TOKEN_KEY, token);
-    return { user: mapAuthUser(resp.data.data.user), token };
+    const fromLogin = mapAuthUser(resp.data.data.user);
+    try {
+      // 登录响应不含 avatarUrl（M04：仅 /me 经 File 批量授权解析），补一次 me() 拿真实头像。
+      return { user: await authApi.me(), token };
+    } catch {
+      return { user: fromLogin, token };
+    }
   },
   logout: async (): Promise<void> => {
     try {
