@@ -23,11 +23,26 @@ const http = axios.create({
   withCredentials: true,
 });
 
+const DEVICE_KEY = 'educloud_device_id';
+
+function deviceId(): string {
+  let id = localStorage.getItem(DEVICE_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(DEVICE_KEY, id);
+  }
+  return id;
+}
+
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) {
     config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (config.url?.startsWith('/auth/register')) {
+    config.headers = config.headers ?? {};
+    config.headers['X-Device-Id'] = deviceId();
   }
   return config;
 });
@@ -110,6 +125,10 @@ export function apiErrorText(e: unknown): string {
     case 'SESSION_REUSE_DETECTED':
     case 'TOKEN_EXPIRED':
       return '登录已过期，请重新登录';
+    case 'RATE_LIMITED':
+      return '操作太频繁，请稍后再试';
+    case 'DEPENDENCY_UNAVAILABLE':
+      return '服务暂不可用，请稍后重试';
     default:
       return message || '登录失败，请重试';
   }
