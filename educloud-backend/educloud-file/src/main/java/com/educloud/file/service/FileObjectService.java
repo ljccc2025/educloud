@@ -77,18 +77,12 @@ public class FileObjectService {
         storageGateway.deleteObject(root.getBucket(), root.getObjectKey());
         root.setStatus(STATUS_DELETED);
         root.setDeletedAt(clock.instant());
-        // 乐观锁拦截器按实体当前 version 生成 WHERE version=旧 并自动 SET version=旧+1，
-        // 实体 version 必须保持 DB 读出的旧值，不能在 updateById 前手动 +1。
+        // 乐观锁拦截器按实体当前 version 生成 WHERE version=旧、SET version=旧+1，
+        // 并在 updateById 成功后把新版本写回实体（Field.set），此处不得再手动 +1。
         int updated = objectMapper.updateById(root);
         if (updated != 1) {
             throw new VersionConflictException(
                     "文件对象版本冲突，删除失败: fileId=" + fileId);
         }
-        // 拦截器不回写实体：仅同步内存值供返回值/审计使用。
-        root.setVersion(incrementVersion(root.getVersion()));
-    }
-
-    private static int incrementVersion(Integer version) {
-        return version == null ? 1 : version + 1;
     }
 }

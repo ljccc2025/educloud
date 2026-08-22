@@ -59,7 +59,7 @@ class FileBindingServiceTest {
     }
 
     @Test
-    void bindPersistsBindingAndIncrementsRootVersion() {
+    void bindPersistsBindingAndPassesOldVersionToRootUpdate() {
         FileObjectEntity root = availableFile();
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
         when(bindingMapper.findActiveByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
@@ -82,7 +82,9 @@ class FileBindingServiceTest {
         ArgumentCaptor<FileObjectEntity> updateCaptor =
                 ArgumentCaptor.forClass(FileObjectEntity.class);
         verify(objectMapper).updateById(updateCaptor.capture());
-        assertThat(updateCaptor.getValue().getVersion()).isEqualTo(2);
+        // mock 返回 1 表示 DB 命中：传给 updateById 的实体 version 必须仍是旧值，拦截器才能
+        // 生成 WHERE version=旧 并 SET 旧+1；成功后的版本写回属框架行为，单测不模拟。
+        assertThat(updateCaptor.getValue().getVersion()).isEqualTo(1);
     }
 
     @Test
@@ -126,7 +128,7 @@ class FileBindingServiceTest {
     }
 
     @Test
-    void unbindSetsUnboundAtAndIncrementsRootVersion() {
+    void unbindSetsUnboundAtAndPassesOldVersionToRootUpdate() {
         FileObjectEntity root = availableFile();
         FileBindingEntity active = new FileBindingEntity();
         active.setId(9L);
@@ -151,7 +153,8 @@ class FileBindingServiceTest {
         ArgumentCaptor<FileObjectEntity> objectCaptor =
                 ArgumentCaptor.forClass(FileObjectEntity.class);
         verify(objectMapper).updateById(objectCaptor.capture());
-        assertThat(objectCaptor.getValue().getVersion()).isEqualTo(2);
+        // 同 bind：mock 返回 1 表示 DB 命中，传给 updateById 的实体 version 保持旧值。
+        assertThat(objectCaptor.getValue().getVersion()).isEqualTo(1);
     }
 
     @Test

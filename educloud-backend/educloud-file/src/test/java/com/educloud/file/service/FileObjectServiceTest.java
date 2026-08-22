@@ -104,7 +104,9 @@ class FileObjectServiceTest {
         FileObjectEntity updated = captor.getValue();
         assertThat(updated.getStatus()).isEqualTo("DELETED");
         assertThat(updated.getDeletedAt()).isEqualTo(NOW);
-        assertThat(updated.getVersion()).isEqualTo(2);
+        // mock 返回 1 表示 DB 命中：传给 updateById 的实体 version 必须仍是旧值，拦截器才能
+        // 生成 WHERE version=旧 并 SET 旧+1；成功后的版本写回属框架行为，单测不模拟。
+        assertThat(updated.getVersion()).isEqualTo(1);
     }
 
     @Test
