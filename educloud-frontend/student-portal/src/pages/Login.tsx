@@ -30,6 +30,11 @@ export default function Login() {
     setMode(next);
     setError('');
     setNotice('');
+    // 切换 Tab 时清空注册专属字段，避免残留上一次的敏感输入。
+    setUsername('');
+    setPhone('');
+    setDisplayName('');
+    setConfirmPassword('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,6 +66,9 @@ export default function Login() {
         });
         setMode('login');
         setEmail(username);
+        setUsername('');
+        setPhone('');
+        setDisplayName('');
         setPassword('');
         setConfirmPassword('');
         setNotice('注册成功，请使用新账号登录');

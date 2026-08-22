@@ -23,7 +23,7 @@ const SCROLL_THRESHOLD = 8;
 
 export default function Navbar() {
   const navigate = useNavigate();
-  const { token, logout } = useAuthStore();
+  const { token, logout, user } = useAuthStore();
   const unreadCount = useNotificationStore((state) =>
     state.notifications.reduce((count, notification) => count + Number(!notification.read), 0),
   );
@@ -188,7 +188,7 @@ export default function Navbar() {
                   className="flex items-center gap-2 ml-1 p-0.5 rounded-full hover:bg-ink-100/60 dark:hover:bg-ink-800/60 transition-colors"
                 >
                   <img
-                    src={currentUser.avatar}
+                    src={user?.avatar ?? currentUser.avatar}
                     alt="用户头像"
                     className="block h-8 w-8 rounded-full bg-indigo-100 border border-ink-200 dark:border-ink-700 object-cover"
                   />

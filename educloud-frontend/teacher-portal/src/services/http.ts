@@ -45,10 +45,14 @@ function refreshAccessToken(): Promise<string | null> {
       );
       const token = resp.data?.data?.accessToken ?? null;
       if (token) localStorage.setItem(TOKEN_KEY, token);
-      else localStorage.removeItem(TOKEN_KEY);
+      else {
+        localStorage.removeItem(TOKEN_KEY);
+        window.dispatchEvent(new Event('auth:session-expired'));
+      }
       return token;
     } catch {
       localStorage.removeItem(TOKEN_KEY);
+      window.dispatchEvent(new Event('auth:session-expired'));
       return null;
     } finally {
       refreshPromise = null;
@@ -110,6 +114,10 @@ export function apiErrorText(e: unknown): string {
     case 'SESSION_REUSE_DETECTED':
     case 'TOKEN_EXPIRED':
       return '登录已过期，请重新登录';
+    case 'RATE_LIMITED':
+      return '操作太频繁，请稍后再试';
+    case 'DEPENDENCY_UNAVAILABLE':
+      return '服务暂不可用，请稍后重试';
     default:
       return message || '登录失败，请重试';
   }

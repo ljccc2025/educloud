@@ -4,6 +4,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useNavigate,
 } from 'react-router-dom';
 import { useEffect, type JSX } from 'react';
 import MainLayout from './layouts/MainLayout';
@@ -26,6 +27,16 @@ import AiAssistant from './pages/AiAssistant';
 import Community from './pages/Community';
 import Checkout from './pages/Checkout';
 import CheckoutSuccess from './pages/CheckoutSuccess';
+
+function SessionExpiryRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const handler = () => navigate('/login', { replace: true });
+    window.addEventListener('auth:session-expired', handler);
+    return () => window.removeEventListener('auth:session-expired', handler);
+  }, [navigate]);
+  return null;
+}
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const token = useAuthStore((s) => s.token);
@@ -50,6 +61,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <SessionExpiryRedirect />
       <RouteScrollReset />
       <Routes>
         <Route path="/login" element={<Login />} />

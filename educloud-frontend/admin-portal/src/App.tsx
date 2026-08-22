@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import AdminLayout from './layouts/AdminLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -9,8 +9,18 @@ import OrderManage from './pages/OrderManage';
 import Finance from './pages/Finance';
 import SystemConfig from './pages/SystemConfig';
 import Logs from './pages/Logs';
+import { useEffect, type JSX } from 'react';
 import { useAuthStore } from './stores/useAuthStore';
-import type { JSX } from 'react';
+
+function SessionExpiryRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const handler = () => navigate('/login', { replace: true });
+    window.addEventListener('auth:session-expired', handler);
+    return () => window.removeEventListener('auth:session-expired', handler);
+  }, [navigate]);
+  return null;
+}
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const token = useAuthStore((s) => s.token);
@@ -29,8 +39,14 @@ function PublicRoute({ children }: { children: JSX.Element }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    // 已有本地 token 时恢复真实用户信息（失败则自动清理过期登录态）。
+    void useAuthStore.getState().restore();
+  }, []);
+
   return (
     <BrowserRouter>
+      <SessionExpiryRedirect />
       <Routes>
         <Route
           path="/login"

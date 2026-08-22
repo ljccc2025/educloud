@@ -51,3 +51,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   clearError: () => set({ error: null }),
 }));
+
+// 401 刷新失败（会话过期）：同步清理 store 登录态，供路由跳转。
+if (typeof window !== 'undefined') {
+  window.addEventListener('auth:session-expired', () => {
+    useAuthStore.setState({ user: null, token: null, loading: false });
+  });
+}

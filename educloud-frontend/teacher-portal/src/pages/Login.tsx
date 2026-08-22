@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
+import { apiErrorText } from '../services/http';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ export default function Login() {
       await login(email, password);
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败，请检查邮箱与密码');
+      setError(apiErrorText(err));
     }
   };
 

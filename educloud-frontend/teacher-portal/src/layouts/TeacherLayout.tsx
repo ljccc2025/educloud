@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import NotificationPopover from '../features/notifications/NotificationPopover';
+import { useAuthStore } from '../stores/useAuthStore';
 
 const navItems = [
   { to: '/', label: '工作台', icon: LayoutDashboard, end: true },
@@ -49,7 +50,9 @@ export default function TeacherLayout() {
   const currentLabel = breadcrumbMap[`/${pathParts[0] ?? ''}`] ?? '工作台';
 
   const handleLogout = () => {
-    navigate('/login');
+    // 真实退出：撤销服务端会话 + 清理本地登录态，再回登录页。
+    void useAuthStore.getState().logout();
+    navigate('/login', { replace: true });
   };
 
   return (

@@ -73,10 +73,14 @@ function refreshAccessToken(): Promise<string | null> {
       );
       const token = resp.data?.data?.accessToken ?? null;
       if (token) localStorage.setItem(TOKEN_KEY, token);
-      else localStorage.removeItem(TOKEN_KEY);
+      else {
+        localStorage.removeItem(TOKEN_KEY);
+        window.dispatchEvent(new Event('auth:session-expired'));
+      }
       return token;
     } catch {
       localStorage.removeItem(TOKEN_KEY);
+      window.dispatchEvent(new Event('auth:session-expired'));
       return null;
     } finally {
       refreshPromise = null;
