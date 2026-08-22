@@ -61,6 +61,11 @@ public record FileProperties(
             String bootstrapKey,
             List<String> allowedClientIds,
             String audience) {
+
+        /** 内部接口期望的 audience；未配置时默认 educloud-file（与 user InternalProperties 同构）。 */
+        public String effectiveInternalAudience() {
+            return audience == null || audience.isBlank() ? "educloud-file" : audience;
+        }
     }
 
     /** 用户令牌验签（Resource Server）：User 公钥 JWKS 位置、issuer/audience（规格 9 节）。 */

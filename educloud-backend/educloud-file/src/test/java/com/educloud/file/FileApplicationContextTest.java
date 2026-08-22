@@ -5,14 +5,19 @@ import com.educloud.file.mapper.FileAccessAuditMapper;
 import com.educloud.file.mapper.FileBindingMapper;
 import com.educloud.file.mapper.FileObjectMapper;
 import com.educloud.file.mapper.FileUploadSessionMapper;
+import com.educloud.file.security.TestJwtKeys;
 import io.minio.MinioClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.StringRedisTemplate;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -40,8 +45,15 @@ class FileApplicationContextTest {
             "com.alibaba.cloud.nacos.discovery.NacosDiscoveryAutoConfiguration",
             "org.springframework.cloud.client.discovery.composite.CompositeDiscoveryClientAutoConfiguration");
 
+    @TempDir
+    Path tempDir;
+
     @Test
-    void startsTheCompleteFileContextWithoutExternalConnections() {
+    void startsTheCompleteFileContextWithoutExternalConnections() throws Exception {
+        // 任务 8 起 JwtDecoderConfiguration 启动时静态加载 User 公钥 JWKS：测试内生成临时
+        // 密钥对与 JWKS 文件（与 SecurityConfigurationTest 同法），保持无外部连接。
+        Path jwksFile = tempDir.resolve("test-jwks.json");
+        Files.writeString(jwksFile, new TestJwtKeys().publicJwksJson());
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(
                 FileApplication.class, ExternalDependencyConfiguration.class)
                 .web(WebApplicationType.SERVLET)
@@ -60,7 +72,12 @@ class FileApplicationContextTest {
                         "--educloud.file.storage.access-key=context-test-access",
                         "--educloud.file.storage.secret-key=context-test-secret",
                         "--educloud.file.storage.bucket=educloud-files-context-test",
-                        "--educloud.file.storage.init-bucket-on-startup=false")) {
+                        "--educloud.file.storage.init-bucket-on-startup=false",
+                        "--educloud.file.internal.allowed-client-ids=user-service",
+                        "--educloud.file.internal.audience=educloud-file",
+                        "--educloud.file.jwt.jwks-location=file:" + jwksFile.toAbsolutePath(),
+                        "--educloud.file.jwt.issuer=https://issuer.educloud.local",
+                        "--educloud.file.jwt.audience=educloud-api")) {
             assertThat(context.isActive()).isTrue();
             assertThat(context.getBean(FileProperties.class).storage().endpoint())
                     .isEqualTo("http://127.0.0.1:9000");
