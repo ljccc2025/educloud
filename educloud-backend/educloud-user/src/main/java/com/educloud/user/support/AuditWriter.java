@@ -15,6 +15,9 @@ import java.util.UUID;
 @Component
 public final class AuditWriter {
 
+    /** 与 audit_event.user_agent VARCHAR(512) 对齐；超长 UA 截断入库，防止认证接口被单请求打挂。 */
+    private static final int MAX_USER_AGENT_LENGTH = 512;
+
     private final AuditEventMapper auditEventMapper;
 
     public AuditWriter(AuditEventMapper auditEventMapper) {
@@ -35,12 +38,21 @@ public final class AuditWriter {
         audit.setBeforeSummaryJson(entry.beforeSummaryJson());
         audit.setAfterSummaryJson(entry.afterSummaryJson());
         audit.setIp(entry.ip());
-        audit.setUserAgent(entry.userAgent());
+        audit.setUserAgent(safeUserAgent(entry.userAgent()));
         audit.setRequestId(entry.requestId() == null ? "unavailable" : entry.requestId());
         audit.setTraceId(entry.traceId());
         audit.setOccurredAt(Instant.now());
         audit.setRetentionClass(entry.retentionClass());
         auditEventMapper.insert(audit);
+    }
+
+    public static String safeUserAgent(String userAgent) {
+        if (userAgent == null) {
+            return null;
+        }
+        return userAgent.length() <= MAX_USER_AGENT_LENGTH
+                ? userAgent
+                : userAgent.substring(0, MAX_USER_AGENT_LENGTH);
     }
 
     public record AuditEntry(

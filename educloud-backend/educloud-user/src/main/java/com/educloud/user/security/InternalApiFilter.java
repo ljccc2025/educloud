@@ -55,7 +55,7 @@ public final class InternalApiFilter extends OncePerRequestFilter {
         }
         Object clientId = token.getClaim("clientId");
         if (!(clientId instanceof String clientIdText)
-                || !token.getAudience().contains("educloud-user")
+                || !token.getAudience().contains(internalProperties.effectiveInternalAudience())
                 || !internalProperties.allowedClientIds().contains(clientIdText)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;

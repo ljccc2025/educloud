@@ -90,10 +90,14 @@ public final class RegistrationRateLimitFilter extends OncePerRequestFilter {
         String key = properties.redisKeyPrefix().replace("{env}", sessionProperties.environment())
                 + ":" + subKey + ":" + hashedValue;
         Long count = redis.opsForValue().increment(key);
-        if (count != null && count == 1L) {
+        if (count == null) {
+            // Redis 返回空值视为依赖异常，交给外层按失败关闭处理（503），防止绕过限流。
+            throw new IllegalStateException("Redis increment returned null for registration rate limit");
+        }
+        if (count == 1L) {
             redis.expire(key, properties.window());
         }
-        if (count != null && count > maxAttempts) {
+        if (count > maxAttempts) {
             writeError(response, CommonErrorCode.RATE_LIMITED, 429, retryAfter());
             return true;
         }

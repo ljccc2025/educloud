@@ -115,11 +115,21 @@ public class RefreshSessionService {
         if (user == null || "DISABLED".equals(user.getStatus())) {
             throw new BusinessException(UserErrorCode.ACCOUNT_DISABLED);
         }
-        SessionStore.SessionSnapshot snapshot = sessionStore.read(row.getFamilyId())
-                .orElseThrow(() -> new BusinessException(UserErrorCode.SESSION_REVOKED));
-        if (!"ACTIVE".equals(snapshot.status())
-                || snapshot.tokenVersion() != user.getTokenVersion()) {
-            throw new BusinessException(UserErrorCode.SESSION_REVOKED);
+        java.util.Optional<SessionStore.SessionSnapshot> snapshotOpt = sessionStore.read(row.getFamilyId());
+        if (snapshotOpt.isPresent()) {
+            SessionStore.SessionSnapshot snapshot = snapshotOpt.get();
+            if (!"ACTIVE".equals(snapshot.status())
+                    || snapshot.tokenVersion() != user.getTokenVersion()) {
+                throw new BusinessException(UserErrorCode.SESSION_REVOKED);
+            }
+        } else {
+            // Redis 读模型缺失（标记 TTL 到期/清库）而 DB 权威行仍 ACTIVE：
+            // 自愈重建读模型，保证 7 天 Refresh 生命周期不被 15 分钟标记 TTL 打断。
+            sessionStore.writeActive(
+                    row.getFamilyId(),
+                    String.valueOf(user.getId()),
+                    user.getTokenVersion(),
+                    sessionProperties.refreshTokenTtl());
         }
 
         int rotated = refreshSessionMapper.markRotated(row.getId(), now);

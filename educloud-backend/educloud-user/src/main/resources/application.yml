@@ -61,6 +61,10 @@ educloud:
     login:
       max-failed-attempts: ${EDUCLOUD_USER_MAX_FAILED_ATTEMPTS:5}
       lock-duration: ${EDUCLOUD_USER_LOCK_DURATION:15m}
+    internal:
+      bootstrap-key: ${EDUCLOUD_USER_INTERNAL_BOOTSTRAP_KEY:}
+      allowed-client-ids: ${EDUCLOUD_USER_INTERNAL_ALLOWED_CLIENT_IDS:}
+      audience: ${EDUCLOUD_USER_INTERNAL_AUDIENCE:educloud-user}
     password:
       min-length: ${EDUCLOUD_USER_PASSWORD_MIN_LENGTH:8}
       max-length: ${EDUCLOUD_USER_PASSWORD_MAX_LENGTH:128}

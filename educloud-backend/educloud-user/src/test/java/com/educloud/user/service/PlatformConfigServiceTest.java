@@ -52,6 +52,7 @@ class PlatformConfigServiceTest {
         config.setConfigValue("EduCloud");
         config.setVersion(0);
         when(mapper.selectOne(any())).thenReturn(config);
+        when(mapper.update(org.mockito.ArgumentMatchers.isNull(), any())).thenReturn(1);
 
         PlatformConfigResponse response = service.update(
                 new PlatformConfigUpdateRequest("site_name", "EduCloud Pro", "STRING", "站点名称"),

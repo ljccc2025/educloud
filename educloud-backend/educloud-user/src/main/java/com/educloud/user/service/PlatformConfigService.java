@@ -1,7 +1,9 @@
 package com.educloud.user.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.educloud.common.error.BusinessException;
+import com.educloud.common.error.CommonErrorCode;
 import com.educloud.user.dto.request.PlatformConfigUpdateRequest;
 import com.educloud.user.dto.response.PlatformConfigResponse;
 import com.educloud.user.entity.PlatformPublicConfigEntity;
@@ -49,14 +51,26 @@ public class PlatformConfigService {
                 new QueryWrapper<PlatformPublicConfigEntity>()
                         .eq("config_key", request.configKey().trim()));
         if (config == null) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "Unknown platform config key");
+            throw new BusinessException(UserErrorCode.PLATFORM_CONFIG_NOT_FOUND, "Unknown platform config key");
+        }
+        Instant now = Instant.now();
+        // 显式条件更新实现乐观锁（不依赖实体 updateById 的拦截器行为，语义清晰且可单测）。
+        int updated = mapper.update(null, new UpdateWrapper<PlatformPublicConfigEntity>()
+                .eq("id", config.getId())
+                .eq("version", config.getVersion())
+                .set("config_value", request.configValue())
+                .set("value_type", request.valueType())
+                .set("description", request.description())
+                .set("version", config.getVersion() + 1)
+                .set("updated_at", now));
+        if (updated != 1) {
+            throw new BusinessException(CommonErrorCode.VERSION_CONFLICT);
         }
         config.setConfigValue(request.configValue());
         config.setValueType(request.valueType());
         config.setDescription(request.description());
         config.setVersion(config.getVersion() + 1);
-        config.setUpdatedAt(Instant.now());
-        mapper.updateById(config);
+        config.setUpdatedAt(now);
         auditWriter.write(new AuditWriter.AuditEntry(
                 "USER", actorId == null ? "unknown" : actorId, null,
                 "PLATFORM_CONFIG_UPDATED", "platform_public_config", request.configKey().trim(),

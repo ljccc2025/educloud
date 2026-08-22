@@ -8,8 +8,6 @@ import com.educloud.user.dto.request.PasswordChangeRequest;
 import com.educloud.user.dto.request.RegisterStudentRequest;
 import com.educloud.user.dto.response.LoginResponse;
 import com.educloud.user.dto.response.RegisteredUserResponse;
-import com.educloud.user.entity.RefreshSessionEntity;
-import com.educloud.user.mapper.RefreshSessionMapper;
 import com.educloud.user.service.AuthenticationService;
 import com.educloud.user.service.IdempotencyService;
 import com.educloud.user.service.PasswordChangeService;
@@ -53,7 +51,6 @@ public final class AuthController {
     private final AuthenticationService authenticationService;
     private final RefreshSessionService refreshSessionService;
     private final PasswordChangeService passwordChangeService;
-    private final RefreshSessionMapper refreshSessionMapper;
     private final SessionRevocationService revocationService;
     private final IdempotencyService idempotencyService;
     private final SessionProperties sessionProperties;
@@ -65,7 +62,6 @@ public final class AuthController {
             AuthenticationService authenticationService,
             RefreshSessionService refreshSessionService,
             PasswordChangeService passwordChangeService,
-            RefreshSessionMapper refreshSessionMapper,
             SessionRevocationService revocationService,
             IdempotencyService idempotencyService,
             SessionProperties sessionProperties,
@@ -75,7 +71,6 @@ public final class AuthController {
         this.authenticationService = authenticationService;
         this.refreshSessionService = refreshSessionService;
         this.passwordChangeService = passwordChangeService;
-        this.refreshSessionMapper = refreshSessionMapper;
         this.revocationService = revocationService;
         this.idempotencyService = idempotencyService;
         this.sessionProperties = sessionProperties;
@@ -128,7 +123,11 @@ public final class AuthController {
             @CookieValue(value = "refresh_token", required = false) String refreshToken,
             HttpServletRequest servletRequest) {
         if (refreshToken == null || refreshToken.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(responses.error(
+                            com.educloud.common.error.CommonErrorCode.UNAUTHENTICATED,
+                            com.educloud.common.error.CommonErrorCode.UNAUTHENTICATED.defaultMessage(),
+                            null));
         }
         String requestId = com.educloud.user.support.RequestIds.from(servletRequest);
         String userAgent = servletRequest.getHeader(HttpHeaders.USER_AGENT);
@@ -161,7 +160,8 @@ public final class AuthController {
 
     /**
      * 修改密码（Bearer 保护）。旧 Access 全部失效；当前会话族保留可刷新（设计规格第 4.4 节撤销矩阵）。
-     * currentFamilyId 由 Refresh Token Cookie 反查；无 Cookie 时撤销该用户全部会话族。
+     * family 定位与归属校验在 PasswordChangeService 事务内完成（FOR UPDATE 行锁才有意义）；
+     * 无有效 Cookie 时撤销该用户全部会话族。
      */
     @PostMapping("/password/change")
     public ApiResponse<Void> changePassword(
@@ -169,19 +169,11 @@ public final class AuthController {
             @Valid @RequestBody PasswordChangeRequest request,
             @CookieValue(value = "refresh_token", required = false) String refreshToken,
             HttpServletRequest servletRequest) {
-        String familyId = null;
-        if (refreshToken != null && !refreshToken.isBlank()) {
-            RefreshSessionEntity session = refreshSessionMapper.selectByTokenHashForUpdate(
-                    SessionFactory.sha256Hex(refreshToken));
-            if (session != null) {
-                familyId = session.getFamilyId();
-            }
-        }
         passwordChangeService.changePassword(
                 Long.valueOf(jwt.getSubject()),
                 request.oldPassword(),
                 request.newPassword(),
-                familyId,
+                refreshToken,
                 servletRequest.getRemoteAddr(),
                 servletRequest.getHeader(HttpHeaders.USER_AGENT),
                 com.educloud.user.support.RequestIds.from(servletRequest));

@@ -16,6 +16,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -67,13 +69,19 @@ public final class ServiceTokenService {
         if (!"ACTIVE".equals(client.getStatus())) {
             throw new BusinessException(UserErrorCode.SERVICE_CLIENT_DISABLED);
         }
+        Instant now = Instant.now();
         ServiceClientCredentialEntity credential = credentialMapper.selectOne(
                 new QueryWrapper<ServiceClientCredentialEntity>()
                         .eq("service_client_id", client.getId())
                         .and(wrapper -> wrapper.eq("status", "ACTIVE")
-                                .or().eq("status", "GRACE")));
+                                .or(w -> w.eq("status", "GRACE")
+                                        .and(x -> x.isNull("expires_at").or().gt("expires_at", now)))));
         if (credential == null
-                || !credential.getSecretHash().equals(SessionFactory.sha256Hex(clientSecret))) {
+                || (credential.getNotBefore() != null && credential.getNotBefore().isAfter(now))
+                || (credential.getExpiresAt() != null && credential.getExpiresAt().isBefore(now))
+                || !MessageDigest.isEqual(
+                        credential.getSecretHash().getBytes(StandardCharsets.UTF_8),
+                        SessionFactory.sha256Hex(clientSecret).getBytes(StandardCharsets.UTF_8))) {
             throw new BusinessException(UserErrorCode.SERVICE_CREDENTIAL_INVALID);
         }
         Set<String> allowedAudiences = new HashSet<>(readList(client.getAllowedAudiencesJson()));
@@ -85,7 +93,6 @@ public final class ServiceTokenService {
             throw new BusinessException(UserErrorCode.SERVICE_TOKEN_SCOPE_DENIED);
         }
 
-        Instant now = Instant.now();
         String token = jwtEncoder.encode(claimsFactory.serviceClaims(
                 clientId, audience, scopes, UUID.randomUUID().toString(), client.getTokenVersion(),
                 now, jwtProperties.serviceTokenTtl()));

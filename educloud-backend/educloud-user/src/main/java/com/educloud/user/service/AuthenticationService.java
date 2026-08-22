@@ -170,7 +170,7 @@ public class AuthenticationService {
         audit.setLoginNameMasked(Masking.loginName(loginName));
         audit.setResult("SUCCESS");
         audit.setIp(ip);
-        audit.setUserAgent(userAgent);
+        audit.setUserAgent(AuditWriter.safeUserAgent(userAgent));
         audit.setRequestId(requestId);
         audit.setOccurredAt(now);
         loginAuditMapper.insert(audit);
@@ -216,6 +216,7 @@ public class AuthenticationService {
     private void clearLock(Long userId, Instant now) {
         sysUserMapper.update(null, new UpdateWrapper<SysUserEntity>()
                 .eq("id", userId)
+                .set("status", "ACTIVE")
                 .set("locked_until", null)
                 .set("updated_at", now));
     }
@@ -236,7 +237,7 @@ public class AuthenticationService {
         audit.setResult("FAILURE");
         audit.setFailureCode(failureCode);
         audit.setIp(ip);
-        audit.setUserAgent(userAgent);
+        audit.setUserAgent(AuditWriter.safeUserAgent(userAgent));
         audit.setRequestId(requestId);
         audit.setOccurredAt(clock.instant());
         loginAuditMapper.insert(audit);

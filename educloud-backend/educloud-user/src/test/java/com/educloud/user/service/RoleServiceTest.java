@@ -47,7 +47,7 @@ class RoleServiceTest {
                 new RoleCreateRequest("TEACHER", "教师", null), "1", "ip", "ua", "req-1"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
-                .isEqualTo(UserErrorCode.ROLE_NOT_FOUND);
+                .isEqualTo(UserErrorCode.ROLE_CODE_TAKEN);
     }
 
     @Test

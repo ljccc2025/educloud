@@ -5,6 +5,7 @@ import com.educloud.user.exception.UserErrorCode;
 import com.educloud.common.error.BusinessException;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
@@ -27,6 +28,13 @@ public final class PasswordPolicy {
                     UserErrorCode.PASSWORD_WEAK,
                     "Password must be between " + properties.minLength()
                             + " and " + properties.maxLength() + " characters");
+        }
+        // BCrypt 只使用前 72 字节，超长部分会被静默截断，导致两个仅尾部不同的
+        // "不同密码"哈希一致、可互相登录；按 UTF-8 字节数收口。
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new BusinessException(
+                    UserErrorCode.PASSWORD_WEAK,
+                    "Password must be at most 72 bytes (BCrypt limit)");
         }
     }
 }

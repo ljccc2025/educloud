@@ -28,7 +28,7 @@ class InternalApiFilterTest {
         jwtDecoder = mock(JwtDecoder.class);
         filter = new InternalApiFilter(
                 jwtDecoder,
-                new InternalProperties("bootstrap-key", List.of("order-service")));
+                new InternalProperties("bootstrap-key", List.of("order-service"), "educloud-user"));
     }
 
     private Jwt serviceToken(String clientId, List<String> audiences) {

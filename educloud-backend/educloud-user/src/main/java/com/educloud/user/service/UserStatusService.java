@@ -2,6 +2,7 @@ package com.educloud.user.service;
 
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.educloud.common.error.BusinessException;
+import com.educloud.common.error.CommonErrorCode;
 import com.educloud.user.entity.SysUserEntity;
 import com.educloud.user.exception.UserErrorCode;
 import com.educloud.user.mapper.SysUserMapper;
@@ -58,7 +59,7 @@ public class UserStatusService {
             String requestId) {
         if (newStatus == null || !ALLOWED_STATUSES.contains(newStatus)) {
             throw new BusinessException(
-                    UserErrorCode.USER_NOT_FOUND,
+                    CommonErrorCode.VALIDATION_FAILED,
                     "status must be one of ACTIVE, LOCKED, DISABLED");
         }
         SysUserEntity current = sysUserMapper.selectById(targetUserId);
@@ -71,12 +72,17 @@ public class UserStatusService {
         }
 
         Instant now = Instant.now();
-        int updated = sysUserMapper.update(null, new UpdateWrapper<SysUserEntity>()
+        UpdateWrapper<SysUserEntity> update = new UpdateWrapper<SysUserEntity>()
                 .eq("id", targetUserId)
                 .eq("version", current.getVersion())
                 .set("status", newStatus)
                 .set("version", current.getVersion() + 1)
-                .set("updated_at", now));
+                .set("updated_at", now);
+        if ("ACTIVE".equals(newStatus)) {
+            // 恢复为 ACTIVE 时重置失败计数与锁定到期，避免"输错一次立即再锁"。
+            update.set("failed_login_count", 0).set("locked_until", null);
+        }
+        int updated = sysUserMapper.update(null, update);
         if (updated != 1) {
             throw new BusinessException(
                     com.educloud.common.error.CommonErrorCode.VERSION_CONFLICT);

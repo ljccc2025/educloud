@@ -67,9 +67,21 @@ public class UserAdminService {
         Page<SysUserEntity> result = sysUserMapper.selectPage(
                 new Page<>(Math.max(page, 1), boundedSize),
                 new QueryWrapper<SysUserEntity>().orderByDesc("created_at"));
-        List<UserAdminItem> items = result.getRecords().stream()
-                .map(this::toItem)
-                .toList();
+        List<SysUserEntity> records = result.getRecords();
+        List<UserAdminItem> items;
+        if (records.isEmpty()) {
+            items = List.of();
+        } else {
+            List<Long> userIds = records.stream().map(SysUserEntity::getId).toList();
+            Map<Long, UserProfileEntity> profiles = userProfileMapper.selectList(
+                            new QueryWrapper<UserProfileEntity>().in("user_id", userIds))
+                    .stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            UserProfileEntity::getUserId, p -> p, (a, b) -> a));
+            items = records.stream()
+                    .map(user -> toItem(user, profiles.get(user.getId())))
+                    .toList();
+        }
         return PageResponse.of(
                 items,
                 Math.max(page, 1),
@@ -144,6 +156,10 @@ public class UserAdminService {
     private UserAdminItem toItem(SysUserEntity user) {
         UserProfileEntity profile = userProfileMapper.selectOne(
                 new QueryWrapper<UserProfileEntity>().eq("user_id", user.getId()));
+        return toItem(user, profile);
+    }
+
+    private UserAdminItem toItem(SysUserEntity user, UserProfileEntity profile) {
         return new UserAdminItem(
                 String.valueOf(user.getId()),
                 user.getUsername(),

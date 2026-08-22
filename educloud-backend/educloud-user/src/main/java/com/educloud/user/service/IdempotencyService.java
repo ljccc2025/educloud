@@ -40,6 +40,11 @@ public class IdempotencyService {
         if (existing == null) {
             return Optional.empty();
         }
+        // 过期记录不再重放，并顺手清理，避免幂等表无限增长。
+        if (existing.getExpiresAt() != null && existing.getExpiresAt().isBefore(Instant.now())) {
+            mapper.deleteById(existing.getId());
+            return Optional.empty();
+        }
         if (!existing.getRequestHash().equals(requestHash)) {
             throw new BusinessException(
                     UserErrorCode.IDEMPOTENCY_CONFLICT,

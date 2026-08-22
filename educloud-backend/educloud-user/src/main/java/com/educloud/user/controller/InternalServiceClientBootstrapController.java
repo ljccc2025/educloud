@@ -4,6 +4,8 @@ import com.educloud.user.command.ServiceClientCredentialCommand;
 import com.educloud.user.config.InternalProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -39,7 +41,9 @@ public final class InternalServiceClientBootstrapController {
             @RequestBody BootstrapRequest request,
             HttpServletRequest servletRequest) {
         if (internalProperties.bootstrapKey() == null
-                || !internalProperties.bootstrapKey().equals(bootstrapKey)) {
+                || !MessageDigest.isEqual(
+                        internalProperties.bootstrapKey().getBytes(StandardCharsets.UTF_8),
+                        bootstrapKey.getBytes(StandardCharsets.UTF_8))) {
             throw new org.springframework.security.access.AccessDeniedException("invalid bootstrap key");
         }
         command.bootstrap(

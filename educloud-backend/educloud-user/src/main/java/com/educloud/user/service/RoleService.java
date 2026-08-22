@@ -53,7 +53,7 @@ public class RoleService {
         try {
             sysRoleMapper.insert(role);
         } catch (DuplicateKeyException duplicate) {
-            throw new BusinessException(UserErrorCode.ROLE_NOT_FOUND, "Role code already exists: " + role.getCode());
+            throw new BusinessException(UserErrorCode.ROLE_CODE_TAKEN, "Role code already exists: " + role.getCode());
         }
         auditWriter.write(new AuditWriter.AuditEntry(
                 "USER", actorId == null ? "unknown" : actorId, null,
@@ -69,7 +69,7 @@ public class RoleService {
             throw new BusinessException(UserErrorCode.ROLE_NOT_FOUND);
         }
         if (Boolean.TRUE.equals(role.getBuiltIn())) {
-            throw new BusinessException(UserErrorCode.ROLE_NOT_FOUND, "Built-in roles cannot be modified");
+            throw new BusinessException(UserErrorCode.BUILT_IN_ROLE_PROTECTED, "Built-in roles cannot be modified");
         }
         role.setName(request.name().trim());
         role.setDescription(request.description());

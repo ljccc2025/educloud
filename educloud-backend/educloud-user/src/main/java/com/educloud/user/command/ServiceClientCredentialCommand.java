@@ -14,6 +14,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -69,7 +71,9 @@ public class ServiceClientCredentialCommand {
         } else {
             ServiceClientCredentialEntity active = activeCredential(client.getId());
             if (active != null) {
-                if (active.getSecretHash().equals(secretHash)) {
+                if (MessageDigest.isEqual(
+                        active.getSecretHash().getBytes(StandardCharsets.UTF_8),
+                        secretHash.getBytes(StandardCharsets.UTF_8))) {
                     return; // 幂等：相同 clientId + secret 重跑不产生副作用
                 }
                 throw new BusinessException(
