@@ -53,6 +53,11 @@ educloud:
       service-token-ttl: ${EDUCLOUD_USER_SERVICE_TOKEN_TTL:5m}
     registration:
       enabled: ${EDUCLOUD_USER_REGISTRATION_ENABLED:true}
+      rate-limit:
+        enabled: ${EDUCLOUD_USER_REGISTRATION_RATE_LIMIT_ENABLED:true}
+        ip-max-attempts: ${EDUCLOUD_USER_REGISTRATION_IP_MAX_ATTEMPTS:5}
+        device-max-attempts: ${EDUCLOUD_USER_REGISTRATION_DEVICE_MAX_ATTEMPTS:3}
+        window: ${EDUCLOUD_USER_REGISTRATION_RATE_LIMIT_WINDOW:5m}
     login:
       max-failed-attempts: ${EDUCLOUD_USER_MAX_FAILED_ATTEMPTS:5}
       lock-duration: ${EDUCLOUD_USER_LOCK_DURATION:15m}
