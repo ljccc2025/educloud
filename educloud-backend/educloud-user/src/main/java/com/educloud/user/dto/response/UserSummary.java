@@ -16,5 +16,7 @@ public record UserSummary(
         String avatarUrl,
         // M04：当前头像 fileId（可空）。前端 PATCH /me/profile 全量更新需携带，
         // 否则后端会解绑清空头像；经 /me 返回保证前端刷新后不丢失。
-        String avatarFileId) {
+        String avatarFileId,
+        // M04：个人简介。经 /me 返回，保证前端刷新后表单回显不丢失。
+        String bio) {
 }

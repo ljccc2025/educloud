@@ -73,7 +73,8 @@ public class ProfileService {
                 avatarUrl,
                 profile == null || profile.getAvatarFileId() == null
                         ? null
-                        : String.valueOf(profile.getAvatarFileId()));
+                        : String.valueOf(profile.getAvatarFileId()),
+                profile == null ? null : profile.getBio());
     }
 
     @Transactional

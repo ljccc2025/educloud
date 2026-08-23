@@ -202,7 +202,8 @@ public class AuthenticationService {
                                 roles,
                                 permissions,
                                 null,
-                                null)));
+                                null,
+                                profile == null ? null : profile.getBio())));
     }
 
     private void registerFailedAttempt(SysUserEntity user, String ip, String userAgent, String requestId) {

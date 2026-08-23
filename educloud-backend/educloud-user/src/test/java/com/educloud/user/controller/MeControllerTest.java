@@ -63,13 +63,14 @@ class MeControllerTest {
     void meReturnsCurrentUserSummary() throws Exception {
         when(profileService.me(1001L)).thenReturn(new UserSummary(
                 "1001", "student01", "学生01", "STUDENT",
-                List.of("STUDENT"), List.of("course:read"), null, "99"));
+                List.of("STUDENT"), List.of("course:read"), null, "99", "热爱学习"));
 
         mockMvc.perform(get("/api/v1/me").with(STUDENT_JWT))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
                 .andExpect(jsonPath("$.data.username").value("student01"))
-                .andExpect(jsonPath("$.data.userType").value("STUDENT"));
+                .andExpect(jsonPath("$.data.userType").value("STUDENT"))
+                .andExpect(jsonPath("$.data.bio").value("热爱学习"));
     }
 
     @Test

@@ -189,7 +189,8 @@ public class RefreshSessionService {
                                 roles,
                                 permissions,
                                 null,
-                                null)));
+                                null,
+                                profile == null ? null : profile.getBio())));
     }
 
     public record RefreshResult(String refreshTokenRaw, LoginResponse response) {
