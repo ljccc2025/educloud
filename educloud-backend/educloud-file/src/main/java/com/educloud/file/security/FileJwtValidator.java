@@ -51,9 +51,20 @@ public final class FileJwtValidator implements OAuth2TokenValidator<Jwt> {
         if (!issuer.equals(claims.get("iss"))) {
             return failure("issuer");
         }
+        // RFC 7519 §4.1.3：aud 可为字符串或数组。Nimbus 对单元素 audience 序列化为字符串，
+        // 此处两种形态都兼容（M04 遗留：只认 Collection 会导致真实服务令牌/用户令牌 401）。
         Object audValue = claims.get("aud");
-        if (!(audValue instanceof Collection<?> audiences)
-                || !audiences.stream().allMatch(String.class::isInstance)) {
+        Set<String> audiences = new HashSet<>();
+        if (audValue instanceof Collection<?> values) {
+            for (Object value : values) {
+                if (value instanceof String text) {
+                    audiences.add(text);
+                }
+            }
+        } else if (audValue instanceof String text) {
+            audiences.add(text);
+        }
+        if (audiences.isEmpty()) {
             return failure("audience");
         }
         if (audiences.contains(audience)) {
