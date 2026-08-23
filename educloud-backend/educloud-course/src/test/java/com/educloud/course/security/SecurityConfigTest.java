@@ -1,12 +1,12 @@
 package com.educloud.course.security;
 
 import com.educloud.course.CourseApplication;
-import com.educloud.course.mapper.CourseCategoryMapper;
+import com.educloud.course.ExternalDependencyConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -33,11 +33,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 错误 aud 401；非信任密钥（验签失败）401；过期 token 401。（actuator 按
  * application-test.yml 运行在独立 management 端口，不在主 SecurityFilterChain 作用域内，
  * 故不在此断言匿名可达。任务 7 起 CategoryService 依赖 CourseCategoryMapper，test profile
- * 无 DataSource 不注册 Mapper，以 @MockBean 满足——与 CourseContextTest 同法。）</p>
+ * 无 DataSource 不注册 Mapper，@Import {@link ExternalDependencyConfiguration} 以 mock
+ * 全部 Mapper 满足——与 CourseContextTest 同法。）</p>
  */
 @SpringBootTest(classes = CourseApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(ExternalDependencyConfiguration.class)
 class SecurityConfigTest {
 
     private static final String ISSUER = "https://issuer.educloud.local";
@@ -45,9 +47,6 @@ class SecurityConfigTest {
 
     @Autowired
     MockMvc mockMvc;
-
-    @MockBean
-    private CourseCategoryMapper courseCategoryMapper;
 
     @DynamicPropertySource
     static void jwksLocation(DynamicPropertyRegistry registry) throws Exception {

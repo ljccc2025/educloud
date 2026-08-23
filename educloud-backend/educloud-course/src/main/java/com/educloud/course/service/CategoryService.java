@@ -17,7 +17,8 @@ import java.util.Map;
  *
  * <p>公开只读：查询 status=VISIBLE 全量后在内存组树，顶层与子分类均按 sort_order 升序
  * （同序按 id 稳定）；隐藏分类（含隐藏父分类下的子分类）不出现在树中（服务层再做一次
- * status 过滤，双保险：SQL 过滤 + 内存过滤）。无分页（全量树）。</p>
+ * status 过滤，双保险：SQL 过滤 + 内存过滤）。孤儿节点（父分类隐藏或不存在）静默丢弃：
+ * 仅 parentId 为空作为顶层，其余必须挂到可见父分类下。无分页（全量树）。</p>
  */
 @Service
 public class CategoryService {

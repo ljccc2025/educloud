@@ -1,12 +1,11 @@
 package com.educloud.course;
 
-import com.educloud.course.mapper.CourseCategoryMapper;
 import com.educloud.course.security.TestJwtKeys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -30,20 +29,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 无外部连接启动。</p>
  *
  * <p>任务 7 起 CategoryService 依赖 CourseCategoryMapper：test profile 排除 DataSource
- * 自动配置，MyBatis-Plus Mapper 不注册，故以 @MockBean 满足（与 educloud-file
- * FileApplicationContextTest / educloud-user UserApplicationContextTest 同法）。</p>
+ * 自动配置，MyBatis-Plus Mapper 不注册，故 @Import
+ * {@link ExternalDependencyConfiguration}（@TestConfiguration：mock 全部 Mapper，
+ * 与 educloud-file FileApplicationContextTest / educloud-user UserApplicationContextTest
+ * 的 mock Mapper 思路一致，收敛为单点维护）。</p>
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@Import(ExternalDependencyConfiguration.class)
 class CourseContextTest {
 
     private static final TestJwtKeys TEST_KEYS = new TestJwtKeys();
 
     @Autowired
     ConfigurableApplicationContext context;
-
-    @MockBean
-    private CourseCategoryMapper courseCategoryMapper;
 
     @DynamicPropertySource
     static void jwksLocation(DynamicPropertyRegistry registry) throws Exception {

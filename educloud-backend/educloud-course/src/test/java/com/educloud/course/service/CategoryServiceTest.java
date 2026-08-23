@@ -60,6 +60,27 @@ class CategoryServiceTest {
     }
 
     @Test
+    void visibleTreeDropsVisibleChildWhoseParentIsHidden() {
+        CourseCategoryEntity hiddenParent = category(1L, null, "隐藏父分类", "hidden-parent", 1, "HIDDEN");
+        CourseCategoryEntity visibleChild = category(2L, 1L, "可见子分类", "visible-child", 1, "VISIBLE");
+        when(categoryMapper.selectList(any())).thenReturn(List.of(hiddenParent, visibleChild));
+
+        List<CategoryResponse> tree = service().visibleTree();
+
+        assertThat(tree).isEmpty();
+    }
+
+    @Test
+    void visibleTreeDropsVisibleNodeWhoseParentDoesNotExist() {
+        CourseCategoryEntity orphan = category(9L, 888L, "孤儿节点", "orphan", 1, "VISIBLE");
+        when(categoryMapper.selectList(any())).thenReturn(List.of(orphan));
+
+        List<CategoryResponse> tree = service().visibleTree();
+
+        assertThat(tree).isEmpty();
+    }
+
+    @Test
     void visibleTreeQueriesOnlyVisibleStatus() {
         when(categoryMapper.selectList(any())).thenReturn(List.of());
 
@@ -71,7 +92,9 @@ class CategoryServiceTest {
         verify(categoryMapper).selectList(captor.capture());
         QueryWrapper<CourseCategoryEntity> wrapper = captor.getValue();
         // 注意：MP 3.5.12 的 paramNameValuePairs 在 getSqlSegment() 渲染后才物化，先渲染再断言。
-        assertThat(wrapper.getSqlSegment()).contains("status = ");
+        // 整串匹配保证查询唯一条件且列名精确为 status（避免 x_status 之类误匹配）。
+        assertThat(wrapper.getSqlSegment())
+                .matches("\\(status\\s*=\\s*#\\{ew\\.paramNameValuePairs\\.[A-Za-z0-9]+}\\)");
         assertThat(wrapper.getParamNameValuePairs()).containsValue("VISIBLE");
     }
 
