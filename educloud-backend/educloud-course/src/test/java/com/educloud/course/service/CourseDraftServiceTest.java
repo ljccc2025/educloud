@@ -71,7 +71,7 @@ class CourseDraftServiceTest {
     void createCourseInsertsRootOwnerAndFirstDraftInOneTransaction() throws Exception {
         CourseCreateRequest request = new CourseCreateRequest(
                 "Java 入门", "从零开始的 Java", "涵盖基础语法与面向对象",
-                77L, "BEGINNER", new BigDecimal("199.00"), "CNY", 5L);
+                "77", "BEGINNER", new BigDecimal("199.00"), "CNY", "5");
         assignIdOnCourseInsert(101L);
         assignIdOnTeacherInsert(201L);
         assignIdOnVersionInsert(301L);
@@ -187,8 +187,8 @@ class CourseDraftServiceTest {
 
         CourseDraftResponse response = versionService().updateDraft(301L, 1001L,
                 new CourseDraftUpdateRequest(
-                        "新标题", "新副标题", "新描述", 88L, "INTERMEDIATE",
-                        new BigDecimal("299.00"), "USD", 8L));
+                        "新标题", "新副标题", "新描述", "88", "INTERMEDIATE",
+                        new BigDecimal("299.00"), "USD", "8"));
 
         assertThat(response.title()).isEqualTo("新标题");
         assertThat(response.versionId()).isEqualTo("301");
@@ -375,6 +375,21 @@ class CourseDraftServiceTest {
     }
 
     @Test
+    void createDraftRejectsCrossTeacherAccessWith403() {
+        CourseEntity course = course(101L, 2002L, 301L, 5L);
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        when(courseTeacherMapper.selectCount(any())).thenReturn(0L);
+
+        assertThatThrownBy(() -> versionService().createDraftFromPublishedOrRejected(101L, 1001L))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED);
+                    assertThat(exception.errorCode().httpStatus()).isEqualTo(403);
+                });
+        verify(courseVersionMapper, never()).selectById(any());
+        verify(courseVersionMapper, never()).insert(any(CourseVersionEntity.class));
+    }
+
+    @Test
     void createDraftReturns404WhenNoPublishedOrRejectedSource() {
         CourseEntity course = course(101L, 1001L, null, 5L);
         when(courseMapper.selectById(101L)).thenReturn(course);
@@ -397,7 +412,7 @@ class CourseDraftServiceTest {
 
     private static CourseDraftUpdateRequest updateRequest() {
         return new CourseDraftUpdateRequest(
-                "标题", "副标题", "描述", 1L, "BEGINNER", new BigDecimal("10.00"), "CNY", 2L);
+                "标题", "副标题", "描述", "1", "BEGINNER", new BigDecimal("10.00"), "CNY", "2");
     }
 
     private void assignIdOnCourseInsert(Long id) {

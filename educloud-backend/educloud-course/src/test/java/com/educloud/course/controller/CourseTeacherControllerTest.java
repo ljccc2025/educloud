@@ -12,12 +12,16 @@ import com.educloud.course.dto.response.CourseDraftResponse;
 import com.educloud.course.service.CourseService;
 import com.educloud.course.service.CourseVersionService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -28,6 +32,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -36,6 +41,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -54,12 +60,12 @@ class CourseTeacherControllerTest {
 
     private static final String CREATE_BODY = """
             {"title":"Java 入门","subtitle":"从零开始","description":"基础语法",
-             "coverFileId":77,"level":"BEGINNER","price":199.00,"currency":"CNY","categoryId":5}
+             "coverFileId":"77","level":"BEGINNER","price":199.00,"currency":"CNY","categoryId":"5"}
             """;
 
     private static final String UPDATE_BODY = """
             {"title":"新标题","subtitle":"新副标题","description":"新描述",
-             "coverFileId":88,"level":"INTERMEDIATE","price":299.00,"currency":"USD","categoryId":8}
+             "coverFileId":"88","level":"INTERMEDIATE","price":299.00,"currency":"USD","categoryId":"8"}
             """;
 
     @Autowired
@@ -176,6 +182,29 @@ class CourseTeacherControllerTest {
                 .andExpect(jsonPath("$.data.price").value("299.00"));
 
         verify(courseVersionService).updateDraft(eq(301L), eq(1001L), any(CourseDraftUpdateRequest.class));
+    }
+
+    /** 建议 3：course:update 三端点负向权限（仅有 course:create 无 course:update → 403）。 */
+    @ParameterizedTest(name = "{0} {1} without course:update -> 403")
+    @MethodSource("courseUpdateEndpoints")
+    void courseUpdateEndpointsRequireCourseUpdatePermission(
+            String method, String url, String body) throws Exception {
+        when(jwtDecoder.decode(any())).thenReturn(token("1001", List.of("course:create")));
+
+        var request = request(HttpMethod.valueOf(method), url).header("Authorization", "Bearer test-token");
+        if (body != null) {
+            request = request.contentType(MediaType.APPLICATION_JSON).content(body);
+        }
+        mockMvc.perform(request)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("COURSE_ACCESS_DENIED"));
+    }
+
+    static Stream<Arguments> courseUpdateEndpoints() {
+        return Stream.of(
+                Arguments.of("GET", "/api/v1/teacher/courses/101/draft", null),
+                Arguments.of("POST", "/api/v1/courses/101/drafts", null),
+                Arguments.of("PUT", "/api/v1/course-drafts/301", UPDATE_BODY));
     }
 
     private static Jwt token(String subject, List<String> permissions) {

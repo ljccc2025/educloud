@@ -3,6 +3,7 @@ package com.educloud.course.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.educloud.common.error.BusinessException;
+import com.educloud.common.error.CommonErrorCode;
 import com.educloud.course.dto.request.CourseDraftUpdateRequest;
 import com.educloud.course.dto.response.CourseDraftResponse;
 import com.educloud.course.entity.CourseEntity;
@@ -130,17 +131,20 @@ public class CourseVersionService {
                     "Only draft versions can be updated");
         }
 
+        Long categoryId = parseSnowflakeId(request.categoryId(), "categoryId");
+        Long coverFileId = parseSnowflakeId(request.coverFileId(), "coverFileId");
+
         int affected = versionMapper.update(null, new LambdaUpdateWrapper<CourseVersionEntity>()
                 .eq(CourseVersionEntity::getId, versionId)
                 .eq(CourseVersionEntity::getVersionStatus, STATUS_DRAFT)
                 .set(CourseVersionEntity::getTitle, request.title())
                 .set(CourseVersionEntity::getSubtitle, request.subtitle())
                 .set(CourseVersionEntity::getDescription, request.description())
-                .set(CourseVersionEntity::getCoverFileId, request.coverFileId())
+                .set(CourseVersionEntity::getCoverFileId, coverFileId)
                 .set(CourseVersionEntity::getLevel, request.level())
                 .set(CourseVersionEntity::getPrice, request.price())
                 .set(CourseVersionEntity::getCurrency, request.currency())
-                .set(CourseVersionEntity::getCategoryId, request.categoryId()));
+                .set(CourseVersionEntity::getCategoryId, categoryId));
         if (affected == 0) {
             throw new BusinessException(CourseErrorCode.VERSION_NOT_DRAFT,
                     "Course version is not in draft state");
@@ -149,11 +153,11 @@ public class CourseVersionService {
         version.setTitle(request.title());
         version.setSubtitle(request.subtitle());
         version.setDescription(request.description());
-        version.setCoverFileId(request.coverFileId());
+        version.setCoverFileId(coverFileId);
         version.setLevel(request.level());
         version.setPrice(request.price());
         version.setCurrency(request.currency());
-        version.setCategoryId(request.categoryId());
+        version.setCategoryId(categoryId);
         return response(course, version);
     }
 
@@ -175,6 +179,22 @@ public class CourseVersionService {
                         String.valueOf(teacher.getTeacherId()), teacher.getTeacherRole()))
                 .toList();
         return CourseDraftResponse.from(course, version, teachers);
+    }
+
+    /**
+     * Snowflake ID 字符串 → Long（规格 §6：DTO 全 String，service 层解析）。
+     * Bean Validation 已保证 \d{1,19}，此处为防御：非数字/越界 → 400 VALIDATION_FAILED。
+     */
+    private static Long parseSnowflakeId(String raw, String field) {
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException exception) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_FAILED,
+                    field + " must be a numeric Snowflake ID: " + raw);
+        }
     }
 
     private static void copyContent(CourseVersionEntity source, CourseVersionEntity target) {
