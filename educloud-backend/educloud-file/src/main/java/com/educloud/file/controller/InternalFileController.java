@@ -83,7 +83,8 @@ public class InternalFileController {
             @Valid @RequestBody BindRequest request,
             HttpServletRequest servletRequest) {
         String ownerService = ownerService(servletRequest);
-        bindingService.bind(id, ownerService, request.ownerType(), request.ownerId());
+        bindingService.bind(id, ownerService, request.ownerType(), request.ownerId(),
+                request.uploaderUserId());
         return Map.of("status", "BOUND");
     }
 

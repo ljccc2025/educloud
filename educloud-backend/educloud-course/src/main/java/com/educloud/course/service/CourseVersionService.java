@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 课程不可变版本服务（M05 任务 8）：草稿读/复制/更新，仅 DRAFT 可原地修改。
@@ -30,8 +31,9 @@ import java.util.List;
  * 影响行数 0 → VERSION_NOT_DRAFT 409；复制草稿并发撞 uk_course_version_no 时显式捕获
  * DuplicateKeyException → VERSION_NOT_DRAFT 409，根更新影响行数 0 → VERSION_CONFLICT 409
  * （参照 file FileBindingService 显式 catch 模式）。所有写操作先经
- * {@link TeacherAccessGuard} 归属校验。封面 bind 语义见任务 12，本任务只复制/存储
- * cover_file_id 值。</p>
+ * {@link TeacherAccessGuard} 归属校验。封面集成（任务 12）：PUT 时 coverFileId 变化
+ * 则 bind 新封面（uploaderUserId=当前教师，File 校验上传者属主）/unbind 旧封面；
+ * 复制草稿沿用同一封面（已绑定，无需重复 bind）。</p>
  */
 @Service
 public class CourseVersionService {
@@ -45,16 +47,19 @@ public class CourseVersionService {
     private final CourseVersionMapper versionMapper;
     private final CourseTeacherMapper teacherMapper;
     private final TeacherAccessGuard teacherAccessGuard;
+    private final FileClient fileClient;
 
     public CourseVersionService(
             CourseMapper courseMapper,
             CourseVersionMapper versionMapper,
             CourseTeacherMapper teacherMapper,
-            TeacherAccessGuard teacherAccessGuard) {
+            TeacherAccessGuard teacherAccessGuard,
+            FileClient fileClient) {
         this.courseMapper = courseMapper;
         this.versionMapper = versionMapper;
         this.teacherMapper = teacherMapper;
         this.teacherAccessGuard = teacherAccessGuard;
+        this.fileClient = Objects.requireNonNull(fileClient, "fileClient");
     }
 
     /** 当前草稿（GET /teacher/courses/{id}/draft）：归属校验后返回 course.draft_version_id；无草稿 404。 */
@@ -162,6 +167,19 @@ public class CourseVersionService {
 
         Long categoryId = SnowflakeIds.parse(request.categoryId(), "categoryId");
         Long coverFileId = SnowflakeIds.parse(request.coverFileId(), "coverFileId");
+
+        // 封面集成（任务 12）：coverFileId 变化才调 File bind/unbind。bind 携带当前教师
+        // 作为委托上传者，File 侧校验 file_object.uploader_id（规格 §9 信任边界）；
+        // bind 失败（他人 fileId → 403）在此抛出，整个事务回滚不落脏状态。
+        Long previousCover = version.getCoverFileId();
+        if (!Objects.equals(previousCover, coverFileId)) {
+            if (coverFileId != null) {
+                fileClient.bindCover(version.getCourseId(), coverFileId, teacherId);
+            }
+            if (previousCover != null) {
+                fileClient.unbindCover(version.getCourseId(), previousCover);
+            }
+        }
 
         int affected = versionMapper.update(null, new LambdaUpdateWrapper<CourseVersionEntity>()
                 .eq(CourseVersionEntity::getId, versionId)

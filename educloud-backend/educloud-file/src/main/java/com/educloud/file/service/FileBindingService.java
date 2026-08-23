@@ -48,11 +48,17 @@ public class FileBindingService {
     }
 
     /**
-     * 绑定文件到业务属主：锁根 → 校验存在/AVAILABLE → 查活跃绑定（存在则幂等返回）→
-     * 插入 binding（DuplicateKeyException 兜并发）→ 根 version+1。
+     * 绑定文件到业务属主：锁根 → 校验存在/AVAILABLE → 上传者属主校验 → 查活跃绑定
+     * （存在则幂等返回）→ 插入 binding（DuplicateKeyException 兜并发）→ 根 version+1。
+     *
+     * <p>上传者属主（规格 §9 信任边界，M05 任务 12）：请求带 uploaderUserId（委托上传者，
+     * 课程封面场景属主=课程、上传者=教师）时对照 file_object.uploader_id，不匹配 403；
+     * 非用户类属主必须声明委托上传者（缺失即视为调用方越权 403）；用户类属主维持 M04
+     * 语义（ownerId==uploaderId，uploaderId 为空不阻断）。</p>
      */
     @Transactional
-    public void bind(Long fileId, String ownerService, String ownerType, String ownerId) {
+    public void bind(Long fileId, String ownerService, String ownerType, String ownerId,
+            Long uploaderUserId) {
         FileObjectEntity root = objectMapper.selectByIdForUpdate(fileId);
         if (root == null) {
             throw new FileNotFoundException("文件对象不存在: fileId=" + fileId);
@@ -62,10 +68,21 @@ public class FileBindingService {
                     "文件对象不可绑定: fileId=" + fileId + ", status=" + root.getStatus());
         }
 
-        // 越权防护（M04 验收：他人 fileId 不可访问）：用户类属主绑定时，属主必须是文件上传者；
-        // uploaderId 为空（历史/系统导入文件）不阻断，避免误伤非用户上传场景。
-        if (isUserOwnerType(ownerType) && root.getUploaderId() != null
+        // 委托上传者校验：调用方声明 uploader（教师），对照 file_object.uploader_id。
+        if (uploaderUserId != null) {
+            if (root.getUploaderId() == null || !root.getUploaderId().equals(uploaderUserId)) {
+                throw new FileAccessDeniedException(
+                        "文件非该上传者上传，拒绝绑定: fileId=" + fileId
+                                + ", uploaderUserId=" + uploaderUserId);
+            }
+        } else if (!isUserOwnerType(ownerType)) {
+            // 非用户类属主（COURSE 等）必须声明委托上传者，否则视为调用方越权。
+            throw new FileAccessDeniedException(
+                    "非用户类属主绑定必须声明 uploaderUserId: fileId=" + fileId
+                            + ", ownerType=" + ownerType + ", ownerId=" + ownerId);
+        } else if (root.getUploaderId() != null
                 && !String.valueOf(root.getUploaderId()).equals(ownerId)) {
+            // M04 语义：用户类属主绑定时，属主必须是文件上传者；uploaderId 为空不阻断。
             throw new FileAccessDeniedException(
                     "文件非该属主上传，拒绝绑定: fileId=" + fileId
                             + ", ownerType=" + ownerType + ", ownerId=" + ownerId);

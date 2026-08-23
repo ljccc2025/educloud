@@ -136,7 +136,23 @@ class InternalFileControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("BOUND"));
 
-        verify(bindingService).bind(1001L, "user", "USER_PROFILE", "u-42");
+        verify(bindingService).bind(1001L, "user", "USER_PROFILE", "u-42", null);
+    }
+
+    @Test
+    void courseBindForwardsDelegateUploaderUserId() throws Exception {
+        // M05 任务 12：educloud-course clientId → ownerService=course；
+        // bind 请求透传 uploaderUserId（教师上传者），FileBindingService 据此校验上传者属主。
+        when(jwtDecoder.decode("course-token")).thenReturn(serviceToken("educloud-course"));
+
+        mockMvc.perform(post("/internal/v1/files/1001/bind")
+                        .header("Authorization", "Bearer course-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ownerType\":\"COURSE\",\"ownerId\":\"101\",\"uploaderUserId\":1001}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("BOUND"));
+
+        verify(bindingService).bind(1001L, "course", "COURSE", "101", 1001L);
     }
 
     @Test
@@ -413,7 +429,9 @@ class InternalFileControllerTest {
                     new FileProperties.Cleanup(Duration.ofHours(24), Duration.ofMinutes(15), 50),
                     new FileProperties.StorageTest(1, Duration.ofMinutes(1)),
                     new FileProperties.Internal(
-                            "bootstrap-key", List.of("user-service", "evil-service"), "educloud-file"),
+                            "bootstrap-key",
+                            List.of("user-service", "evil-service", "educloud-course"),
+                            "educloud-file"),
                     new FileProperties.Jwt(
                             "file:/jwks.json", "https://issuer.educloud.local", "educloud-api"),
                     "local");

@@ -67,6 +67,9 @@ class CourseLifecycleServiceTest {
     @Mock
     private CourseEventPublisher eventPublisher;
 
+    @Mock
+    private FileClient fileClient;
+
     // ---------------------------------------------------------------- offline
 
     @Test
@@ -295,7 +298,8 @@ class CourseLifecycleServiceTest {
                 courseTeacherMapper,
                 courseVersionMapper,
                 new TeacherAccessGuard(courseTeacherMapper),
-                eventPublisher);
+                eventPublisher,
+                fileClient);
     }
 
     private void bumpVersionOnRootUpdate() {

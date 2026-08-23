@@ -29,7 +29,8 @@ import java.util.Objects;
  * 有 published_version_id（M05 就绪 gate 恒放行，course_content_readiness_projection
  * 不参与判断）→ PUBLISHED，归档后不可重上架；archive 仅 OFFLINE→ARCHIVED（PUBLISHED
  * 必须先下架）；三操作均须 course_teacher 归属（TeacherAccessGuard）；生命周期非法 →
- * COURSE_STATE_CONFLICT 409。封面 bind 见任务 12（FileClient），本任务只存 cover_file_id 值。</p>
+ * COURSE_STATE_CONFLICT 409。封面集成（任务 12）：建课携带封面时 bind 到 COURSE 属主
+ * （uploaderUserId=当前教师，File 校验上传者属主）。</p>
  */
 @Service
 public class CourseService {
@@ -45,18 +46,21 @@ public class CourseService {
     private final CourseVersionMapper courseVersionMapper;
     private final TeacherAccessGuard teacherAccessGuard;
     private final CourseEventPublisher eventPublisher;
+    private final FileClient fileClient;
 
     public CourseService(
             CourseMapper courseMapper,
             CourseTeacherMapper courseTeacherMapper,
             CourseVersionMapper courseVersionMapper,
             TeacherAccessGuard teacherAccessGuard,
-            CourseEventPublisher eventPublisher) {
+            CourseEventPublisher eventPublisher,
+            FileClient fileClient) {
         this.courseMapper = Objects.requireNonNull(courseMapper, "courseMapper");
         this.courseTeacherMapper = Objects.requireNonNull(courseTeacherMapper, "courseTeacherMapper");
         this.courseVersionMapper = Objects.requireNonNull(courseVersionMapper, "courseVersionMapper");
         this.teacherAccessGuard = Objects.requireNonNull(teacherAccessGuard, "teacherAccessGuard");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
+        this.fileClient = Objects.requireNonNull(fileClient, "fileClient");
     }
 
     /**
@@ -103,6 +107,12 @@ public class CourseService {
         courseVersionMapper.insert(draft);
 
         course.setDraftVersionId(draft.getId());
+
+        // 封面集成（任务 12）：建课携带封面时绑定到 COURSE 属主（上传者=当前教师）；
+        // bind 失败（他人 fileId → 403）在根指针落库前抛出，整个事务回滚不落脏状态。
+        if (draft.getCoverFileId() != null) {
+            fileClient.bindCover(course.getId(), draft.getCoverFileId(), teacherId);
+        }
         courseMapper.updateById(course);
 
         return CourseDraftResponse.from(course, draft,

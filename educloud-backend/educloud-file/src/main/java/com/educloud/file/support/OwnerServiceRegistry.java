@@ -20,6 +20,8 @@ public class OwnerServiceRegistry {
     private final Map<String, String> clientIdToOwnerService = Map.of(
             "user-service", "user",
             "course-service", "course",
+            // M05 任务 12：Course 服务令牌 clientId（educloud.course.file.client-id 默认值）。
+            "educloud-course", "course",
             "content-service", "content",
             "live-service", "live");
 

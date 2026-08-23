@@ -70,6 +70,9 @@ class CourseDraftServiceTest {
     @Mock
     private CourseEventPublisher eventPublisher;
 
+    @Mock
+    private FileClient fileClient;
+
     @Test
     void createCourseInsertsRootOwnerAndFirstDraftInOneTransaction() throws Exception {
         CourseCreateRequest request = new CourseCreateRequest(
@@ -477,12 +480,13 @@ class CourseDraftServiceTest {
                 courseTeacherMapper,
                 courseVersionMapper,
                 new TeacherAccessGuard(courseTeacherMapper),
-                eventPublisher);
+                eventPublisher,
+                fileClient);
     }
 
     private CourseVersionService versionService() {
         return new CourseVersionService(courseMapper, courseVersionMapper, courseTeacherMapper,
-                new TeacherAccessGuard(courseTeacherMapper));
+                new TeacherAccessGuard(courseTeacherMapper), fileClient);
     }
 
     private static CourseDraftUpdateRequest updateRequest() {

@@ -21,6 +21,8 @@ class OwnerServiceRegistryTest {
     void mapsKnownClientIdsToOwnerServices() {
         assertThat(registry.require("user-service")).isEqualTo("user");
         assertThat(registry.require("course-service")).isEqualTo("course");
+        // M05 任务 12：Course 以 educloud-course clientId 申请服务令牌（规格 §10 默认值）。
+        assertThat(registry.require("educloud-course")).isEqualTo("course");
         assertThat(registry.require("content-service")).isEqualTo("content");
         assertThat(registry.require("live-service")).isEqualTo("live");
     }

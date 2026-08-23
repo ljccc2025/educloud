@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -80,9 +81,13 @@ class CourseCatalogServiceTest {
     @Mock
     private CourseTeacherMapper teacherMapper;
 
+    @Mock
+    private FileClient fileClient;
+
     private CourseCatalogService service() {
         return new CourseCatalogService(
-                courseMapper, versionMapper, enrollmentMapper, categoryMapper, teacherMapper);
+                courseMapper, versionMapper, enrollmentMapper, categoryMapper, teacherMapper,
+                fileClient);
     }
 
     // ---------- 列表：过滤/排序/分页 ----------
@@ -424,6 +429,114 @@ class CourseCatalogServiceTest {
         assertThatThrownBy(() -> service().detail(101L, null))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_NOT_FOUND));
+    }
+
+    // ---------- 任务 12：封面 grant ----------
+
+    @Test
+    void listGrantsPublicCatalogCoversOncePerPage() {
+        Page<CourseCatalogRow> result = new Page<>(1, 20);
+        CourseCatalogRow first = row(101L, "A", new BigDecimal("0.00"), 1L, "c", 1);
+        first.setCoverFileId(88L);
+        CourseCatalogRow second = row(102L, "B", new BigDecimal("0.00"), 2L, "c", 2);
+        second.setCoverFileId(99L);
+        result.setRecords(List.of(first, second));
+        result.setTotal(2);
+        when(courseMapper.selectCatalogPage(any(), any(), any(), any(), any(), any())).thenReturn(result);
+        when(fileClient.grantPublicCatalogUrls(Map.of(88L, 101L, 99L, 102L)))
+                .thenReturn(Map.of(88L, "http://bucket/cover-88", 99L, "http://bucket/cover-99"));
+
+        PageResponse<CourseSummaryResponse> response =
+                service().list(new CourseListQuery(null, null, null, null, null, 1, 20), null);
+
+        // 每页至多一次批量 grant（列表两行合并在一次调用）。
+        verify(fileClient).grantPublicCatalogUrls(Map.of(88L, 101L, 99L, 102L));
+        assertThat(response.items().get(0).coverUrl()).isEqualTo("http://bucket/cover-88");
+        assertThat(response.items().get(1).coverUrl()).isEqualTo("http://bucket/cover-99");
+    }
+
+    @Test
+    void listLeavesCoverNullWhenGrantReturnsNoUrl() {
+        Page<CourseCatalogRow> result = new Page<>(1, 20);
+        CourseCatalogRow row = row(101L, "A", new BigDecimal("0.00"), 1L, "c", 1);
+        row.setCoverFileId(88L);
+        result.setRecords(List.of(row));
+        result.setTotal(1);
+        when(courseMapper.selectCatalogPage(any(), any(), any(), any(), any(), any())).thenReturn(result);
+        when(fileClient.grantPublicCatalogUrls(Map.of(88L, 101L))).thenReturn(Map.of());
+
+        PageResponse<CourseSummaryResponse> response =
+                service().list(new CourseListQuery(null, null, null, null, null, 1, 20), null);
+
+        assertThat(response.items().get(0).coverUrl()).isNull();
+    }
+
+    @Test
+    void listSkipsGrantWhenPageHasNoCovers() {
+        Page<CourseCatalogRow> result = new Page<>(1, 20);
+        result.setRecords(List.of(row(101L, "A", new BigDecimal("0.00"), 1L, "c", 1)));
+        result.setTotal(1);
+        when(courseMapper.selectCatalogPage(any(), any(), any(), any(), any(), any())).thenReturn(result);
+
+        PageResponse<CourseSummaryResponse> response =
+                service().list(new CourseListQuery(null, null, null, null, null, 1, 20), null);
+
+        assertThat(response.items().get(0).coverUrl()).isNull();
+        verifyNoInteractions(fileClient);
+    }
+
+    @Test
+    void detailGrantsPublicCatalogForPublishedCover() {
+        CourseEntity course = course(101L, 1001L, "PUBLISHED", 301L, null);
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        CourseVersionEntity version = version(301L, 101L, "PUBLISHED", "高等数学精讲", new BigDecimal("199.00"));
+        version.setCoverFileId(88L);
+        when(versionMapper.selectById(301L)).thenReturn(version);
+        when(categoryMapper.selectById(5L)).thenReturn(category(5L, "数学"));
+        when(teacherMapper.selectList(any())).thenReturn(List.of(teacher(1L, 101L, 1001L, "OWNER")));
+        when(fileClient.grantPublicCatalogUrls(Map.of(88L, 101L)))
+                .thenReturn(Map.of(88L, "http://bucket/cover-88"));
+
+        CourseDetailResponse dto = service().detail(101L, null);
+
+        assertThat(dto.coverUrl()).isEqualTo("http://bucket/cover-88");
+        verify(fileClient).grantPublicCatalogUrls(Map.of(88L, 101L));
+        verify(fileClient, never()).grantCatalogUrls(any(), any());
+    }
+
+    @Test
+    void detailGrantsUserSubjectCatalogForOwnerDraftCover() {
+        // 教师草稿封面：subject=USER + subjectUserId=教师本人（不签发匿名 URL）。
+        CourseEntity course = course(101L, 1001L, "DRAFT", null, 301L);
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        when(teacherMapper.selectCount(any())).thenReturn(1L);
+        CourseVersionEntity version = version(301L, 101L, "DRAFT", "草稿标题", new BigDecimal("0.00"));
+        version.setCoverFileId(88L);
+        when(versionMapper.selectById(301L)).thenReturn(version);
+        when(categoryMapper.selectById(5L)).thenReturn(category(5L, "数学"));
+        when(teacherMapper.selectList(any())).thenReturn(List.of(teacher(1L, 101L, 1001L, "OWNER")));
+        when(fileClient.grantCatalogUrls(Map.of(88L, 101L), 1001L))
+                .thenReturn(Map.of(88L, "http://bucket/draft-cover-88"));
+
+        CourseDetailResponse dto = service().detail(101L, 1001L);
+
+        assertThat(dto.coverUrl()).isEqualTo("http://bucket/draft-cover-88");
+        verify(fileClient).grantCatalogUrls(Map.of(88L, 101L), 1001L);
+        verify(fileClient, never()).grantPublicCatalogUrls(any());
+    }
+
+    @Test
+    void detailNeverGrantsCoverForInvisibleCourse() {
+        // 伪造 courseId 场景：他人草稿/匿名草稿在可见性校验处 404，任何 grant 都不得发出
+        // （不能以伪造 courseId/ownerId 取得草稿/下架课程文件）。
+        CourseEntity course = course(101L, 1001L, "DRAFT", null, 301L);
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        when(teacherMapper.selectCount(any())).thenReturn(0L);
+
+        assertThatThrownBy(() -> service().detail(101L, 2002L))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_NOT_FOUND));
+        verifyNoInteractions(fileClient);
     }
 
     // ---------- helpers ----------

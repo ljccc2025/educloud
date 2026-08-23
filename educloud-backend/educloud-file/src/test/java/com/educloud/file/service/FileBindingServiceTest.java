@@ -71,7 +71,7 @@ class FileBindingServiceTest {
                 .thenReturn(null);
         when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
 
-        service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID);
+        service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, null);
 
         ArgumentCaptor<FileBindingEntity> insertCaptor =
                 ArgumentCaptor.forClass(FileBindingEntity.class);
@@ -105,7 +105,7 @@ class FileBindingServiceTest {
         when(bindingMapper.findActiveByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
                 .thenReturn(active);
 
-        service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID);
+        service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, null);
 
         verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
@@ -116,7 +116,7 @@ class FileBindingServiceTest {
     void bindRejectsWhenFileNotFound() {
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(null);
 
-        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, null))
                 .isInstanceOf(FileNotFoundException.class);
 
         verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
@@ -129,7 +129,7 @@ class FileBindingServiceTest {
         root.setStatus("UPLOADING");
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
 
-        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, null))
                 .isInstanceOf(FileNotAvailableException.class);
 
         verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
@@ -144,7 +144,7 @@ class FileBindingServiceTest {
         root.setUploaderId(7L); // 上传者 7，属主 u-42 非上传者
         when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
 
-        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, null))
                 .isInstanceOf(FileAccessDeniedException.class);
 
         verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
@@ -162,7 +162,7 @@ class FileBindingServiceTest {
                 .thenReturn(null);
         when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
 
-        service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, "42");
+        service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, "42", null);
 
         ArgumentCaptor<FileBindingEntity> insertCaptor =
                 ArgumentCaptor.forClass(FileBindingEntity.class);
@@ -170,6 +170,66 @@ class FileBindingServiceTest {
         assertThat(insertCaptor.getValue().getOwnerId()).isEqualTo("42");
         verify(eventPublisher).fileBound(
                 eq(FILE_ID), eq(OWNER_SERVICE), eq(OWNER_TYPE), eq("42"), eq(2L));
+    }
+
+    @Test
+    void bindWithDelegateUploaderAcceptsMatchingUploaderForNonUserOwnerType() {
+        // M05 任务 12：课程封面委托上传者 —— ownerType=COURSE（属主=课程），uploader=教师。
+        // File 侧以 bind 请求的 uploaderUserId 对照 file_object.uploader_id 校验上传者属主。
+        FileObjectEntity root = availableFile();
+        root.setUploaderId(42L);
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findActiveByOwner(FILE_ID, "course", "COURSE", "101"))
+                .thenReturn(null);
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
+
+        service.bind(FILE_ID, "course", "COURSE", "101", 42L);
+
+        ArgumentCaptor<FileBindingEntity> insertCaptor =
+                ArgumentCaptor.forClass(FileBindingEntity.class);
+        verify(bindingMapper).insert(insertCaptor.capture());
+        assertThat(insertCaptor.getValue().getOwnerId()).isEqualTo("101");
+        verify(eventPublisher).fileBound(
+                eq(FILE_ID), eq("course"), eq("COURSE"), eq("101"), eq(2L));
+    }
+
+    @Test
+    void bindWithDelegateUploaderRejectsMismatchedUploader() {
+        // 伪造封面 fileId 绑定 403：教师 A 绑他人（uploader=7）上传的封面 → 拒绝。
+        FileObjectEntity root = availableFile();
+        root.setUploaderId(7L);
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+
+        assertThatThrownBy(() -> service.bind(FILE_ID, "course", "COURSE", "101", 42L))
+                .isInstanceOf(FileAccessDeniedException.class);
+
+        verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
+        verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+    }
+
+    @Test
+    void bindWithNonUserOwnerTypeRequiresDelegateUploader() {
+        // 非用户类属主（COURSE）绑定必须声明委托上传者；缺省即视为调用方越权 403。
+        FileObjectEntity root = availableFile();
+        root.setUploaderId(42L);
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+
+        assertThatThrownBy(() -> service.bind(FILE_ID, "course", "COURSE", "101", null))
+                .isInstanceOf(FileAccessDeniedException.class);
+
+        verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
+    }
+
+    @Test
+    void bindWithDelegateUploaderRejectsWhenFileHasNoUploader() {
+        FileObjectEntity root = availableFile();
+        root.setUploaderId(null);
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+
+        assertThatThrownBy(() -> service.bind(FILE_ID, "course", "COURSE", "101", 42L))
+                .isInstanceOf(FileAccessDeniedException.class);
+
+        verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
     }
 
     @Test
@@ -214,7 +274,7 @@ class FileBindingServiceTest {
         // 拦截器按旧 version 生成 WHERE 条件，0 行命中即版本冲突（不 mock 则默认返回 0）。
         when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(0);
 
-        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID, null))
                 .isInstanceOf(VersionConflictException.class);
 
         verify(objectMapper).updateById(root);

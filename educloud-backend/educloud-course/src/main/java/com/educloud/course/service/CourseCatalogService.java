@@ -23,7 +23,9 @@ import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.support.SnowflakeIds;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -34,8 +36,9 @@ import java.util.stream.Collectors;
  * <p>列表：SQL 分页（CourseMapper.selectCatalogPage JOIN 查询）+ keyword/categoryId/
  * level/priceRange 过滤 + 排序白名单映射（非法 sort → 400 VALIDATION_FAILED，缺省
  * popular）；enrollment_count/rating 取 course 聚合列；enrolled 用当前 userId 批量
- * IN 查询 course_enrollment（ACTIVE），避免 N+1。coverUrl 恒 null（任务 12 File grant
- * 后填充）；teacherName 以 teacherId 字符串占位（M05 无 user Profile 客户端）。</p>
+ * IN 查询 course_enrollment（ACTIVE），避免 N+1。coverUrl 由 FileClient 批量 grant
+ * 组装（任务 12：已发布课程封面 ANONYMOUS + PUBLIC_CATALOG，每页至多一次；教师草稿
+ * 详情 USER subject）；teacherName 以 teacherId 字符串占位（M05 无 user Profile 客户端）。</p>
  *
  * <p>categoryId 解析沿用 SnowflakeIds.parse（仅数字格式/越界校验），并额外拒绝负数
  * （雪花 ID 为正 63 位；负数查询参数 → 400 VALIDATION_FAILED，与建课侧
@@ -44,7 +47,9 @@ import java.util.stream.Collectors;
  * <p>详情可见性：PUBLISHED 公开；DRAFT/PENDING_REVIEW/OFFLINE 仅归属教师
  * （course_teacher 存在行，OWNER 视角下发 lifecycleStatus）；ARCHIVED 与匿名/越权
  * 请求一律 404 COURSE_NOT_FOUND（规格 §6「他人/未登录看非 PUBLISHED → 404」；
- * OFFLINE 教师可见但列表不出现）。reviews 本任务恒空列表（任务 14 接评价）。</p>
+ * OFFLINE 教师可见但列表不出现）。reviews 本任务恒空列表（任务 14 接评价）。
+ * 封面信任边界（规格 §9）：未通过可见性校验的课程不签封面（不调用 grant），
+ * 不能以伪造 courseId/ownerId 取得草稿/下架课程文件。</p>
  */
 @Service
 public class CourseCatalogService {
@@ -75,18 +80,21 @@ public class CourseCatalogService {
     private final CourseEnrollmentMapper enrollmentMapper;
     private final CourseCategoryMapper categoryMapper;
     private final CourseTeacherMapper teacherMapper;
+    private final FileClient fileClient;
 
     public CourseCatalogService(
             CourseMapper courseMapper,
             CourseVersionMapper versionMapper,
             CourseEnrollmentMapper enrollmentMapper,
             CourseCategoryMapper categoryMapper,
-            CourseTeacherMapper teacherMapper) {
+            CourseTeacherMapper teacherMapper,
+            FileClient fileClient) {
         this.courseMapper = Objects.requireNonNull(courseMapper, "courseMapper");
         this.versionMapper = Objects.requireNonNull(versionMapper, "versionMapper");
         this.enrollmentMapper = Objects.requireNonNull(enrollmentMapper, "enrollmentMapper");
         this.categoryMapper = Objects.requireNonNull(categoryMapper, "categoryMapper");
         this.teacherMapper = Objects.requireNonNull(teacherMapper, "teacherMapper");
+        this.fileClient = Objects.requireNonNull(fileClient, "fileClient");
     }
 
     /** 公开列表（匿名可达）：仅 PUBLISHED；enrolled 需登录态（无 token → false）。 */
@@ -110,10 +118,29 @@ public class CourseCatalogService {
                 ? Set.of()
                 : enrolledCourseIds(rows, currentUserId);
 
+        // 封面 grant（任务 12）：本页全部已发布课程封面一次批量（ANONYMOUS + PUBLIC_CATALOG）；
+        // 无封面或 FileClient no-op 时 coverUrl 恒 null。
+        Map<Long, String> coverUrls = coverUrls(rows);
+
         List<CourseSummaryResponse> items = rows.stream()
-                .map(row -> toSummary(row, enrolledCourseIds.contains(row.getCourseId())))
+                .map(row -> toSummary(row, enrolledCourseIds.contains(row.getCourseId()),
+                        row.getCoverFileId() == null ? null : coverUrls.get(row.getCoverFileId())))
                 .toList();
         return PageResponse.of(items, pageNum, pageSize, pageRequest.getTotal());
+    }
+
+    /** 本页封面 fileId→courseId（ownerId）映射；空/无封面 → 空 Map，不触发 File 调用。 */
+    private Map<Long, String> coverUrls(List<CourseCatalogRow> rows) {
+        Map<Long, Long> ownerCourseIdByFileId = new HashMap<>();
+        for (CourseCatalogRow row : rows) {
+            if (row.getCoverFileId() != null) {
+                ownerCourseIdByFileId.put(row.getCoverFileId(), row.getCourseId());
+            }
+        }
+        if (ownerCourseIdByFileId.isEmpty()) {
+            return Map.of();
+        }
+        return fileClient.grantPublicCatalogUrls(ownerCourseIdByFileId);
     }
 
     /**
@@ -145,7 +172,15 @@ public class CourseCatalogService {
                 new LambdaQueryWrapper<CourseTeacherEntity>()
                         .eq(CourseTeacherEntity::getCourseId, courseId)
                         .orderByAsc(CourseTeacherEntity::getJoinedAt));
-        return toDetail(course, version, category, teachers, isEnrolled(courseId, currentUserId));
+        // 封面 grant（任务 12）：PUBLISHED 公开 → ANONYMOUS；教师可见草稿/下架 → USER subject。
+        String coverUrl = null;
+        if (version.getCoverFileId() != null) {
+            Map<Long, String> urls = publicCourse
+                    ? fileClient.grantPublicCatalogUrls(Map.of(version.getCoverFileId(), courseId))
+                    : fileClient.grantCatalogUrls(Map.of(version.getCoverFileId(), courseId), currentUserId);
+            coverUrl = urls.get(version.getCoverFileId());
+        }
+        return toDetail(course, version, category, teachers, isEnrolled(courseId, currentUserId), coverUrl);
     }
 
     /** 非公开课程：仅归属教师（course_teacher 行存在），否则 404（不暴露存在性）。 */
@@ -187,11 +222,11 @@ public class CourseCatalogService {
         return count != null && count > 0L;
     }
 
-    private static CourseSummaryResponse toSummary(CourseCatalogRow row, boolean enrolled) {
+    private static CourseSummaryResponse toSummary(CourseCatalogRow row, boolean enrolled, String coverUrl) {
         return new CourseSummaryResponse(
                 String.valueOf(row.getCourseId()),
                 row.getTitle(),
-                null,
+                coverUrl,
                 row.getTeacherId() == null ? null : String.valueOf(row.getTeacherId()),
                 row.getCategoryName(),
                 row.getLevel(),
@@ -207,7 +242,8 @@ public class CourseCatalogService {
             CourseVersionEntity version,
             CourseCategoryEntity category,
             List<CourseTeacherEntity> teachers,
-            boolean enrolled) {
+            boolean enrolled,
+            String coverUrl) {
         List<CourseDetailResponse.Teacher> teacherItems = teachers.stream()
                 .map(teacher -> new CourseDetailResponse.Teacher(
                         String.valueOf(teacher.getTeacherId()), teacher.getTeacherRole()))
@@ -217,7 +253,7 @@ public class CourseCatalogService {
                 version.getTitle(),
                 version.getSubtitle(),
                 version.getDescription(),
-                null,
+                coverUrl,
                 version.getLevel(),
                 version.getPrice() == null ? null : version.getPrice().toPlainString(),
                 version.getCurrency(),

@@ -48,6 +48,11 @@ educloud:
       client-id: ${EDUCLOUD_COURSE_FILE_CLIENT_ID:educloud-course}
       client-secret: ${EDUCLOUD_COURSE_FILE_CLIENT_SECRET:}
       enabled: ${EDUCLOUD_COURSE_FILE_ENABLED:true}
+      # M05 任务 0 质量审查：补 timeout 默认值（FileClient/ServiceTokenService 连接与读超时）。
+      timeout: ${EDUCLOUD_COURSE_FILE_TIMEOUT:3s}
+      # M03 规格 §8：User 服务令牌端点（POST /internal/v1/service-tokens），Course 以
+      # HTTP Basic client_credentials 换取 aud=educloud-file 服务令牌。
+      token-endpoint: ${EDUCLOUD_COURSE_USER_TOKEN_ENDPOINT:http://127.0.0.1:8082}
     jwt:
       # User 公钥 JWKS（用户令牌验签），任务 6 的 JwtDecoderConfiguration 消费。
       # 无默认（与 file FILE_JWKS_LOCATION / user 空默认同基线）：未配置即启动 fail-fast，
