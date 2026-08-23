@@ -144,4 +144,44 @@ public interface CourseMapper extends BaseMapper<CourseEntity> {
     IPage<CourseTeacherRow> selectTeacherCoursesPage(
             Page<CourseTeacherRow> page,
             @Param("teacherId") Long teacherId);
+
+    /**
+     * 管理端全状态课程列表分页（GET /api/v1/admin/courses，course:audit，M05 任务 23）：
+     * 不按教师归属过滤，返回全部生命周期（DRAFT/PENDING_REVIEW/PUBLISHED/OFFLINE/
+     * ARCHIVED）的课程。当前工作版本由 COALESCE(draft_version_id, published_version_id,
+     * 最新版本) 驱动（与教师列表同投影）；lifecycleStatus 可选过滤（管理页「课程管理」
+     * 已发布/已下架/已归档 tab）。按 updated_at 倒序（附 id 稳定次序）。SQL 分页由
+     * PaginationInnerInterceptor 处理。
+     */
+    @Select("""
+            <script>
+            SELECT c.id AS course_id,
+                   COALESCE(c.draft_version_id, c.published_version_id) AS version_id,
+                   v.version_no AS version_no,
+                   c.lifecycle_status AS lifecycle_status,
+                   c.enrollment_count AS enrollment_count,
+                   v.title AS title,
+                   v.cover_file_id AS cover_file_id,
+                   v.level AS level,
+                   v.price AS price,
+                   v.currency AS currency,
+                   v.category_id AS category_id,
+                   v.version_status AS version_status
+            FROM course c
+            LEFT JOIN course_version v ON v.id = COALESCE(
+                   c.draft_version_id,
+                   c.published_version_id,
+                   (SELECT cv.id FROM course_version cv
+                    WHERE cv.course_id = c.id ORDER BY cv.version_no DESC, cv.id DESC LIMIT 1))
+            <where>
+              <if test="lifecycleStatus != null and lifecycleStatus != ''">
+                AND c.lifecycle_status = #{lifecycleStatus}
+              </if>
+            </where>
+            ORDER BY c.updated_at DESC, c.id DESC
+            </script>
+            """)
+    IPage<AdminCourseRow> selectAdminCoursesPage(
+            Page<AdminCourseRow> page,
+            @Param("lifecycleStatus") String lifecycleStatus);
 }

@@ -56,7 +56,7 @@ spring:
           uri: lb://educloud-course
           order: 70
           predicates:
-            - Path=/api/v1/categories/**,/api/v1/course-drafts/**,/api/v1/course-audits/**,/api/v1/courses/**,/api/v1/course-reviews/**,/api/v1/teacher/courses,/api/v1/teacher/courses/*/draft
+            - Path=/api/v1/categories/**,/api/v1/course-drafts/**,/api/v1/course-audits/**,/api/v1/courses/**,/api/v1/course-reviews/**,/api/v1/admin/courses,/api/v1/teacher/courses,/api/v1/teacher/courses/*/draft
         - id: order-core
           uri: lb://educloud-order
           order: 80

@@ -6,12 +6,14 @@ import com.educloud.common.api.PageResponse;
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
 import com.educloud.course.dto.request.CourseCreateRequest;
+import com.educloud.course.dto.response.AdminCourseResponse;
 import com.educloud.course.dto.response.CourseDraftResponse;
 import com.educloud.course.dto.response.TeacherCourseResponse;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.exception.CourseErrorCode;
+import com.educloud.course.mapper.AdminCourseRow;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseTeacherRow;
@@ -188,6 +190,48 @@ public class CourseService {
     }
 
     /**
+     * 管理端全状态课程列表（GET /api/v1/admin/courses，course:audit，M05 任务 23）：
+     * 返回全部生命周期课程的当前工作版本投影分页（管理缺口补齐，参照任务 22 教师列表
+     * 先例）。lifecycleStatus 可选过滤（管理页「课程管理」已发布/已下架/已归档 tab）；
+     * 封面按页一次 File 批量 grant（subject=USER 当前管理员，不签匿名公开 URL）。
+     */
+    public PageResponse<AdminCourseResponse> listAdminCourses(
+            Long adminId, Integer page, Integer pageSize, String lifecycleStatus) {
+        int pageNum = page == null ? DEFAULT_PAGE : Math.max(page, 1);
+        int sizeNum = pageSize == null ? DEFAULT_SIZE : Math.min(Math.max(pageSize, 1), MAX_SIZE);
+        Page<AdminCourseRow> request = new Page<>(pageNum, sizeNum);
+        IPage<AdminCourseRow> result = courseMapper.selectAdminCoursesPage(request, lifecycleStatus);
+        List<AdminCourseRow> rows = result.getRecords();
+
+        Map<Long, Long> courseIdByFileId = new HashMap<>();
+        for (AdminCourseRow row : rows) {
+            if (row.getCoverFileId() != null) {
+                courseIdByFileId.put(row.getCoverFileId(), row.getCourseId());
+            }
+        }
+        Map<Long, String> coverUrls = courseIdByFileId.isEmpty()
+                ? Map.of()
+                : fileClient.grantCatalogUrls(courseIdByFileId, adminId);
+
+        List<AdminCourseResponse> items = rows.stream()
+                .map(row -> new AdminCourseResponse(
+                        String.valueOf(row.getCourseId()),
+                        row.getVersionId() == null ? null : String.valueOf(row.getVersionId()),
+                        row.getVersionNo(),
+                        row.getTitle(),
+                        row.getCoverFileId() == null ? null : coverUrls.get(row.getCoverFileId()),
+                        row.getLevel(),
+                        row.getPrice() == null ? null : row.getPrice().toPlainString(),
+                        row.getCurrency(),
+                        row.getCategoryId() == null ? null : String.valueOf(row.getCategoryId()),
+                        row.getVersionStatus(),
+                        row.getLifecycleStatus(),
+                        row.getEnrollmentCount()))
+                .toList();
+        return PageResponse.of(items, pageNum, sizeNum, result.getTotal());
+    }
+
+    /**
      * 下架（POST /courses/{id}/offline，course:offline）：锁根 → 归属校验 →
      * 仅 PUBLISHED → lifecycle=OFFLINE → outbox CourseOfflined，同一事务。
      * 发布版本保持 PUBLISHED 不变（重上架直接复用），非法生命周期 → 409 COURSE_STATE_CONFLICT。
@@ -195,7 +239,7 @@ public class CourseService {
     @Transactional
     public void offline(Long courseId, Long teacherId, Set<String> roles) {
         CourseEntity course = requireCourseForUpdate(courseId);
-        teacherAccessGuard.requireAccess(course.getId(), teacherId);
+        teacherAccessGuard.requireAccess(course.getId(), teacherId, roles);
         if (!LIFECYCLE_PUBLISHED.equals(course.getLifecycleStatus())) {
             throw new BusinessException(CourseErrorCode.COURSE_STATE_CONFLICT,
                     "Only a published course can be taken offline: " + courseId);
@@ -223,7 +267,7 @@ public class CourseService {
     @Transactional
     public void republish(Long courseId, Long teacherId, Set<String> roles) {
         CourseEntity course = requireCourseForUpdate(courseId);
-        teacherAccessGuard.requireAccess(course.getId(), teacherId);
+        teacherAccessGuard.requireAccess(course.getId(), teacherId, roles);
         if (!LIFECYCLE_OFFLINE.equals(course.getLifecycleStatus())) {
             throw new BusinessException(CourseErrorCode.COURSE_STATE_CONFLICT,
                     "Only an offline course can be republished (archived courses cannot be resold): " + courseId);
@@ -249,7 +293,7 @@ public class CourseService {
     @Transactional
     public void archive(Long courseId, Long teacherId, Set<String> roles) {
         CourseEntity course = requireCourseForUpdate(courseId);
-        teacherAccessGuard.requireAccess(course.getId(), teacherId);
+        teacherAccessGuard.requireAccess(course.getId(), teacherId, roles);
         if (!LIFECYCLE_OFFLINE.equals(course.getLifecycleStatus())) {
             throw new BusinessException(CourseErrorCode.COURSE_STATE_CONFLICT,
                     "Only an offline course can be archived (published courses must be taken offline first): " + courseId);

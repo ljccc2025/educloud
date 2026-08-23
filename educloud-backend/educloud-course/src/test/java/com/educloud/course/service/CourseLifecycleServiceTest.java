@@ -113,6 +113,20 @@ class CourseLifecycleServiceTest {
     }
 
     @Test
+    void offlineAllowsAdminWithoutOwnership() throws Exception {
+        // M05 任务 23：管理角色（SYSTEM_ADMIN/SUPER_ADMIN，V004 全 course:* 权限）
+        // 不要求 course_teacher 归属——管理端可下架任意教师课程。
+        CourseEntity course = course(101L, 2002L, 301L, "PUBLISHED", 7L);
+        when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
+        bumpVersionOnRootUpdate();
+
+        service().offline(101L, 1001L, Set.of("SYSTEM_ADMIN"));
+
+        verify(courseTeacherMapper, never()).selectCount(any());
+        verify(courseMapper).updateById(any(CourseEntity.class));
+    }
+
+    @Test
     void offlineRejectsNonPublishedWith409() {
         CourseEntity course = course(101L, 1001L, 301L, "DRAFT", 3L);
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);

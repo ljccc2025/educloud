@@ -12,9 +12,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Set;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,6 +57,25 @@ class TeacherAccessGuardTest {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(403);
                 });
+    }
+
+    @Test
+    void adminRolesBypassOwnershipCheck() {
+        // M05 任务 23：SYSTEM_ADMIN/SUPER_ADMIN 经 course:* 权限码门禁，服务内
+        // 不要求 course_teacher 归属（管理端可对任意课程执行生命周期操作）。
+        guard().requireAccess(102L, 1001L, Set.of("SYSTEM_ADMIN"));
+        guard().requireAccess(102L, 1001L, Set.of("SUPER_ADMIN", "TEACHER"));
+
+        verify(courseTeacherMapper, never()).selectCount(any());
+    }
+
+    @Test
+    void nonAdminRolesStillRequireOwnership() {
+        when(courseTeacherMapper.selectCount(any())).thenReturn(0L);
+
+        assertThatThrownBy(() -> guard().requireAccess(102L, 1001L, Set.of("TEACHER")))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED));
     }
 
     @Test

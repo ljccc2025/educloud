@@ -107,7 +107,8 @@ class GatewayRouteContractTest {
         assertThat(pathArguments(route("course-core"))).containsExactly(
                 "/api/v1/categories/**", "/api/v1/course-drafts/**", "/api/v1/course-audits/**",
                 "/api/v1/courses/**", "/api/v1/course-reviews/**",
-                "/api/v1/teacher/courses", "/api/v1/teacher/courses/*/draft");
+                "/api/v1/admin/courses", "/api/v1/teacher/courses",
+                "/api/v1/teacher/courses/*/draft");
         assertThat(pathArguments(route("order-core"))).containsExactly(
                 "/api/v1/cart/**", "/api/v1/orders/**", "/api/v1/refund-requests/**");
         assertThat(pathArguments(route("payment-core"))).containsExactly(
@@ -135,7 +136,11 @@ class GatewayRouteContractTest {
         assertThat(RouteGroups.forPath(
                 org.springframework.http.server.PathContainer.parsePath("/api/v1/teacher/courses")))
                 .isEqualTo(RouteGroups.COURSE);
+        assertThat(RouteGroups.forPath(
+                org.springframework.http.server.PathContainer.parsePath("/api/v1/admin/courses")))
+                .isEqualTo(RouteGroups.COURSE);
         assertThat(pathArguments(route("course-core"))).contains("/api/v1/course-reviews/**");
+        assertThat(pathArguments(route("course-core"))).contains("/api/v1/admin/courses");
     }
 
     private static RouteDefinition route(String id) {

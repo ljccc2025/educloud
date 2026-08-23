@@ -178,3 +178,74 @@ export interface PaginatedResponse<T> {
   page: number;
   pageSize: number;
 }
+
+// ---------- 课程审核 / 管理真实 API 类型（M05 任务 23） ----------
+// 契约见后端 CourseAuditResponse/AdminCourseResponse：Snowflake ID 一律 string，
+// 前端禁止 Number() 处理 id；price 为十进制金额字符串（"0" 表示免费）。
+
+export type CourseVersionStatus =
+  | 'DRAFT'
+  | 'PENDING_REVIEW'
+  | 'REJECTED'
+  | 'WITHDRAWN'
+  | 'PUBLISHED'
+  | 'SUPERSEDED';
+
+export type CourseLifecycleStatus =
+  | 'DRAFT'
+  | 'PENDING_REVIEW'
+  | 'PUBLISHED'
+  | 'OFFLINE'
+  | 'ARCHIVED';
+
+export type AuditSubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+
+/** 课程审核快照（GET /course-audits 列表 / {id} 详情 / approve / reject 共用）。 */
+export interface CourseAuditItem {
+  auditId: string;
+  courseId: string;
+  versionId: string;
+  versionNo: number | null;
+  title: string | null;
+  subtitle: string | null;
+  description: string | null;
+  coverFileId: string | null;
+  level: string | null;
+  price: string | null;
+  currency: string | null;
+  categoryId: string | null;
+  versionStatus: string;
+  lifecycleStatus: string;
+  submissionStatus: AuditSubmissionStatus;
+  submittedBy: string;
+  submittedAt: string;
+  withdrawnAt: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reason: string | null;
+}
+
+/** 管理端课程管理列表项（GET /admin/courses，全生命周期分页）。 */
+export interface AdminCourse {
+  courseId: string;
+  versionId: string | null;
+  versionNo: number | null;
+  title: string | null;
+  coverUrl: string | null;
+  level: string | null;
+  price: string | null;
+  currency: string | null;
+  categoryId: string | null;
+  versionStatus: string;
+  lifecycleStatus: CourseLifecycleStatus;
+  enrollmentCount: number;
+}
+
+/** 真实 API 分页响应（items 形状，对齐后端 PageResponse；与上方 mock 形状并存）。 */
+export interface PageResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
