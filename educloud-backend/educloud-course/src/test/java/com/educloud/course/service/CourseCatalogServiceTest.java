@@ -201,6 +201,40 @@ class CourseCatalogServiceTest {
         assertThat(response.totalPages()).isEqualTo(2);
     }
 
+    @Test
+    void listClampsPageAndSizeBelowOne() {
+        when(courseMapper.selectCatalogPage(any(), any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    @SuppressWarnings("unchecked")
+                    Page<CourseCatalogRow> page = invocation.getArgument(0);
+                    page.setRecords(List.of());
+                    page.setTotal(0);
+                    return page;
+                });
+
+        // page=-3 → 1、size=-1 → 1（负分页参数钳制，与 size 上限 100 对称）。
+        PageResponse<CourseSummaryResponse> response = service().list(
+                new CourseListQuery(null, null, null, null, null, -3, -1), null);
+
+        assertThat(response.page()).isEqualTo(1);
+        assertThat(response.pageSize()).isEqualTo(1);
+        assertThat(response.total()).isZero();
+        assertThat(response.totalPages()).isZero();
+    }
+
+    @Test
+    void listRejectsNegativeCategoryIdWith400() {
+        // SnowflakeIds.parse 只校验格式（"-5" 可解析为 -5L），目录服务显式拒绝负数
+        // （雪花 ID 为正 63 位），与建课侧 @Pattern("\\d{1,19}") 语义对齐。
+        assertThatThrownBy(() -> service().list(
+                new CourseListQuery(null, "-5", null, null, null, 1, 20), null))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.errorCode()).isEqualTo(CommonErrorCode.VALIDATION_FAILED);
+                    assertThat(exception.errorCode().httpStatus()).isEqualTo(400);
+                });
+        verify(courseMapper, never()).selectCatalogPage(any(), any(), any(), any(), any(), any());
+    }
+
     // ---------- 列表：enrolled 标记 ----------
 
     @Test

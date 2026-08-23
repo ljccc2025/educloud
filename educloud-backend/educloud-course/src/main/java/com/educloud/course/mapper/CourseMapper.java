@@ -25,6 +25,7 @@ public interface CourseMapper extends BaseMapper<CourseEntity> {
      * PUBLISHED；SQL 分页由 PaginationInnerInterceptor 处理（jsqlparser 已配）。
      *
      * <p>过滤/排序契约（规格 §6，服务层已校验白名单后原样转发）：
+     * 分类仅 JOIN status=VISIBLE（隐藏分类下的已发布课程不出现，与任务 7 分类可见性对齐）；
      * keyword 匹配 title/subtitle/description（COALESCE 防空）；priceRange 语义
      * free=price 0、under200=(0,200)、200to400=[200,400]、above400=&gt;400；sort 白名单
      * popular→enrollment_count DESC、newest→published_at DESC、price-asc/price-desc→
@@ -49,7 +50,7 @@ public interface CourseMapper extends BaseMapper<CourseEntity> {
                    t.teacher_id AS teacher_id
             FROM course c
             JOIN course_version v ON v.id = c.published_version_id
-            JOIN course_category cat ON cat.id = v.category_id
+            JOIN course_category cat ON cat.id = v.category_id AND cat.status = 'VISIBLE'
             JOIN course_teacher t ON t.course_id = c.id AND t.teacher_role = 'OWNER'
             WHERE c.lifecycle_status = 'PUBLISHED'
             <if test="keyword != null and keyword != ''">

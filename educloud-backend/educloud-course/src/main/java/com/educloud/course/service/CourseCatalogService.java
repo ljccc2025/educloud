@@ -37,6 +37,10 @@ import java.util.stream.Collectors;
  * IN 查询 course_enrollment（ACTIVE），避免 N+1。coverUrl 恒 null（任务 12 File grant
  * 后填充）；teacherName 以 teacherId 字符串占位（M05 无 user Profile 客户端）。</p>
  *
+ * <p>categoryId 解析沿用 SnowflakeIds.parse（仅数字格式/越界校验），并额外拒绝负数
+ * （雪花 ID 为正 63 位；负数查询参数 → 400 VALIDATION_FAILED，与建课侧
+ * @Pattern("\\d{1,19}") 语义对齐）。</p>
+ *
  * <p>详情可见性：PUBLISHED 公开；DRAFT/PENDING_REVIEW/OFFLINE 仅归属教师
  * （course_teacher 存在行，OWNER 视角下发 lifecycleStatus）；ARCHIVED 与匿名/越权
  * 请求一律 404 COURSE_NOT_FOUND（规格 §6「他人/未登录看非 PUBLISHED → 404」；
@@ -90,7 +94,7 @@ public class CourseCatalogService {
         Objects.requireNonNull(query, "query");
         String sort = normalizeSort(query.sort());
         String priceRange = normalizePriceRange(query.priceRange());
-        Long categoryId = SnowflakeIds.parse(query.categoryId(), "categoryId");
+        Long categoryId = requireNonNegative(SnowflakeIds.parse(query.categoryId(), "categoryId"));
         String keyword = trimToNull(query.keyword());
         String level = trimToNull(query.level());
         int pageNum = query.page() == null ? DEFAULT_PAGE : Math.max(query.page(), 1);
@@ -251,6 +255,15 @@ public class CourseCatalogService {
                             + ": " + priceRange);
         }
         return priceRange;
+    }
+
+    /** categoryId 负数拒绝：SnowflakeIds.parse 只校验格式，负数在此显式 400。 */
+    private static Long requireNonNegative(Long categoryId) {
+        if (categoryId != null && categoryId < 0L) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_FAILED,
+                    "categoryId must not be negative: " + categoryId);
+        }
+        return categoryId;
     }
 
     private static String trimToNull(String value) {
