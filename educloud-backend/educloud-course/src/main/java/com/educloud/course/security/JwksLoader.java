@@ -28,9 +28,10 @@ import java.util.Set;
  * 静态加载 User 公钥 JWKS（复制 gateway/file JwksLoader 适配 Course）。
  *
  * <p>来源：{@code educloud.course.jwt.jwks-location}，支持 `classpath:` 与 `file:`
- * 前缀（裸路径按本地文件处理）。生产由 env 注入 `COURSE_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json`；
- * 本地/测试默认 `classpath:jwks-test.json`。只接受 RSA 公钥（use=sig、alg=RS256、
- * 非空 kid、无重复 kid、无私钥参数），任一违规直接启动失败（fail-fast）。</p>
+ * 前缀（裸路径按本地文件处理）。未配置即启动失败（fail-fast），生产/联调由 env 注入
+ * `COURSE_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json`（与 application.yml 注释对齐）。
+ * 只接受 RSA 公钥（use=sig、alg=RS256、非空 kid、无重复 kid、无私钥参数），任一违规
+ * 直接启动失败（fail-fast）。</p>
  */
 public final class JwksLoader {
 

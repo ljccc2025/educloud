@@ -158,7 +158,7 @@ educloud-frontend/admin-portal/...             # 阶段 3 联调
 - 创建：\`config/SecurityConfig.java\`（JWKS 加载 \`file:/tmp/educloud-live/jwks.json\`、issuer/audience env；\`/actuator/health/**\` 匿名、\`/internal/v1/**\` 走 InternalApiFilter、其余需要认证；权限码映射 \`course:create\` 等 9 个）
 - 创建：\`config/InternalApiFilter.java\`（复刻 file 版：校验 aud=educloud-course 服务令牌 + clientId 白名单）
 - 创建：\`security/JwtSecurityUtils.java\`（subject=userId 解析、permissions 提取）
-- 测试：\`security/SecurityConfigTest.java\`（无 token 401、错误 aud 403、\`course:audit\` 权限拒绝/通过）
+- 测试：\`security/SecurityConfigTest.java\`（无 token 401、错误 aud 401（Resource Server 层，与 file/gateway 契约一致；服务令牌 aud 不符在 InternalApiFilter 层为 403）、\`course:audit\` 权限拒绝/通过）
 
 - [ ] **步骤 1：写失败测试**
 - [ ] **步骤 2：运行确认失败**
