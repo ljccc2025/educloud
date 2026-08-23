@@ -152,7 +152,7 @@ class CourseAuditPublishIT {
             statement.execute("DELETE FROM course_teacher");
             statement.execute("DELETE FROM course");
             statement.execute("DELETE FROM outbox_event");
-            statement.execute("UPDATE outbox_sequence SET last_value = 0 WHERE source_name = 'educloud-course'");
+            statement.execute("UPDATE outbox_sequence SET `last_value` = 0 WHERE source_name = 'educloud-course'");
         }
     }
 
