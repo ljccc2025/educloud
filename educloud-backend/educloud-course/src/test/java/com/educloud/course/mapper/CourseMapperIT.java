@@ -1,6 +1,7 @@
 package com.educloud.course.mapper;
 
 import com.baomidou.mybatisplus.annotation.DbType;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
@@ -11,8 +12,10 @@ import com.educloud.course.testcontainers.TestContainerImages;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
-import org.junit.jupiter.api.AfterAll;
+import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
@@ -27,6 +30,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,7 +40,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>以独立 SqlSessionFactory（MyBatis-Plus + 分页/乐观锁拦截器）驱动真实
  * BaseMapper CRUD：course insert→selectById 往返断言（含 DATETIME(3) 毫秒），
  * 乐观锁 update 后 version 由拦截器自动回写递增（测试代码不手动 +1），
- * 携带旧 version 的并发写返回 0 行；course_enrollment 同样验证版本回写。</p>
+ * 携带旧 version 的并发写返回 0 行；course_enrollment 同样验证版本回写。
+ *
+ * <p>质量审查修订：每个测试用 @BeforeEach 打开 SqlSession、@AfterEach close
+ * （未提交事务随 close 回滚），消除单长事务贯穿与测试间数据污染；
+ * SqlSessionFactory 注册全部 8 个 Mapper 并有注册/可用性断言。</p>
  */
 @Testcontainers
 class CourseMapperIT {
@@ -49,9 +57,11 @@ class CourseMapperIT {
             .withUsername("root")
             .withPassword("root-test-password");
 
-    private static SqlSession sqlSession;
-    private static CourseMapper courseMapper;
-    private static CourseEnrollmentMapper enrollmentMapper;
+    private static SqlSessionFactory sqlSessionFactory;
+
+    private SqlSession sqlSession;
+    private CourseMapper courseMapper;
+    private CourseEnrollmentMapper enrollmentMapper;
 
     @BeforeAll
     static void setUp() throws Exception {
@@ -80,6 +90,10 @@ class CourseMapperIT {
 
         MybatisSqlSessionFactoryBean factoryBean = new MybatisSqlSessionFactoryBean();
         factoryBean.setDataSource(dataSource);
+        // 必须用 JdbcTransactionFactory：MybatisSqlSessionFactoryBean 默认
+        // SpringManagedTransactionFactory 在无 Spring 事务时不动 connection autoCommit
+        // （MySQL 默认 true），导致每个语句隐式提交、close/rollback 无法回滚。
+        factoryBean.setTransactionFactory(new JdbcTransactionFactory());
         com.baomidou.mybatisplus.core.MybatisConfiguration configuration =
                 new com.baomidou.mybatisplus.core.MybatisConfiguration();
         configuration.setMapUnderscoreToCamelCase(true);
@@ -90,20 +104,40 @@ class CourseMapperIT {
         interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
         factoryBean.setPlugins(interceptor);
 
-        SqlSessionFactory sqlSessionFactory = factoryBean.getObject();
-        sqlSessionFactory.getConfiguration().addMapper(CourseMapper.class);
-        sqlSessionFactory.getConfiguration().addMapper(CourseEnrollmentMapper.class);
+        sqlSessionFactory = factoryBean.getObject();
+        // 注册全部 8 个 Mapper：消除"能编译但从未注册"隐患。
+        for (Class<?> mapperType : allMapperTypes()) {
+            sqlSessionFactory.getConfiguration().addMapper(mapperType);
+        }
+    }
 
+    @BeforeEach
+    void openSession() {
         sqlSession = sqlSessionFactory.openSession();
         courseMapper = sqlSession.getMapper(CourseMapper.class);
         enrollmentMapper = sqlSession.getMapper(CourseEnrollmentMapper.class);
     }
 
-    @AfterAll
-    static void tearDown() {
+    @AfterEach
+    void closeSession() {
         if (sqlSession != null) {
+            // PooledDataSource 复用底层连接：显式 rollback(true) 保证未提交事务终止，
+            // 避免连接归还连接池后残留事务污染下一个测试（close 本身不可依赖）。
+            sqlSession.rollback(true);
             sqlSession.close();
         }
+    }
+
+    @Test
+    void allEightMappersAreRegisteredAndUsable() {
+        for (Class<?> mapperType : allMapperTypes()) {
+            assertThat(sqlSession.getMapper(mapperType))
+                    .as("%s must be registered on the SqlSessionFactory", mapperType.getSimpleName())
+                    .isNotNull();
+        }
+        // 空表冒烟：CRUD 入口可用且查询可执行（每测试独立 session，关闭即回滚）
+        assertThat(courseMapper.selectCount(new QueryWrapper<>())).isZero();
+        assertThat(enrollmentMapper.selectCount(new QueryWrapper<>())).isZero();
     }
 
     @Test
@@ -203,6 +237,18 @@ class CourseMapperIT {
         enrollment.setStatus("ACTIVE");
         enrollment.setEnrolledAt(LocalDateTime.of(2026, 8, 23, 9, 0, 0, 789_000_000));
         return enrollment;
+    }
+
+    private static List<Class<?>> allMapperTypes() {
+        return List.of(
+                CourseMapper.class,
+                CourseVersionMapper.class,
+                CourseCategoryMapper.class,
+                CourseTeacherMapper.class,
+                CourseAuditSubmissionMapper.class,
+                CourseEnrollmentMapper.class,
+                CourseContentReadinessProjectionMapper.class,
+                CourseReviewMapper.class);
     }
 
     private static Path migrationDirectory() {

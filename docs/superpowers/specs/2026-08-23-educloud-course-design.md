@@ -210,6 +210,7 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 | EnrollmentRevoked | 状态与事件预留，无触发路径 | M07 订单退款接入 |
 | 审核中间态 | 不保留 APPROVED | 审核通过与发布同一本地事务 |
 | 分类管理 | 种子 + 数据库维护 | 管理 API 归 M12 运营面 |
+| 时间字段类型 | LocalDateTime（对齐 DATETIME(3) 本地时间语义） | file 模块实体用 Instant 为既有差异；Course 模块统一 LocalDateTime |
 
 ## 16. 参考文档
 

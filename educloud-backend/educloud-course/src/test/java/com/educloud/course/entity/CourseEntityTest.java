@@ -10,7 +10,7 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,25 +18,35 @@ import static org.assertj.core.api.Assertions.assertThat;
  * M05 任务 4 的实体契约测试：8 个实体的表名与 V001__course.sql 对齐、
  * 主键均为 ASSIGN_ID（雪花 ID 由 MyBatis-Plus 分配，DB 无自增）、
  * 乐观锁 @Version 仅出现在 course 与 course_enrollment。
+ *
+ * <p>质量审查修订：三个契约断言共用单一 {@link #ENTITY_TABLE_NAMES} 常量
+ * （Map&lt;Class&lt;?&gt;, String&gt; 表名映射），消除多处硬编码列表漂移。</p>
  */
 class CourseEntityTest {
 
+    /** V001__course.sql 表名映射：三个契约断言共用同一事实来源。 */
+    private static final Map<Class<?>, String> ENTITY_TABLE_NAMES = Map.of(
+            CourseEntity.class, "course",
+            CourseVersionEntity.class, "course_version",
+            CourseCategoryEntity.class, "course_category",
+            CourseTeacherEntity.class, "course_teacher",
+            CourseAuditSubmissionEntity.class, "course_audit_submission",
+            CourseEnrollmentEntity.class, "course_enrollment",
+            CourseContentReadinessProjectionEntity.class, "course_content_readiness_projection",
+            CourseReviewEntity.class, "course_review");
+
     @Test
     void allEightEntitiesMapToV001TableNames() {
-        assertThat(tableName(CourseEntity.class)).isEqualTo("course");
-        assertThat(tableName(CourseVersionEntity.class)).isEqualTo("course_version");
-        assertThat(tableName(CourseCategoryEntity.class)).isEqualTo("course_category");
-        assertThat(tableName(CourseTeacherEntity.class)).isEqualTo("course_teacher");
-        assertThat(tableName(CourseAuditSubmissionEntity.class)).isEqualTo("course_audit_submission");
-        assertThat(tableName(CourseEnrollmentEntity.class)).isEqualTo("course_enrollment");
-        assertThat(tableName(CourseContentReadinessProjectionEntity.class))
-                .isEqualTo("course_content_readiness_projection");
-        assertThat(tableName(CourseReviewEntity.class)).isEqualTo("course_review");
+        assertThat(ENTITY_TABLE_NAMES).hasSize(8);
+        ENTITY_TABLE_NAMES.forEach((type, expected) ->
+                assertThat(tableName(type))
+                        .as("%s table name must match V001__course.sql", type.getSimpleName())
+                        .isEqualTo(expected));
     }
 
     @Test
     void allEntitiesUseAssignedSnowflakeId() throws Exception {
-        for (Class<?> type : allEntities()) {
+        for (Class<?> type : ENTITY_TABLE_NAMES.keySet()) {
             TableId tableId = type.getDeclaredField("id").getAnnotation(TableId.class);
             assertThat(tableId)
                     .as("%s.id must declare @TableId", type.getSimpleName())
@@ -49,24 +59,18 @@ class CourseEntityTest {
 
     @Test
     void onlyCourseAndEnrollmentCarryOptimisticLockVersion() throws Exception {
-        assertThat(CourseEntity.class.getDeclaredField("version").getAnnotation(Version.class))
-                .as("course.version is the aggregate-root optimistic lock")
-                .isNotNull();
-        assertThat(CourseEnrollmentEntity.class.getDeclaredField("version").getAnnotation(Version.class))
-                .as("course_enrollment.version is the enrollment optimistic lock")
-                .isNotNull();
-
-        // 其余 6 张表在 V001 中没有 version 列：不得声明 version 字段。
-        for (Class<?> type : List.of(
-                CourseVersionEntity.class,
-                CourseCategoryEntity.class,
-                CourseTeacherEntity.class,
-                CourseAuditSubmissionEntity.class,
-                CourseContentReadinessProjectionEntity.class,
-                CourseReviewEntity.class)) {
-            assertThat(hasField(type, "version"))
-                    .as("%s must not declare a version column", type.getSimpleName())
-                    .isFalse();
+        for (Map.Entry<Class<?>, String> entry : ENTITY_TABLE_NAMES.entrySet()) {
+            Class<?> type = entry.getKey();
+            if (type == CourseEntity.class || type == CourseEnrollmentEntity.class) {
+                assertThat(type.getDeclaredField("version").getAnnotation(Version.class))
+                        .as("%s.version is the optimistic lock", type.getSimpleName())
+                        .isNotNull();
+            } else {
+                // 其余 6 张表在 V001 中没有 version 列：不得声明 version 字段。
+                assertThat(hasField(type, "version"))
+                        .as("%s must not declare a version column", type.getSimpleName())
+                        .isFalse();
+            }
         }
     }
 
@@ -101,18 +105,6 @@ class CourseEntityTest {
         assertThat(course.getPublishedAt()).isEqualTo(now);
         assertThat(course.getCreatedAt()).isEqualTo(now);
         assertThat(course.getUpdatedAt()).isEqualTo(now);
-    }
-
-    private static List<Class<?>> allEntities() {
-        return List.of(
-                CourseEntity.class,
-                CourseVersionEntity.class,
-                CourseCategoryEntity.class,
-                CourseTeacherEntity.class,
-                CourseAuditSubmissionEntity.class,
-                CourseEnrollmentEntity.class,
-                CourseContentReadinessProjectionEntity.class,
-                CourseReviewEntity.class);
     }
 
     private static String tableName(Class<?> type) {
