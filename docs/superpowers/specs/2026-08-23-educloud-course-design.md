@@ -194,15 +194,15 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 
 ## 14. 门禁与验证清单
 
-- [ ] 读取 M05 相关设计文档（本规格 + services-and-domains/data-design/api-and-integration 第 8 节）并审阅 diff
-- [ ] 先写失败测试并确认失败
-- [ ] 实现最小后端能力（模块测试绿）
-- [ ] 集成测试（Testcontainer MySQL）绿
-- [ ] 全量 `mvn verify` 绿
-- [ ] 规格审查与质量审查（含独立代码审查：越权/状态机/幂等/评价范围/封面信任边界测试通过）
-- [ ] VM 部署：迁移 `educloud_course`、Nacos provision、RBAC V004、bootstrap service client、start-dev 拉起
-- [ ] 浏览器验证：三门户课程闭环（建课→审核→发布→选课→评价）+ 越权用例全 403
-- [ ] 向用户汇报并等待确认后进入 M06
+- [x] 读取 M05 相关设计文档（本规格 + services-and-domains/data-design/api-and-integration 第 8 节）并审阅 diff
+- [x] 先写失败测试并确认失败
+- [x] 实现最小后端能力（模块测试绿）
+- [x] 集成测试（Testcontainer MySQL）绿
+- [x] 全量 `mvn verify` 绿
+- [x] 规格审查与质量审查（含独立代码审查：越权/状态机/幂等/评价范围/封面信任边界测试通过）
+- [x] VM 部署：迁移 `educloud_course`、Nacos provision、RBAC V004、bootstrap service client、start-dev 拉起
+- [x] 浏览器验证：三门户课程闭环（建课→审核→发布→选课→评价）+ 越权用例全 403
+- [x] 向用户汇报并等待确认后进入 M06
 
 ## 15. 已知决策点（实现中若遇冲突回本表）
 
