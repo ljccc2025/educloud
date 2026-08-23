@@ -211,6 +211,7 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 | 审核中间态 | 不保留 APPROVED | 审核通过与发布同一本地事务 |
 | 分类管理 | 种子 + 数据库维护 | 管理 API 归 M12 运营面 |
 | 时间字段类型 | LocalDateTime（对齐 DATETIME(3) 本地时间语义） | file 模块实体用 Instant 为既有差异；Course 模块统一 LocalDateTime |
+| advice 共存顺序 | Course handler `@Order(LOWEST_PRECEDENCE - 1)` 先于 common（无 @Order ≈ LOWEST_PRECEDENCE） | Spring 异常解析为「首个匹配 advice 获胜」（非跨 advice 特异度）：域 advice 必须靠前，其 BusinessException/AccessDenied 处理器才不被 common 的 Exception 兜底抢先吞成 500（file 模块同类共存顺序问题即因此产生，M04 已验收，留待独立评审）；坏 JSON/缺参/404/405/未知 500 等共享错误 course 无匹配时仍由 common 的 400/404/405/500 语义处理 |
 
 ## 16. 参考文档
 
