@@ -16,6 +16,11 @@ public enum CourseErrorCode implements ErrorCode {
     VERSION_NOT_DRAFT(409, "Course version is not in draft state"),
     SUBMISSION_NOT_PENDING(409, "Audit submission is not in pending state"),
     REVIEW_REJECT_REASON_REQUIRED(400, "Reject reason is required"),
+    /**
+     * 生命周期状态非法（规格 §6 补充）：下架时非 PUBLISHED、重上架时非 OFFLINE
+     * （含归档后重上架/无有效发布版本）、归档时非 OFFLINE（PUBLISHED 必须先下架）。
+     */
+    COURSE_STATE_CONFLICT(409, "Course lifecycle state conflict"),
     NOT_ENROLLED(403, "Student is not enrolled in the course"),
     COURSE_ACCESS_DENIED(403, "Course access denied"),
     REVIEW_NOT_FOUND(404, "Course review not found");

@@ -13,6 +13,7 @@ import com.educloud.course.exception.CourseErrorCode;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
+import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.support.MybatisPlusTestSupport;
 import com.educloud.course.support.TeacherAccessGuard;
 import org.junit.jupiter.api.BeforeAll;
@@ -65,6 +66,9 @@ class CourseDraftServiceTest {
 
     @Mock
     private CourseVersionMapper courseVersionMapper;
+
+    @Mock
+    private CourseEventPublisher eventPublisher;
 
     @Test
     void createCourseInsertsRootOwnerAndFirstDraftInOneTransaction() throws Exception {
@@ -468,7 +472,12 @@ class CourseDraftServiceTest {
     }
 
     private CourseService courseService() {
-        return new CourseService(courseMapper, courseTeacherMapper, courseVersionMapper);
+        return new CourseService(
+                courseMapper,
+                courseTeacherMapper,
+                courseVersionMapper,
+                new TeacherAccessGuard(courseTeacherMapper),
+                eventPublisher);
     }
 
     private CourseVersionService versionService() {

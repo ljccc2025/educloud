@@ -40,21 +40,50 @@ public class CourseEventPublisher {
     /** 课程审核通过并发布：同事务写 CoursePublished outbox 行。 */
     public void coursePublished(
             Long courseId, Long versionId, long aggregateVersion, LocalDateTime publishedAt) {
+        writeLifecycleEvent("CoursePublished", "publishedAt", courseId, versionId, aggregateVersion, publishedAt);
+    }
+
+    /** 课程下架（任务 10）：PUBLISHED→OFFLINE 后同事务写 CourseOfflined outbox 行。 */
+    public void courseOfflined(
+            Long courseId, Long versionId, long aggregateVersion, LocalDateTime offlinedAt) {
+        writeLifecycleEvent("CourseOfflined", "offlinedAt", courseId, versionId, aggregateVersion, offlinedAt);
+    }
+
+    /** 课程重新上架（任务 10）：OFFLINE→PUBLISHED 后同事务写 CourseRepublished outbox 行。 */
+    public void courseRepublished(
+            Long courseId, Long versionId, long aggregateVersion, LocalDateTime republishedAt) {
+        writeLifecycleEvent("CourseRepublished", "republishedAt", courseId, versionId, aggregateVersion, republishedAt);
+    }
+
+    /** 课程归档（任务 10）：OFFLINE→ARCHIVED 后同事务写 CourseArchived outbox 行。 */
+    public void courseArchived(
+            Long courseId, Long versionId, long aggregateVersion, LocalDateTime archivedAt) {
+        writeLifecycleEvent("CourseArchived", "archivedAt", courseId, versionId, aggregateVersion, archivedAt);
+    }
+
+    /** 生命周期事件公共落库：payload 固定 courseId/versionId/时间字段（LinkedHashMap 保序可测）。 */
+    private void writeLifecycleEvent(
+            String eventType,
+            String timestampField,
+            Long courseId,
+            Long versionId,
+            long aggregateVersion,
+            LocalDateTime occurredAt) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("courseId", courseId);
         payload.put("versionId", versionId);
-        payload.put("publishedAt", publishedAt.toString());
+        payload.put(timestampField, occurredAt.toString());
         String payloadJson;
         try {
             payloadJson = objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException failure) {
             throw new IllegalStateException(
-                    "failed to serialize CoursePublished payload: " + courseId, failure);
+                    "failed to serialize " + eventType + " payload: " + courseId, failure);
         }
         outboxWriter.write(
                 AGGREGATE_TYPE,
                 String.valueOf(courseId),
-                "CoursePublished",
+                eventType,
                 1,
                 aggregateVersion,
                 payloadJson,

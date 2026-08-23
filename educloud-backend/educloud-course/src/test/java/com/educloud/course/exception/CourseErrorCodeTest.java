@@ -39,6 +39,7 @@ class CourseErrorCodeTest {
                 Arguments.of(CourseErrorCode.VERSION_NOT_DRAFT, 409),
                 Arguments.of(CourseErrorCode.SUBMISSION_NOT_PENDING, 409),
                 Arguments.of(CourseErrorCode.REVIEW_REJECT_REASON_REQUIRED, 400),
+                Arguments.of(CourseErrorCode.COURSE_STATE_CONFLICT, 409),
                 Arguments.of(CourseErrorCode.NOT_ENROLLED, 403),
                 Arguments.of(CourseErrorCode.COURSE_ACCESS_DENIED, 403),
                 Arguments.of(CourseErrorCode.REVIEW_NOT_FOUND, 404));
