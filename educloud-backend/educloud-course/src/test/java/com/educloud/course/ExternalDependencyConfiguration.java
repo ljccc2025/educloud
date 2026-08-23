@@ -68,6 +68,14 @@ public class ExternalDependencyConfiguration {
         return mock(CourseVersionMapper.class);
     }
 
+    // 任务 15 起 RabbitConfiguration 需要 ConnectionFactory 构造 RabbitTemplate
+    // （test profile 排除 RabbitAutoConfiguration，不注册真实连接工厂）：mock 满足，
+    // 与 educloud-file/educloud-user 上下文测试同法。
+    @Bean
+    public org.springframework.amqp.rabbit.connection.ConnectionFactory rabbitConnectionFactory() {
+        return mock(org.springframework.amqp.rabbit.connection.ConnectionFactory.class);
+    }
+
     @Bean
     public OutboxEventMapper outboxEventMapper() {
         return mock(OutboxEventMapper.class);
