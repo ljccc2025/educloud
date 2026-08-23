@@ -55,6 +55,21 @@ class InternalApiFilterTest {
     }
 
     @Test
+    void skipsServiceTokenEndpointWhichUsesHttpBasic() throws Exception {
+        MockHttpServletRequest request =
+                new MockHttpServletRequest("POST", "/internal/v1/service-tokens");
+        request.addHeader("Authorization", "Basic dXNlcjpzZWNyZXQ=");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(chain.getRequest()).isSameAs(request);
+        assertThat(request.getAttribute(InternalApiFilter.CLIENT_ID_ATTRIBUTE)).isNull();
+    }
+
+    @Test
     void rejectsMissingTokenAndNonWhiteListedClient() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/internal/v1/users/1/status-snapshot");
         MockHttpServletResponse response = new MockHttpServletResponse();

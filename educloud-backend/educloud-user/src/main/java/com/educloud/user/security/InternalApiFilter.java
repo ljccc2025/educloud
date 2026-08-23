@@ -34,7 +34,13 @@ public final class InternalApiFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/internal/v1/");
+        if (!request.getRequestURI().startsWith("/internal/v1/")) {
+            return true;
+        }
+        // POST /internal/v1/service-tokens 使用 HTTP Basic client_credentials 签发，
+        // 本身是令牌来源而非消费方，不走服务令牌校验（M03 设计规格第 8 节）。
+        return "POST".equalsIgnoreCase(request.getMethod())
+                && "/internal/v1/service-tokens".equals(request.getRequestURI());
     }
 
     @Override

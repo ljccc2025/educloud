@@ -48,6 +48,7 @@ public class SecurityConfiguration {
                                 "/api/v1/auth/logout",
                                 "/api/v1/platform-config/public",
                                 "/internal/bootstrap/**",
+                                "/internal/v1/service-tokens",
                                 "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
