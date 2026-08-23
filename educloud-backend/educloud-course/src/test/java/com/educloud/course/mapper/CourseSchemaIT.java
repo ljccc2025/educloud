@@ -179,10 +179,15 @@ class CourseSchemaIT {
         try (Connection connection = DriverManager.getConnection(rootUrl, "root", "root-test-password");
                 Statement statement = connection.createStatement()) {
 
-            // 规格 5.2 非唯一索引（NON_UNIQUE=1）
+            // 规格 5.2 非唯一索引：存在性（NON_UNIQUE=1）+ 列组合（防止"名字对、列错"假绿）
             assertIndex(statement, "course", "idx_course_owner_status");
+            assertIndexColumns(statement, "course", "idx_course_owner_status", "owner_teacher_id", "lifecycle_status");
             assertIndex(statement, "course", "idx_course_published_at");
+            assertIndexColumns(statement, "course", "idx_course_published_at", "published_at");
             assertIndex(statement, "course_enrollment", "idx_course_enrollment_student_status");
+            assertIndexColumns(statement, "course_enrollment", "idx_course_enrollment_student_status", "student_id", "status");
+            assertIndex(statement, "course_audit_submission", "idx_course_audit_submission_status");
+            assertIndexColumns(statement, "course_audit_submission", "idx_course_audit_submission_status", "status", "submitted_at");
         }
     }
 
