@@ -272,7 +272,9 @@ export default function CourseDetail() {
               </h2>
               <div className="border border-ink-100 bg-ink-50/40 px-6 py-14 text-center">
                 <BookOpen size={36} className="mx-auto text-ink-200 mb-3" strokeWidth={1} />
-                <p className="font-display text-lg font-semibold text-ink-500">目录即将上线</p>
+                <div className="whitespace-pre-line text-sm text-ink-700 leading-relaxed">
+            {course.description || '课程大纲整理中，敬请期待'}
+          </div>
                 <p className="text-sm text-ink-400 mt-2">
                   章节与课件内容将在内容模块接入后展示，请先加入课程开始学习
                 </p>

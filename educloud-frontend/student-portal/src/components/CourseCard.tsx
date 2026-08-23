@@ -4,6 +4,13 @@ import { Star, Users, Play } from 'lucide-react';
 import { cover } from '../services/api';
 import type { Course } from '../types';
 
+/** 教师展示名：纯数字（占位的 teacherId）时掩码显示，其余原样展示。 */
+const displayTeacher = (name?: string) => {
+  if (!name) return '讲师';
+  if (/^\d+$/.test(name)) return '讲师 ···' + name.slice(-6);
+  return name;
+};
+
 const levelLabel: Record<string, string> = {
   BEGINNER: '入门',
   INTERMEDIATE: '进阶',
@@ -14,6 +21,8 @@ export default function CourseCard({ course, index = 0 }: { course: Course; inde
   const [imageFailed, setImageFailed] = useState(false);
   const isFree = Number(course.price) === 0;
   const coverSrc = imageFailed || !course.coverUrl ? cover(index) : course.coverUrl;
+  // 教师展示名：后端暂以 teacherId 占位，纯数字时掩码为「讲师 ···尾6位」提升真实感
+  const teacherLabel = displayTeacher(course.teacherName);
 
   return (
     <Link
@@ -56,10 +65,10 @@ export default function CourseCard({ course, index = 0 }: { course: Course; inde
         <div className="flex items-center gap-2 mb-3 pb-3 border-b border-ink-50">
           <div className="w-7 h-7 bg-indigo-100 border border-ink-200 flex items-center justify-center">
             <span className="text-xs font-semibold text-indigo-800">
-              {(course.teacherName || '讲师').charAt(0)}
+              {teacherLabel.charAt(0)}
             </span>
           </div>
-          <span className="text-sm text-ink-600">{course.teacherName || '讲师'}</span>
+          <span className="text-sm text-ink-600">{teacherLabel}</span>
         </div>
 
         {/* Meta */}

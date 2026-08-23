@@ -41,7 +41,8 @@ class CoursePermissionMigrationIT {
             "V001__user_identity_and_rbac.sql",
             "V002__session_and_platform.sql",
             "V003__widen_audit_actor_type.sql",
-            "V004__course_permissions.sql");
+            "V004__course_permissions.sql",
+            "V005__file_upload_permission.sql");
 
     private static final List<String> COURSE_PERMISSION_CODES = List.of(
             "course:create",
@@ -73,7 +74,8 @@ class CoursePermissionMigrationIT {
             "course:republish",
             "course:archive",
             "course:enroll",
-            "course:student:read");
+            "course:student:read",
+            "file:upload");
 
     @Container
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>(TestContainerImages.mysql())
@@ -146,7 +148,7 @@ class CoursePermissionMigrationIT {
                     .containsExactlyInAnyOrder("course:audit");
             assertThat(rolePermissionCodes(connection, "STUDENT"))
                     .as("STUDENT mounts")
-                    .containsExactlyInAnyOrder("course:enroll");
+                    .containsExactlyInAnyOrder("course:enroll", "file:upload");
             assertThat(rolePermissionCodes(connection, "TEACHER"))
                     .as("TEACHER mounts")
                     .containsExactlyInAnyOrderElementsOf(TEACHER_PERMISSION_CODES);
