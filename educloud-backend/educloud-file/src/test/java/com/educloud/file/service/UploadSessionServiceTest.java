@@ -108,7 +108,7 @@ class UploadSessionServiceTest {
         FileUploadSessionEntity session = captor.getValue();
 
         assertThat(session.getId()).isNotNull();
-        assertThat(response.sessionId()).isEqualTo(session.getId());
+        assertThat(response.sessionId()).isEqualTo(String.valueOf(session.getId()));
         assertThat(session.getObjectKey())
                 .matches("educloud-files/user-42/\\d{8}/[0-9a-f-]{36}\\.png");
         assertThat(session.getBucket()).isEqualTo(BUCKET);

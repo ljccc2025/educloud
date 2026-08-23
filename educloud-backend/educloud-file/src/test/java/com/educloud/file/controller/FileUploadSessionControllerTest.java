@@ -86,7 +86,7 @@ class FileUploadSessionControllerTest {
     @WithMockJwt(permissions = {"file:upload"})
     void createDelegatesToServiceWithJwtSubject() throws Exception {
         when(uploadSessionService.create(eq(1001L), any(CreateUploadSessionRequest.class)))
-                .thenReturn(new UploadSessionResponse(9001L, "https://minio.example/put", 300L));
+                .thenReturn(new UploadSessionResponse("9001", "https://minio.example/put", 300L));
 
         mockMvc.perform(post("/api/v1/file-upload-sessions")
                         .contentType(MediaType.APPLICATION_JSON)

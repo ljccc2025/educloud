@@ -9,7 +9,8 @@ import com.educloud.file.entity.FileObjectEntity;
  * 任务 9 补充 contentType 供调用方核对。不含 bucket/uploaderId 等内部字段。</p>
  */
 public record FileObjectResponse(
-        Long fileId,
+        // fileId 为雪花 Long，超出 JS 安全整数（2^53），必须序列化为字符串避免浏览器精度丢失。
+        String fileId,
         String objectKey,
         Long sizeBytes,
         String sha256,
@@ -17,7 +18,7 @@ public record FileObjectResponse(
 
     public static FileObjectResponse from(FileObjectEntity entity) {
         return new FileObjectResponse(
-                entity.getId(),
+                String.valueOf(entity.getId()),
                 entity.getObjectKey(),
                 entity.getSizeBytes(),
                 entity.getSha256(),

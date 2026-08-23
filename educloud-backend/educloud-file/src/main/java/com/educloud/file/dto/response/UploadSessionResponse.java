@@ -7,7 +7,8 @@ package com.educloud.file.dto.response;
  * presigned PUT 有效期默认 5 分钟。</p>
  */
 public record UploadSessionResponse(
-        Long sessionId,
+        // sessionId 为雪花 Long，超出 JS 安全整数（2^53），必须序列化为字符串避免浏览器精度丢失。
+        String sessionId,
         String uploadUrl,
         long expiresInSeconds) {
 }

@@ -112,7 +112,7 @@ public class UploadSessionService {
         sessionMapper.insert(session);
         metrics.recordUploadCreated();
 
-        return new UploadSessionResponse(session.getId(), uploadUrl, upload.putUrlTtl().toSeconds());
+        return new UploadSessionResponse(String.valueOf(session.getId()), uploadUrl, upload.putUrlTtl().toSeconds());
     }
 
     /**
