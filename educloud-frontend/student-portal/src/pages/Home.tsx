@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -10,6 +10,7 @@ import {
   Brain,
   Calculator,
   Languages,
+  Layers,
   Lightbulb,
   Monitor,
   Music2,
@@ -17,12 +18,17 @@ import {
   PenTool,
   PlayCircle,
   Scale,
+  Server,
+  Boxes,
+  Database,
+  Terminal,
   TrendingUp,
   Users,
 } from 'lucide-react';
 import { useCourseStore } from '@/stores/useCourseStore';
-import { categories } from '@/services/api';
+import { courseApi } from '@/services/courseApi';
 import CourseCard from '@/components/CourseCard';
+import type { Category } from '@/types';
 import SideRays from '@/components/SideRays/SideRays';
 
 const stats = [
@@ -32,25 +38,55 @@ const stats = [
   { icon: TrendingUp, value: '98%', label: '好评率', num: '04' },
 ];
 
+// 真实分类（种子：前端开发/后端开发/数据分析 + 各 2 个子分类；课程挂载在叶子分类上）
 const categoryIcons: Record<string, LucideIcon> = {
-  计算机: Monitor,
-  数学: Calculator,
-  语言学习: Languages,
-  经济管理: BarChart3,
-  文学艺术: Palette,
-  设计: PenTool,
-  心理学: Brain,
-  法律: Scale,
-  音乐: Music2,
-  哲学: Lightbulb,
+  前端开发: Monitor,
+  后端开发: Server,
+  数据分析: BarChart3,
+  'Web 基础': Monitor,
+  'Vue 前端框架': Layers,
+  'Java 后端': Server,
+  'Spring Boot 微服务': Boxes,
+  'SQL 数据分析': Database,
+  'Python 数据分析': Terminal,
 };
 
 export default function Home() {
   const { courses, fetchCourses } = useCourseStore();
+  const [leafCategories, setLeafCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   useEffect(() => {
     fetchCourses();
   }, [fetchCourses]);
+
+  // 真实分类（GET /api/v1/categories）：取叶子分类保证深链到课程列表有结果
+  useEffect(() => {
+    let cancelled = false;
+    courseApi
+      .getCategories()
+      .then((tree) => {
+        if (cancelled) return;
+        const leaves: Category[] = [];
+        const walk = (nodes: Category[]) => {
+          nodes.forEach((node) => {
+            if (node.children && node.children.length > 0) walk(node.children);
+            else leaves.push(node);
+          });
+        };
+        walk(tree);
+        setLeafCategories(leaves);
+      })
+      .catch(() => {
+        if (!cancelled) setLeafCategories([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCategoriesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const featuredCourses = courses.slice(0, 6);
 
@@ -233,35 +269,41 @@ export default function Home() {
             data-home-category-grid
             className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4"
           >
-            {categories.map((cat) => {
-              const Icon = categoryIcons[cat.name] ?? BookOpen;
-              return (
-                <Link
-                  key={cat.name}
-                  data-home-category-card
-                  to={`/courses?category=${encodeURIComponent(cat.name)}`}
-                  className="card-editorial group relative flex min-h-[150px] flex-col justify-between p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 motion-reduce:transition-none"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-800 transition-colors duration-200 group-hover:bg-amber-50 group-hover:text-amber-700 motion-reduce:transition-none">
-                      <Icon size={20} strokeWidth={1.7} aria-hidden="true" />
-                    </span>
-                    <ArrowUpRight
-                      size={17}
-                      strokeWidth={1.5}
-                      aria-hidden="true"
-                      className="text-ink-300 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-amber-600 motion-reduce:transition-none motion-reduce:!transform-none"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-display text-base font-bold text-ink-900">
-                      {cat.name}
-                    </p>
-                    <p className="mt-1 text-xs text-ink-400">{cat.courseCount} 门课程</p>
-                  </div>
-                </Link>
-              );
-            })}
+            {leafCategories.length === 0 ? (
+              <p className="text-sm text-ink-400 col-span-full text-center py-8">
+                {categoriesLoading ? '分类加载中…' : '分类暂不可用'}
+              </p>
+            ) : (
+              leafCategories.map((cat) => {
+                const Icon = categoryIcons[cat.name] ?? BookOpen;
+                return (
+                  <Link
+                    key={cat.id}
+                    data-home-category-card
+                    to={`/courses?category=${encodeURIComponent(cat.name)}`}
+                    className="card-editorial group relative flex min-h-[150px] flex-col justify-between p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 motion-reduce:transition-none"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-800 transition-colors duration-200 group-hover:bg-amber-50 group-hover:text-amber-700 motion-reduce:transition-none">
+                        <Icon size={20} strokeWidth={1.7} aria-hidden="true" />
+                      </span>
+                      <ArrowUpRight
+                        size={17}
+                        strokeWidth={1.5}
+                        aria-hidden="true"
+                        className="text-ink-300 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-amber-600 motion-reduce:transition-none motion-reduce:!transform-none"
+                      />
+                    </div>
+                    <div>
+                      <p className="font-display text-base font-bold text-ink-900">
+                        {cat.name}
+                      </p>
+                      <p className="mt-1 text-xs text-ink-400">查看课程</p>
+                    </div>
+                  </Link>
+                );
+              })
+            )}
           </div>
         </div>
       </section>

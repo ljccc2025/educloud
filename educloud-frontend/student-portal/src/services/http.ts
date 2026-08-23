@@ -146,6 +146,27 @@ export function apiErrorText(e: unknown): string {
       return '操作太频繁，请稍后再试';
     case 'DEPENDENCY_UNAVAILABLE':
       return '服务暂不可用，请稍后重试';
+    // ---- Course 服务错误码（M05） ----
+    case 'COURSE_NOT_FOUND':
+      return '课程不存在';
+    case 'COURSE_NOT_FREE':
+      return '该课程为付费课程';
+    case 'COURSE_OFFLINE_OR_ARCHIVED':
+      return '课程已下架';
+    case 'COURSE_ACCESS_DENIED':
+      return '无权访问';
+    case 'NOT_ENROLLED':
+      return '需先选课';
+    case 'VERSION_NOT_DRAFT':
+      return '当前状态不可编辑';
+    case 'SUBMISSION_NOT_PENDING':
+      return '审核状态已变更';
+    case 'REVIEW_REJECT_REASON_REQUIRED':
+      return '请填写驳回原因';
+    case 'COURSE_STATE_CONFLICT':
+      return '课程状态冲突';
+    case 'REVIEW_NOT_FOUND':
+      return '评价不存在';
     default:
       return message || '登录失败，请重试';
   }

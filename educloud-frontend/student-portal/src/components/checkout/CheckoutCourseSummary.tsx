@@ -1,6 +1,12 @@
 import { cover } from '@/services/api';
 import type { CourseDetail } from '@/types';
 
+function maskedId(id: string | undefined): string {
+  if (!id) return '讲师';
+  if (id.length <= 6) return id;
+  return `...${id.slice(-6)}`;
+}
+
 export default function CheckoutCourseSummary({ course }: { course: CourseDetail }) {
   const price = Number(course.price);
   const coverSrc = course.coverUrl ?? cover(0);
@@ -18,7 +24,7 @@ export default function CheckoutCourseSummary({ course }: { course: CourseDetail
         />
         <div className="min-w-0 flex-1">
           <p className="text-sm text-ink-400">
-            {course.teachers?.[0]?.teacherId ?? '讲师'} · 永久访问
+            {maskedId(course.teachers?.[0]?.teacherId)} · 永久访问
           </p>
           <h2
             id="checkout-course-title"

@@ -7,17 +7,37 @@ import { useState } from 'react';
 
 export default function Learning() {
   const { courseId } = useParams<{ courseId: string }>();
-  const { currentCourse, loading, fetchCourse } = useCourseStore();
+  const { currentCourse, loading, error, fetchCourse } = useCourseStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     if (courseId) void fetchCourse(courseId);
-  }, [courseId, fetchCourse]);
+  }, [courseId, fetchCourse, retryTick]);
 
-  if (loading || !currentCourse) {
+  if (loading && !currentCourse) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-indigo-800 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!currentCourse) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-24 text-center">
+        <p className="font-display text-xl text-ink-600 mb-2">课程加载失败</p>
+        <p className="text-sm text-ink-400 mb-6">{error ?? '课程不存在或已下架'}</p>
+        <div className="flex items-center justify-center gap-3">
+          <Link to="/courses" className="btn-primary">返回课程列表</Link>
+          <button
+            type="button"
+            onClick={() => setRetryTick((tick) => tick + 1)}
+            className="btn-outline"
+          >
+            重新加载
+          </button>
+        </div>
       </div>
     );
   }
