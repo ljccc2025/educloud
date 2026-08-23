@@ -3,6 +3,7 @@ package com.educloud.course.dto.request;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 评价 upsert 请求体（POST /api/v1/courses/{id}/reviews，M05 任务 14）。
@@ -16,5 +17,6 @@ public record ReviewUpsertRequest(
         @Min(value = 1, message = "rating must be between 1 and 5")
         @Max(value = 5, message = "rating must be between 1 and 5")
         Integer rating,
+        @Size(max = 10000, message = "content must not exceed 10000 characters")
         String content) {
 }

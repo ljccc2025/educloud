@@ -49,12 +49,17 @@ public class CourseAuditController {
                 JwtSecurityUtils.roles(jwt)));
     }
 
+    /** 分页归一化：page 下限 1，pageSize 收敛到 1..100（与目录/教师/管理列表端点对齐，防 page<=0 抛 500 与超大分页）。 */
+    private static final int MAX_PAGE_SIZE = 100;
+
     @GetMapping("/course-audits")
     @PreAuthorize("hasAuthority('" + CoursePermissions.AUDIT + "')")
     public ApiResponse<PageResponse<CourseAuditResponse>> listPending(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int pageSize) {
-        return responses.success(auditService.listPending(page, pageSize));
+        int normalizedPage = Math.max(page, 1);
+        int normalizedSize = Math.min(Math.max(pageSize, 1), MAX_PAGE_SIZE);
+        return responses.success(auditService.listPending(normalizedPage, normalizedSize));
     }
 
     @GetMapping("/course-audits/{auditId}")
