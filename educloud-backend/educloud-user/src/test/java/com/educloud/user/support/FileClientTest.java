@@ -3,6 +3,7 @@ package com.educloud.user.support;
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
 import com.educloud.user.config.FileClientProperties;
+import com.educloud.user.exception.UserErrorCode;
 import com.educloud.user.service.ServiceTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -107,6 +108,35 @@ class FileClientTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(CommonErrorCode.DEPENDENCY_UNAVAILABLE);
+
+        server.verify();
+    }
+
+    @Test
+    void bindForbiddenMapsToAccessDenied() {
+        // M04 验收：越权绑定（他人 fileId）应呈现为 403 业务拒绝，而非 503 依赖故障。
+        stubToken("tok-1", 300L);
+        server.expect(requestTo(ENDPOINT + "/internal/v1/files/9001/bind"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> client.bindAvatar(1001L, 9001L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(CommonErrorCode.ACCESS_DENIED);
+
+        server.verify();
+    }
+
+    @Test
+    void bindNotFoundMapsToFileNotFound() {
+        stubToken("tok-1", 300L);
+        server.expect(requestTo(ENDPOINT + "/internal/v1/files/9001/bind"))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThatThrownBy(() -> client.bindAvatar(1001L, 9001L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(UserErrorCode.FILE_NOT_FOUND);
 
         server.verify();
     }

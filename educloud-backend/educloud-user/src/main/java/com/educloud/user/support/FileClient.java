@@ -3,6 +3,7 @@ package com.educloud.user.support;
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
 import com.educloud.user.config.FileClientProperties;
+import com.educloud.user.exception.UserErrorCode;
 import com.educloud.user.service.ServiceTokenService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,7 +162,7 @@ public class FileClient {
                     .body(body)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (request, response) -> {
-                        throw dependencyUnavailable(uriTemplate, response.getStatusCode().value());
+                        throw mapError(uriTemplate, response.getStatusCode().value());
                     })
                     .toBodilessEntity();
         } catch (BusinessException failure) {
@@ -181,7 +182,7 @@ public class FileClient {
                     .body(body)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (request, response) -> {
-                        throw dependencyUnavailable(uriTemplate, response.getStatusCode().value());
+                        throw mapError(uriTemplate, response.getStatusCode().value());
                     })
                     .body(responseType);
         } catch (BusinessException failure) {
@@ -189,6 +190,23 @@ public class FileClient {
         } catch (RestClientException failure) {
             throw dependencyUnavailable(uriTemplate, failure);
         }
+    }
+
+    /**
+     * 下游 4xx 语义化透传（M04 审查修复）：403=越权/伪造（ACCESS_DENIED）、
+     * 404=文件不存在（FILE_NOT_FOUND），其余错误与传输异常仍视为依赖不可用（503），
+     * 避免用户把业务拒绝误判为 File 服务故障。
+     */
+    private BusinessException mapError(String uri, int status) {
+        if (status == 403) {
+            return new BusinessException(CommonErrorCode.ACCESS_DENIED,
+                    "File 拒绝访问: " + uri + " (HTTP 403)");
+        }
+        if (status == 404) {
+            return new BusinessException(UserErrorCode.FILE_NOT_FOUND,
+                    "File 对象不存在: " + uri + " (HTTP 404)");
+        }
+        return dependencyUnavailable(uri, status);
     }
 
     /**

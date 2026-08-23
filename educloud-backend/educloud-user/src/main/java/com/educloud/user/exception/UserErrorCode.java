@@ -29,7 +29,8 @@ public enum UserErrorCode implements ErrorCode {
     SERVICE_CLIENT_NOT_FOUND(401, "Unknown service client"),
     SERVICE_CLIENT_DISABLED(403, "Service client is disabled"),
     SERVICE_CREDENTIAL_INVALID(401, "Service client credential is invalid"),
-    SERVICE_TOKEN_SCOPE_DENIED(403, "Requested scope is not allowed for this client");
+    SERVICE_TOKEN_SCOPE_DENIED(403, "Requested scope is not allowed for this client"),
+    FILE_NOT_FOUND(404, "File not found");
 
     private final int httpStatus;
     private final String defaultMessage;
