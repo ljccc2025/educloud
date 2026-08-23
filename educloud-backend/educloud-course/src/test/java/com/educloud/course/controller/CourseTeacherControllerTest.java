@@ -135,6 +135,31 @@ class CourseTeacherControllerTest {
     }
 
     @Test
+    void createCourseRejectsInvalidSnowflakeIdsWith400() throws Exception {
+        when(jwtDecoder.decode(any())).thenReturn(token("1001", List.of("course:create")));
+
+        // 非数字 Snowflake ID。
+        mockMvc.perform(post("/api/v1/courses")
+                        .header("Authorization", "Bearer test-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"课程","level":"BEGINNER","price":1.00,"currency":"CNY","categoryId":"12a"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        // 20 位数字（> 19 位上限）。
+        mockMvc.perform(post("/api/v1/courses")
+                        .header("Authorization", "Bearer test-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"课程","level":"BEGINNER","price":1.00,"currency":"CNY","categoryId":"12345678901234567890"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
     void currentDraftReturnsDraftForOwnerTeacher() throws Exception {
         when(jwtDecoder.decode(any())).thenReturn(token("1001", List.of("course:update")));
         when(courseVersionService.getCurrentDraft(101L, 1001L))

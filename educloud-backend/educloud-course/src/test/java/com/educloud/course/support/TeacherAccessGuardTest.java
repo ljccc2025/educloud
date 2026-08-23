@@ -1,13 +1,10 @@
 package com.educloud.course.support;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.educloud.common.error.BusinessException;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.exception.CourseErrorCode;
 import com.educloud.course.mapper.CourseTeacherMapper;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,9 +29,8 @@ class TeacherAccessGuardTest {
     @BeforeAll
     static void initMybatisPlusTableInfo() {
         // 纯 Mockito 单测渲染 LambdaQueryWrapper 的列名需要 TableInfo 缓存
-        // （真实运行期由 Mapper 注册提供）。
-        MybatisConfiguration configuration = new MybatisConfiguration();
-        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), CourseTeacherEntity.class);
+        // （真实运行期由 Mapper 注册提供）；共享支持类注册。
+        MybatisPlusTestSupport.registerTableInfo(CourseTeacherEntity.class);
     }
 
     @Mock

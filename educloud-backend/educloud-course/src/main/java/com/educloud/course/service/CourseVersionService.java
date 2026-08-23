@@ -13,7 +13,9 @@ import com.educloud.course.exception.CourseErrorCode;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
+import com.educloud.course.support.SnowflakeIds;
 import com.educloud.course.support.TeacherAccessGuard;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,8 +27,11 @@ import java.util.List;
  *
  * <p>并发防护：course_version 无 version 列（不可变版本语义，规格 V001），PUT 用
  * “version_status='DRAFT' 条件更新”（UPDATE ... WHERE id=? AND version_status='DRAFT'），
- * 影响行数 0 → VERSION_NOT_DRAFT 409。所有写操作先经 {@link TeacherAccessGuard} 归属校验。
- * 封面 bind 语义见任务 12，本任务只复制/存储 cover_file_id 值。</p>
+ * 影响行数 0 → VERSION_NOT_DRAFT 409；复制草稿并发撞 uk_course_version_no 时显式捕获
+ * DuplicateKeyException → VERSION_NOT_DRAFT 409，根更新影响行数 0 → VERSION_CONFLICT 409
+ * （参照 file FileBindingService 显式 catch 模式）。所有写操作先经
+ * {@link TeacherAccessGuard} 归属校验。封面 bind 语义见任务 12，本任务只复制/存储
+ * cover_file_id 值。</p>
  */
 @Service
 public class CourseVersionService {
@@ -72,6 +77,10 @@ public class CourseVersionService {
      * 从 PUBLISHED/REJECTED 版本复制新草稿（POST /courses/{id}/drafts）：version_no+1，
      * 内容字段与 cover_file_id 继承；course.draft_version_id 切换到新草稿。
      * 已有 DRAFT 时幂等返回现有草稿；当前版本 PENDING_REVIEW 时不可复制（VERSION_NOT_DRAFT 409）。
+     *
+     * <p>并发兜底：两请求同时复制同一源版本会撞 uk_course_version_no —— 显式捕获
+     * DuplicateKeyException → VERSION_NOT_DRAFT 409（“版本已被并发创建”，语义最贴近）；
+     * course 根乐观锁更新（updateById）影响行数 0 → VERSION_CONFLICT 409。</p>
      */
     @Transactional
     public CourseDraftResponse createDraftFromPublishedOrRejected(Long courseId, Long teacherId) {
@@ -107,17 +116,33 @@ public class CourseVersionService {
         draft.setContentHash(null);
         draft.setCreatedBy(teacherId);
         draft.setCreatedAt(LocalDateTime.now());
-        versionMapper.insert(draft);
+        try {
+            versionMapper.insert(draft);
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(CourseErrorCode.VERSION_NOT_DRAFT,
+                    "Draft version was created concurrently for course: " + courseId,
+                    null, exception);
+        }
 
         course.setDraftVersionId(draft.getId());
-        courseMapper.updateById(course);
+        int updated = courseMapper.updateById(course);
+        if (updated == 0) {
+            throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
+                    "Course root changed concurrently: " + courseId);
+        }
         return response(course, draft);
     }
 
     /**
      * 全量更新 DRAFT 版本（PUT /course-drafts/{versionId}）：归属校验 + version_status=DRAFT
-     * 前置检查 + “DRAFT 条件更新”乐观防护（course_version 无 version 列）。
+     * 前置检查 + 当前草稿指针校验 + “DRAFT 条件更新”乐观防护（course_version 无 version 列）。
+     * 校验/条件更新/响应读在同一事务。
+     *
+     * <p>指针校验为状态机下不可达路径的防御：正常流程中可编辑草稿只能经
+     * course.draft_version_id 访问；versionId 不是当前草稿指针（孤儿/旧草稿）→
+     * VERSION_NOT_DRAFT 409，不落任何 UPDATE。</p>
      */
+    @Transactional
     public CourseDraftResponse updateDraft(Long versionId, Long teacherId, CourseDraftUpdateRequest request) {
         CourseVersionEntity version = versionMapper.selectById(versionId);
         if (version == null) {
@@ -130,9 +155,13 @@ public class CourseVersionService {
             throw new BusinessException(CourseErrorCode.VERSION_NOT_DRAFT,
                     "Only draft versions can be updated");
         }
+        if (course.getDraftVersionId() == null || !course.getDraftVersionId().equals(versionId)) {
+            throw new BusinessException(CourseErrorCode.VERSION_NOT_DRAFT,
+                    "Version is not the current draft pointer of course: " + version.getCourseId());
+        }
 
-        Long categoryId = parseSnowflakeId(request.categoryId(), "categoryId");
-        Long coverFileId = parseSnowflakeId(request.coverFileId(), "coverFileId");
+        Long categoryId = SnowflakeIds.parse(request.categoryId(), "categoryId");
+        Long coverFileId = SnowflakeIds.parse(request.coverFileId(), "coverFileId");
 
         int affected = versionMapper.update(null, new LambdaUpdateWrapper<CourseVersionEntity>()
                 .eq(CourseVersionEntity::getId, versionId)
@@ -179,22 +208,6 @@ public class CourseVersionService {
                         String.valueOf(teacher.getTeacherId()), teacher.getTeacherRole()))
                 .toList();
         return CourseDraftResponse.from(course, version, teachers);
-    }
-
-    /**
-     * Snowflake ID 字符串 → Long（规格 §6：DTO 全 String，service 层解析）。
-     * Bean Validation 已保证 \d{1,19}，此处为防御：非数字/越界 → 400 VALIDATION_FAILED。
-     */
-    private static Long parseSnowflakeId(String raw, String field) {
-        if (raw == null) {
-            return null;
-        }
-        try {
-            return Long.parseLong(raw);
-        } catch (NumberFormatException exception) {
-            throw new BusinessException(CommonErrorCode.VALIDATION_FAILED,
-                    field + " must be a numeric Snowflake ID: " + raw);
-        }
     }
 
     private static void copyContent(CourseVersionEntity source, CourseVersionEntity target) {

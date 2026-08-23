@@ -1,7 +1,5 @@
 package com.educloud.course.service;
 
-import com.educloud.common.error.BusinessException;
-import com.educloud.common.error.CommonErrorCode;
 import com.educloud.course.dto.request.CourseCreateRequest;
 import com.educloud.course.dto.response.CourseDraftResponse;
 import com.educloud.course.entity.CourseEntity;
@@ -10,6 +8,7 @@ import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
+import com.educloud.course.support.SnowflakeIds;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -71,11 +70,11 @@ public class CourseService {
         CourseVersionEntity draft = new CourseVersionEntity();
         draft.setCourseId(course.getId());
         draft.setVersionNo(1);
-        draft.setCategoryId(parseSnowflakeId(request.categoryId(), "categoryId"));
+        draft.setCategoryId(SnowflakeIds.parse(request.categoryId(), "categoryId"));
         draft.setTitle(request.title());
         draft.setSubtitle(request.subtitle());
         draft.setDescription(request.description());
-        draft.setCoverFileId(parseSnowflakeId(request.coverFileId(), "coverFileId"));
+        draft.setCoverFileId(SnowflakeIds.parse(request.coverFileId(), "coverFileId"));
         draft.setLevel(request.level());
         draft.setPrice(request.price());
         draft.setCurrency(request.currency());
@@ -89,21 +88,5 @@ public class CourseService {
 
         return CourseDraftResponse.from(course, draft,
                 List.of(new CourseDraftResponse.Teacher(String.valueOf(teacherId), TEACHER_ROLE_OWNER)));
-    }
-
-    /**
-     * Snowflake ID 字符串 → Long（规格 §6：DTO 全 String，service 层解析）。
-     * Bean Validation 已保证 \d{1,19}，此处为防御：非数字/越界 → 400 VALIDATION_FAILED。
-     */
-    private static Long parseSnowflakeId(String raw, String field) {
-        if (raw == null) {
-            return null;
-        }
-        try {
-            return Long.parseLong(raw);
-        } catch (NumberFormatException exception) {
-            throw new BusinessException(CommonErrorCode.VALIDATION_FAILED,
-                    field + " must be a numeric Snowflake ID: " + raw);
-        }
     }
 }

@@ -1,9 +1,8 @@
 package com.educloud.course.service;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.educloud.common.error.BusinessException;
+import com.educloud.common.error.CommonErrorCode;
 import com.educloud.course.dto.request.CourseCreateRequest;
 import com.educloud.course.dto.request.CourseDraftUpdateRequest;
 import com.educloud.course.dto.response.CourseDraftResponse;
@@ -14,14 +13,15 @@ import com.educloud.course.exception.CourseErrorCode;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
+import com.educloud.course.support.MybatisPlusTestSupport;
 import com.educloud.course.support.TeacherAccessGuard;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,11 +52,9 @@ class CourseDraftServiceTest {
     @BeforeAll
     static void initMybatisPlusTableInfo() {
         // 纯 Mockito 单测没有 MyBatis 运行期 Mapper 注册，LambdaWrapper 渲染列名依赖
-        // TableInfo 缓存；这里显式注册本测试涉及的实体（与真实运行期行为一致）。
-        MybatisConfiguration configuration = new MybatisConfiguration();
-        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), CourseEntity.class);
-        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), CourseVersionEntity.class);
-        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(configuration, ""), CourseTeacherEntity.class);
+        // TableInfo 缓存；共享支持类注册（与真实运行期行为一致）。
+        MybatisPlusTestSupport.registerTableInfo(
+                CourseEntity.class, CourseVersionEntity.class, CourseTeacherEntity.class);
     }
 
     @Mock
@@ -127,6 +126,24 @@ class CourseDraftServiceTest {
         java.lang.reflect.Method createMethod = CourseService.class.getDeclaredMethod(
                 "createCourse", Long.class, CourseCreateRequest.class);
         assertThat(createMethod.getAnnotation(Transactional.class)).isNotNull();
+    }
+
+    @Test
+    void createCourseRejectsSnowflakeIdBeyondLongRangeWith400() {
+        // 19 位但 > Long.MAX_VALUE：@Pattern("\d{1,19}") 可通过，service 层 Long.parseLong
+        // 兜底 → 400 VALIDATION_FAILED，不落版本。
+        CourseCreateRequest request = new CourseCreateRequest(
+                "Java 入门", null, null, null, "BEGINNER",
+                new BigDecimal("1.00"), "CNY", "9999999999999999999");
+        assignIdOnCourseInsert(101L);
+        assignIdOnTeacherInsert(201L);
+
+        assertThatThrownBy(() -> courseService().createCourse(1001L, request))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.errorCode()).isEqualTo(CommonErrorCode.VALIDATION_FAILED);
+                    assertThat(exception.errorCode().httpStatus()).isEqualTo(400);
+                });
+        verify(courseVersionMapper, never()).insert(any(CourseVersionEntity.class));
     }
 
     @Test
@@ -399,6 +416,55 @@ class CourseDraftServiceTest {
         assertThatThrownBy(() -> versionService().createDraftFromPublishedOrRejected(101L, 1001L))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_NOT_FOUND));
+    }
+
+    @Test
+    void createDraftMapsConcurrentDuplicateVersionToVersionNotDraft() {
+        CourseEntity course = course(101L, 1001L, null, 5L);
+        CourseVersionEntity source = version(301L, 101L, 1, "PUBLISHED", "已发布标题");
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
+        when(courseVersionMapper.selectOne(any())).thenReturn(source);
+        // 并发复制撞 uk_course_version_no → DuplicateKeyException 必须映射为 409 而非 500。
+        doThrow(new DuplicateKeyException("uk_course_version_no"))
+                .when(courseVersionMapper).insert(any(CourseVersionEntity.class));
+
+        assertThatThrownBy(() -> versionService().createDraftFromPublishedOrRejected(101L, 1001L))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.VERSION_NOT_DRAFT);
+                    assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
+                });
+    }
+
+    @Test
+    void createDraftTreatsZeroAffectedRootUpdateAsConflict() {
+        CourseEntity course = course(101L, 1001L, null, 5L);
+        CourseVersionEntity source = version(301L, 101L, 1, "PUBLISHED", "已发布标题");
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
+        when(courseVersionMapper.selectOne(any())).thenReturn(source);
+        assignIdOnVersionInsert(302L);
+        // course 根乐观锁未命中（并发改根）→ 409 VERSION_CONFLICT。
+        when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(0);
+
+        assertThatThrownBy(() -> versionService().createDraftFromPublishedOrRejected(101L, 1001L))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.errorCode()).isEqualTo(CommonErrorCode.VERSION_CONFLICT));
+    }
+
+    @Test
+    void updateDraftRejectsVersionNotPointedByCourseDraftPointer() {
+        // 状态机下不可达的防御：DRAFT 版本不是 course.draft_version_id 指向的当前草稿 → 409。
+        CourseEntity course = course(101L, 1001L, 399L, 5L);
+        CourseVersionEntity version = version(301L, 101L, 1, "DRAFT", "孤儿草稿");
+        when(courseVersionMapper.selectById(301L)).thenReturn(version);
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> versionService().updateDraft(301L, 1001L, updateRequest()))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.VERSION_NOT_DRAFT));
+        verify(courseVersionMapper, never()).update(any(), any());
     }
 
     private CourseService courseService() {
