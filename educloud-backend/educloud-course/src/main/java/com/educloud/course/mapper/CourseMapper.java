@@ -1,6 +1,8 @@
 package com.educloud.course.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.educloud.course.entity.CourseEntity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -16,4 +18,72 @@ public interface CourseMapper extends BaseMapper<CourseEntity> {
      */
     @Select("SELECT * FROM course WHERE id = #{id} FOR UPDATE")
     CourseEntity selectByIdForUpdate(@Param("id") Long id);
+
+    /**
+     * 公开列表分页查询（GET /api/v1/courses，M05 任务 11）：course JOIN 已发布版本
+     * JOIN 分类 JOIN 负责人授课教师（展示名以 teacher_id 占位），仅 lifecycle_status=
+     * PUBLISHED；SQL 分页由 PaginationInnerInterceptor 处理（jsqlparser 已配）。
+     *
+     * <p>过滤/排序契约（规格 §6，服务层已校验白名单后原样转发）：
+     * keyword 匹配 title/subtitle/description（COALESCE 防空）；priceRange 语义
+     * free=price 0、under200=(0,200)、200to400=[200,400]、above400=&gt;400；sort 白名单
+     * popular→enrollment_count DESC、newest→published_at DESC、price-asc/price-desc→
+     * price、rating→rating_avg DESC，缺省 popular（ORDER BY 均附 id 稳定次序）。
+     * enrollment_count/rating_avg/rating_count 取 course 聚合列。</p>
+     */
+    @Select("""
+            <script>
+            SELECT c.id AS course_id,
+                   c.published_version_id AS published_version_id,
+                   c.published_at AS published_at,
+                   c.rating_avg AS rating_avg,
+                   c.rating_count AS rating_count,
+                   c.enrollment_count AS enrollment_count,
+                   v.title AS title,
+                   v.cover_file_id AS cover_file_id,
+                   v.level AS level,
+                   v.price AS price,
+                   v.currency AS currency,
+                   v.category_id AS category_id,
+                   cat.name AS category_name,
+                   t.teacher_id AS teacher_id
+            FROM course c
+            JOIN course_version v ON v.id = c.published_version_id
+            JOIN course_category cat ON cat.id = v.category_id
+            JOIN course_teacher t ON t.course_id = c.id AND t.teacher_role = 'OWNER'
+            WHERE c.lifecycle_status = 'PUBLISHED'
+            <if test="keyword != null and keyword != ''">
+              AND (v.title LIKE CONCAT('%', #{keyword}, '%')
+                   OR COALESCE(v.subtitle, '') LIKE CONCAT('%', #{keyword}, '%')
+                   OR COALESCE(v.description, '') LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="categoryId != null">
+              AND v.category_id = #{categoryId}
+            </if>
+            <if test="level != null and level != ''">
+              AND v.level = #{level}
+            </if>
+            <choose>
+              <when test="priceRange == 'free'">AND v.price = 0</when>
+              <when test="priceRange == 'under200'">AND v.price &gt; 0 AND v.price &lt; 200</when>
+              <when test="priceRange == '200to400'">AND v.price &gt;= 200 AND v.price &lt;= 400</when>
+              <when test="priceRange == 'above400'">AND v.price &gt; 400</when>
+            </choose>
+            ORDER BY
+            <choose>
+              <when test="sort == 'newest'">c.published_at DESC, c.id DESC</when>
+              <when test="sort == 'price-asc'">v.price ASC, c.id ASC</when>
+              <when test="sort == 'price-desc'">v.price DESC, c.id DESC</when>
+              <when test="sort == 'rating'">c.rating_avg DESC, c.rating_count DESC, c.id DESC</when>
+              <otherwise>c.enrollment_count DESC, c.id DESC</otherwise>
+            </choose>
+            </script>
+            """)
+    IPage<CourseCatalogRow> selectCatalogPage(
+            Page<CourseCatalogRow> page,
+            @Param("keyword") String keyword,
+            @Param("categoryId") Long categoryId,
+            @Param("level") String level,
+            @Param("priceRange") String priceRange,
+            @Param("sort") String sort);
 }
