@@ -42,17 +42,24 @@ educloud:
     # environment 与 Gateway/user/file 的 EDUCLOUD_ENVIRONMENT 同源，用于 Redis key 命名空间。
     environment: ${EDUCLOUD_ENVIRONMENT:local}
     file:
-      # M05: File 服务内部联调（FileClient，任务 6 起消费）。默认端点与设计规格一致；
+      # M05: File 服务内部联调（FileClient，任务 12 起消费）。默认端点与设计规格一致；
       # client-secret 为空时仅在本模块内占位，联调/生产由 env 注入。
       endpoint: ${EDUCLOUD_COURSE_FILE_ENDPOINT:http://127.0.0.1:8087}
       client-id: ${EDUCLOUD_COURSE_FILE_CLIENT_ID:educloud-course}
       client-secret: ${EDUCLOUD_COURSE_FILE_CLIENT_SECRET:}
       enabled: ${EDUCLOUD_COURSE_FILE_ENABLED:true}
     jwt:
-      # User 公钥 JWKS（用户令牌验签），任务 5 的 JwtDecoderConfiguration 消费。
-      jwks-location: ${COURSE_JWKS_LOCATION:}
+      # User 公钥 JWKS（用户令牌验签），任务 6 的 JwtDecoderConfiguration 消费。
+      # 生产由 env 注入 COURSE_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json；
+      # 本地/测试默认 classpath:jwks-test.json（测试资源里的公开测试密钥）。
+      jwks-location: ${COURSE_JWKS_LOCATION:classpath:jwks-test.json}
       issuer: ${EDUCLOUD_COURSE_JWT_ISSUER:https://issuer.educloud.local}
       audience: ${EDUCLOUD_COURSE_JWT_AUDIENCE:educloud-api}
+    internal:
+      # M05: 内部接口服务令牌（任务 6 InternalApiFilter 消费）：clientId 白名单默认 educloud-content
+      # （M06 content 调用方，任务 17 内部接口起消费）；audience 默认 educloud-course。
+      allowed-client-ids: ${EDUCLOUD_COURSE_INTERNAL_ALLOWED_CLIENT_IDS:educloud-content}
+      audience: ${EDUCLOUD_COURSE_INTERNAL_AUDIENCE:educloud-course}
 
 mybatis-plus:
   configuration:
@@ -77,7 +84,7 @@ management:
       group:
         liveness:
           include: livenessState
-        # M05 任务 0: readiness 默认只含 readinessState；mysql/redis/rabbit/nacos 聚合组在任务 6+ 引入。
+        # M05 任务 0: readiness 默认只含 readinessState；mysql/redis/rabbit/nacos 聚合组在任务 16 引入。
         readiness:
           include: readinessState
       show-details: never

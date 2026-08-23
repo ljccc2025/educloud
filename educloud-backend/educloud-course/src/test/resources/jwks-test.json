@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "educloud-course-test-1",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "kQH5qgwhpNGsH4uasCXPBX6nBopevFrrnfcMIQW17qzx5r_gbWg3PPRMXrShLKrXFTiLBlvVntCo_QyvSzKDEo3_SaMc6CD1-Y8BnvTvB2fjdlnZegQseLxD4N-yvUDvpTbgSVFg9IRt30WW_Wd4c2-0dbQVz9fx8MqIlfdvVfrBnO7cC_FsgWRBrvRjHJInM6tpabvTkKTFAliRmog6e7eJJBngzZXvkhrVWR46FVJLoHWHqnIAUNV09pbZij57iBC6wqllspaTgHCLWYy2qzDmBLYeyHr1QB-pMccOTFHzkgEU3r61QFAsNGVr03XEmDhIRzSgEzmgG4lIhGmfcQ",
+      "e": "AQAB"
+    }
+  ]
+}
