@@ -99,6 +99,12 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 > 1. 教师归属：`seed-demo-users.sh` 仅创建 demo_teacher / demo_admin，无其他 TEACHER 账号，故 V002 种子课程（含 DRAFT/PENDING_REVIEW）当前全部归属 demo_teacher；归属分散（其他教师账号）待后续扩展账号后以 V003 调整。
 > 2. VM 部署序列：user 迁移（V000-V004，含 `course:*` 权限）→ `seed-demo-users.sh`（demo_teacher/demo_admin）→ 确认 fe_demo_10 学生存在 → course 迁移（V000-V002）。
 > 3. demo_student_2 为 course 库侧预留引用（无外键约束），若教师学生列表需展示其用户名，需先在 user 库补建同名账号。
+> 4. 2026-08-24 执行备注（用户验收反馈后落地）：
+>    - V003 迁移丰富种子课程资料：8 门课完整简介 + 五模块大纲（description 内含【课程大纲】结构，M06 前由前端大纲区渲染）；评价 3→17 条、选课 3→17 行，评分汇总落 [3.8, 4.9] 区间；付费课选课以 source=ORDER 模拟已购。
+>    - 真实封面：8 门课封面取自 Unsplash 免费图库（联网检索真实课程主题图），经 file 上传会话→presigned PUT→complete→内部 bind（uploaderUserId=上传者）→更新 course_version.cover_file_id；列表/详情经 PUBLIC_CATALOG + ANONYMOUS/USER grant 展示短期 URL。
+>    - V005 迁移（user 库）补种 file:upload 权限码并挂 STUDENT/TEACHER/SYSTEM_ADMIN/SUPER_ADMIN（M04 时代 VM 手动添加、重装后丢失的回归修复）。
+>    - FileJwtValidator 兼容字符串 aud（RFC 7519 §4.1.3，Nimbus 单元素 List 序列化为字符串；M04 遗留，真实内部调用时暴露）。
+>    - MinIO endpoint 拓扑：presigned URL 的 host 取 file 服务 MINIO_ENDPOINT 配置，浏览器直连场景须配置为 VM 可访问地址（http://192.168.100.136:9000）而非 127.0.0.1（M04 坑 11 落地）。
 
 ## 6. API 契约（23 端点，含任务 22/23 计划外补齐，全部经网关）
 
