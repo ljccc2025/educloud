@@ -7,10 +7,12 @@ import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
 import com.educloud.course.dto.request.CourseListQuery;
 import com.educloud.course.dto.response.CourseDetailResponse;
+import com.educloud.course.dto.response.CourseReviewResponse;
 import com.educloud.course.dto.response.CourseSummaryResponse;
 import com.educloud.course.entity.CourseCategoryEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseEnrollmentEntity;
+import com.educloud.course.entity.CourseReviewEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.exception.CourseErrorCode;
@@ -18,6 +20,7 @@ import com.educloud.course.mapper.CourseCatalogRow;
 import com.educloud.course.mapper.CourseCategoryMapper;
 import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
+import com.educloud.course.mapper.CourseReviewMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.support.MybatisPlusTestSupport;
@@ -29,6 +32,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -63,7 +67,8 @@ class CourseCatalogServiceTest {
                 CourseVersionEntity.class,
                 CourseEnrollmentEntity.class,
                 CourseTeacherEntity.class,
-                CourseCategoryEntity.class);
+                CourseCategoryEntity.class,
+                CourseReviewEntity.class);
     }
 
     @Mock
@@ -82,12 +87,15 @@ class CourseCatalogServiceTest {
     private CourseTeacherMapper teacherMapper;
 
     @Mock
+    private CourseReviewMapper reviewMapper;
+
+    @Mock
     private FileClient fileClient;
 
     private CourseCatalogService service() {
         return new CourseCatalogService(
                 courseMapper, versionMapper, enrollmentMapper, categoryMapper, teacherMapper,
-                fileClient);
+                reviewMapper, fileClient);
     }
 
     // ---------- 列表：过滤/排序/分页 ----------
@@ -302,6 +310,7 @@ class CourseCatalogServiceTest {
                 teacher(1L, 101L, 1001L, "OWNER"),
                 teacher(2L, 101L, 2002L, "CO_TEACHER")));
         when(enrollmentMapper.selectCount(any())).thenReturn(1L);
+        when(reviewMapper.selectPage(any(), any())).thenReturn(new Page<>());
 
         CourseDetailResponse dto = service().detail(101L, 5001L);
 
@@ -326,6 +335,53 @@ class CourseCatalogServiceTest {
         assertThat(dto.coverUrl()).isNull();
     }
 
+
+    @Test
+    void detailIncludesVisibleReviews() {
+        // 任务 14：详情 reviews 占位空列表替换为真实 VISIBLE 评价（分页第一页，updatedAt 倒序）。
+        CourseEntity course = course(101L, 1001L, "PUBLISHED", 301L, null);
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        CourseVersionEntity version = version(301L, 101L, "PUBLISHED", "高等数学精讲", new BigDecimal("199.00"));
+        when(versionMapper.selectById(301L)).thenReturn(version);
+        when(categoryMapper.selectById(5L)).thenReturn(category(5L, "数学"));
+        when(teacherMapper.selectList(any())).thenReturn(List.of(teacher(1L, 101L, 1001L, "OWNER")));
+        when(enrollmentMapper.selectCount(any())).thenReturn(1L);
+
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 8, 24, 12, 0);
+        CourseReviewEntity visible = new CourseReviewEntity();
+        visible.setId(501L);
+        visible.setCourseId(101L);
+        visible.setStudentId(5001L);
+        visible.setRating(5);
+        visible.setContent("好课");
+        visible.setStatus("VISIBLE");
+        visible.setCreatedAt(LocalDateTime.of(2026, 8, 24, 10, 0));
+        visible.setUpdatedAt(updatedAt);
+        Page<CourseReviewEntity> reviewPage = new Page<>(1, 20);
+        reviewPage.setRecords(List.of(visible));
+        reviewPage.setTotal(1);
+        when(reviewMapper.selectPage(any(), any())).thenReturn(reviewPage);
+
+        CourseDetailResponse dto = service().detail(101L, 5001L);
+
+        assertThat(dto.reviews()).hasSize(1);
+        CourseReviewResponse review = dto.reviews().get(0);
+        assertThat(review.id()).isEqualTo("501");
+        assertThat(review.studentId()).isEqualTo("5001");
+        assertThat(review.rating()).isEqualTo(5);
+        assertThat(review.content()).isEqualTo("好课");
+        assertThat(review.status()).isEqualTo("VISIBLE");
+        assertThat(review.createdAt()).isNotNull();
+        assertThat(review.updatedAt()).isEqualTo(updatedAt);
+
+        @SuppressWarnings("rawtypes")
+        ArgumentCaptor<LambdaQueryWrapper> captor = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(reviewMapper).selectPage(any(Page.class), captor.capture());
+        LambdaQueryWrapper<?> wrapper = captor.getValue();
+        assertThat(wrapper.getSqlSegment()).contains("course_id").contains("status");
+        assertThat(wrapper.getParamNameValuePairs()).containsValues(101L, "VISIBLE");
+    }
+
     @Test
     void detailAllowsOwnerTeacherToSeeDraft() {
         CourseEntity course = course(101L, 1001L, "DRAFT", null, 301L);
@@ -335,6 +391,7 @@ class CourseCatalogServiceTest {
                 version(301L, 101L, "DRAFT", "草稿标题", new BigDecimal("0.00")));
         when(categoryMapper.selectById(5L)).thenReturn(category(5L, "数学"));
         when(teacherMapper.selectList(any())).thenReturn(List.of(teacher(1L, 101L, 1001L, "OWNER")));
+        when(reviewMapper.selectPage(any(), any())).thenReturn(new Page<>());
 
         CourseDetailResponse dto = service().detail(101L, 1001L);
 
@@ -352,6 +409,7 @@ class CourseCatalogServiceTest {
                 version(301L, 101L, "PENDING_REVIEW", "待审", new BigDecimal("299.00")));
         when(categoryMapper.selectById(5L)).thenReturn(category(5L, "数学"));
         when(teacherMapper.selectList(any())).thenReturn(List.of(teacher(1L, 101L, 1001L, "OWNER")));
+        when(reviewMapper.selectPage(any(), any())).thenReturn(new Page<>());
 
         CourseDetailResponse dto = service().detail(101L, 1001L);
 
@@ -368,6 +426,7 @@ class CourseCatalogServiceTest {
                 version(301L, 101L, "PUBLISHED", "下架课", new BigDecimal("99.00")));
         when(categoryMapper.selectById(5L)).thenReturn(category(5L, "数学"));
         when(teacherMapper.selectList(any())).thenReturn(List.of(teacher(1L, 101L, 1001L, "OWNER")));
+        when(reviewMapper.selectPage(any(), any())).thenReturn(new Page<>());
 
         CourseDetailResponse dto = service().detail(101L, 1001L);
 
@@ -494,6 +553,7 @@ class CourseCatalogServiceTest {
         when(versionMapper.selectById(301L)).thenReturn(version);
         when(categoryMapper.selectById(5L)).thenReturn(category(5L, "数学"));
         when(teacherMapper.selectList(any())).thenReturn(List.of(teacher(1L, 101L, 1001L, "OWNER")));
+        when(reviewMapper.selectPage(any(), any())).thenReturn(new Page<>());
         when(fileClient.grantPublicCatalogUrls(Map.of(88L, 101L)))
                 .thenReturn(Map.of(88L, "http://bucket/cover-88"));
 
@@ -515,6 +575,7 @@ class CourseCatalogServiceTest {
         when(versionMapper.selectById(301L)).thenReturn(version);
         when(categoryMapper.selectById(5L)).thenReturn(category(5L, "数学"));
         when(teacherMapper.selectList(any())).thenReturn(List.of(teacher(1L, 101L, 1001L, "OWNER")));
+        when(reviewMapper.selectPage(any(), any())).thenReturn(new Page<>());
         when(fileClient.grantCatalogUrls(Map.of(88L, 101L), 1001L))
                 .thenReturn(Map.of(88L, "http://bucket/draft-cover-88"));
 

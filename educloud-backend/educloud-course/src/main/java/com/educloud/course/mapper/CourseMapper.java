@@ -22,6 +22,18 @@ public interface CourseMapper extends BaseMapper<CourseEntity> {
     int incrementEnrollmentCount(@Param("id") Long id, @Param("version") Long version);
 
     /**
+     * 评分汇总列更新（M05 任务 14）：评价 upsert/隐藏后同事务按 VISIBLE 评价聚合
+     * 重算 rating_avg/rating_count（HIDDEN 不计入）。聚合列直写，与
+     * incrementEnrollmentCount 同一风格（不动乐观锁 version；调用方已持课程根行锁）。
+     */
+    @Update("UPDATE course SET rating_avg = #{ratingAvg}, rating_count = #{ratingCount} "
+            + "WHERE id = #{id}")
+    int updateRatingSummary(
+            @Param("id") Long id,
+            @Param("ratingAvg") java.math.BigDecimal ratingAvg,
+            @Param("ratingCount") Integer ratingCount);
+
+    /**
      * 锁定课程根行（SELECT ... FOR UPDATE）：审批/驳回/撤回等根状态切换前加行锁，
      * 与乐观锁（@Version）配合保证并发提交/审批原子性（规格 §7 版本乐观锁）。
      */

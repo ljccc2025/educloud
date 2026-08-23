@@ -7,10 +7,12 @@ import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
 import com.educloud.course.dto.request.CourseListQuery;
 import com.educloud.course.dto.response.CourseDetailResponse;
+import com.educloud.course.dto.response.CourseReviewResponse;
 import com.educloud.course.dto.response.CourseSummaryResponse;
 import com.educloud.course.entity.CourseCategoryEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseEnrollmentEntity;
+import com.educloud.course.entity.CourseReviewEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.exception.CourseErrorCode;
@@ -18,6 +20,7 @@ import com.educloud.course.mapper.CourseCatalogRow;
 import com.educloud.course.mapper.CourseCategoryMapper;
 import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
+import com.educloud.course.mapper.CourseReviewMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.support.SnowflakeIds;
@@ -47,7 +50,8 @@ import java.util.stream.Collectors;
  * <p>详情可见性：PUBLISHED 公开；DRAFT/PENDING_REVIEW/OFFLINE 仅归属教师
  * （course_teacher 存在行，OWNER 视角下发 lifecycleStatus）；ARCHIVED 与匿名/越权
  * 请求一律 404 COURSE_NOT_FOUND（规格 §6「他人/未登录看非 PUBLISHED → 404」；
- * OFFLINE 教师可见但列表不出现）。reviews 本任务恒空列表（任务 14 接评价）。
+ * OFFLINE 教师可见但列表不出现）。reviews 为 VISIBLE 评价分页第一页（任务 14 替换
+ * 任务 11 占位空列表；updatedAt 倒序，隐藏评价不出现）。
  * 封面信任边界（规格 §9）：未通过可见性校验的课程不签封面（不调用 grant），
  * 不能以伪造 courseId/ownerId 取得草稿/下架课程文件。</p>
  */
@@ -62,6 +66,7 @@ public class CourseCatalogService {
     private static final String LIFECYCLE_PUBLISHED = "PUBLISHED";
     private static final String LIFECYCLE_OFFLINE = "OFFLINE";
     private static final String ENROLLMENT_ACTIVE = "ACTIVE";
+    private static final String REVIEW_VISIBLE = "VISIBLE";
 
     /** 排序白名单（规格 §6）；白名单外 → 400。 */
     private static final Set<String> SORT_WHITELIST = Set.of(
@@ -80,6 +85,7 @@ public class CourseCatalogService {
     private final CourseEnrollmentMapper enrollmentMapper;
     private final CourseCategoryMapper categoryMapper;
     private final CourseTeacherMapper teacherMapper;
+    private final CourseReviewMapper reviewMapper;
     private final FileClient fileClient;
 
     public CourseCatalogService(
@@ -88,12 +94,14 @@ public class CourseCatalogService {
             CourseEnrollmentMapper enrollmentMapper,
             CourseCategoryMapper categoryMapper,
             CourseTeacherMapper teacherMapper,
+            CourseReviewMapper reviewMapper,
             FileClient fileClient) {
         this.courseMapper = Objects.requireNonNull(courseMapper, "courseMapper");
         this.versionMapper = Objects.requireNonNull(versionMapper, "versionMapper");
         this.enrollmentMapper = Objects.requireNonNull(enrollmentMapper, "enrollmentMapper");
         this.categoryMapper = Objects.requireNonNull(categoryMapper, "categoryMapper");
         this.teacherMapper = Objects.requireNonNull(teacherMapper, "teacherMapper");
+        this.reviewMapper = Objects.requireNonNull(reviewMapper, "reviewMapper");
         this.fileClient = Objects.requireNonNull(fileClient, "fileClient");
     }
 
@@ -180,7 +188,29 @@ public class CourseCatalogService {
                     : fileClient.grantCatalogUrls(Map.of(version.getCoverFileId(), courseId), currentUserId);
             coverUrl = urls.get(version.getCoverFileId());
         }
-        return toDetail(course, version, category, teachers, isEnrolled(courseId, currentUserId), coverUrl);
+        List<CourseReviewResponse> reviews = visibleReviews(courseId);
+        return toDetail(course, version, category, teachers, isEnrolled(courseId, currentUserId),
+                coverUrl, reviews);
+    }
+
+    /**
+     * 详情 reviews：VISIBLE 评价分页第一页（规格 §6「可见评价列表，分页」；详情响应
+     * 无独立分页元数据，取最新一页，updatedAt 倒序 + id 稳定次序）。
+     */
+    private List<CourseReviewResponse> visibleReviews(Long courseId) {
+        Page<CourseReviewEntity> page = reviewMapper.selectPage(
+                new Page<>(DEFAULT_PAGE, DEFAULT_SIZE),
+                new LambdaQueryWrapper<CourseReviewEntity>()
+                        .eq(CourseReviewEntity::getCourseId, courseId)
+                        .eq(CourseReviewEntity::getStatus, REVIEW_VISIBLE)
+                        .orderByDesc(CourseReviewEntity::getUpdatedAt)
+                        .orderByDesc(CourseReviewEntity::getId));
+        if (page == null || page.getRecords() == null) {
+            return List.of();
+        }
+        return page.getRecords().stream()
+                .map(CourseReviewService::toResponse)
+                .toList();
     }
 
     /** 非公开课程：仅归属教师（course_teacher 行存在），否则 404（不暴露存在性）。 */
@@ -243,7 +273,8 @@ public class CourseCatalogService {
             CourseCategoryEntity category,
             List<CourseTeacherEntity> teachers,
             boolean enrolled,
-            String coverUrl) {
+            String coverUrl,
+            List<CourseReviewResponse> reviews) {
         List<CourseDetailResponse.Teacher> teacherItems = teachers.stream()
                 .map(teacher -> new CourseDetailResponse.Teacher(
                         String.valueOf(teacher.getTeacherId()), teacher.getTeacherRole()))
@@ -265,7 +296,7 @@ public class CourseCatalogService {
                 course.getEnrollmentCount(),
                 enrolled,
                 course.getLifecycleStatus(),
-                List.of());
+                reviews);
     }
 
     /** 排序白名单校验：null/空白 → popular；白名单外 → 400。 */
