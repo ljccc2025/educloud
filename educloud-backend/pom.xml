@@ -17,6 +17,7 @@
         <module>educloud-gateway</module>
         <module>educloud-user</module>
         <module>educloud-file</module>
+        <module>educloud-course</module>
     </modules>
 
     <properties>

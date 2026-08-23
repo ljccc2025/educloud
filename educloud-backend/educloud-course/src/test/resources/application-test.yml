@@ -1,0 +1,38 @@
+# M05 任务 0 上下文测试 profile：禁用全部外部中间件连接（MySQL/Redis/RabbitMQ/Nacos）。
+# 依据：educloud-file/educloud-user 上下文测试的自动配置排除清单 + M05 计划任务 0 步骤 3
+# （本地测试 profile 关闭自动配置，不连接真实中间件）。
+spring:
+  main:
+    banner-mode: off
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - com.alibaba.cloud.nacos.discovery.NacosDiscoveryAutoConfiguration
+      - org.springframework.cloud.client.discovery.composite.CompositeDiscoveryClientAutoConfiguration
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+        register-enabled: false
+      config:
+        enabled: false
+
+server:
+  port: 0
+
+management:
+  server:
+    address: 127.0.0.1
+    port: 0
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState
+  tracing:
+    sampling:
+      probability: 0.0

@@ -1,0 +1,93 @@
+server:
+  port: ${SERVER_PORT:8089}
+  shutdown: graceful
+
+spring:
+  application:
+    name: educloud-course
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    # M05: 本地通过未提交的 .env 注入；生产由 Kubernetes Secret 注入。账号 course_app 无库级写权限（deploy/sql/course V000/V001 GRANT）。
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_course?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    username: course_app
+    password: ${EDUCLOUD_COURSE_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_DEFAULT_USER:}
+    password: ${RABBITMQ_DEFAULT_PASS:}
+    # M05: 与 compose 的 RABBITMQ_DEFAULT_VHOST 对齐（默认 educloud）；缺省会让凭据在 vhost "/" 上认证失败。
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:educloud}
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_COURSE_NACOS_USERNAME:}
+      password: ${EDUCLOUD_COURSE_NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
+
+educloud:
+  course:
+    # M05: 配置项依据：2026-08-23-educloud-course-design.md 第 10 节。
+    # environment 与 Gateway/user/file 的 EDUCLOUD_ENVIRONMENT 同源，用于 Redis key 命名空间。
+    environment: ${EDUCLOUD_ENVIRONMENT:local}
+    file:
+      # M05: File 服务内部联调（FileClient，任务 6 起消费）。默认端点与设计规格一致；
+      # client-secret 为空时仅在本模块内占位，联调/生产由 env 注入。
+      endpoint: ${EDUCLOUD_COURSE_FILE_ENDPOINT:http://127.0.0.1:8087}
+      client-id: ${EDUCLOUD_COURSE_FILE_CLIENT_ID:educloud-course}
+      client-secret: ${EDUCLOUD_COURSE_FILE_CLIENT_SECRET:}
+      enabled: ${EDUCLOUD_COURSE_FILE_ENABLED:true}
+    jwt:
+      # User 公钥 JWKS（用户令牌验签），任务 5 的 JwtDecoderConfiguration 消费。
+      jwks-location: ${COURSE_JWKS_LOCATION:}
+      issuer: ${EDUCLOUD_COURSE_JWT_ISSUER:https://issuer.educloud.local}
+      audience: ${EDUCLOUD_COURSE_JWT_AUDIENCE:educloud-api}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: isDeleted
+
+management:
+  server:
+    address: ${COURSE_MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${COURSE_MANAGEMENT_PORT:8090}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        # M05 任务 0: readiness 默认只含 readinessState；mysql/redis/rabbit/nacos 聚合组在任务 6+ 引入。
+        readiness:
+          include: readinessState
+      show-details: never
+  tracing:
+    sampling:
+      probability: ${EDUCLOUD_COURSE_TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://127.0.0.1:9411/api/v2/spans}
+
+logging:
+  level:
+    com.educloud.course: INFO
