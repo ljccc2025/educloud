@@ -28,14 +28,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 密钥对，JWKS 文件经 @DynamicPropertySource 注入 {@code educloud.course.jwt.jwks-location}
  * （与 educloud-file SecurityConfigurationTest 同法），私钥签发用户令牌。断言：无 token
  * 401 信封；course:audit 权限放行受保护端点；无该权限 403 COURSE_ACCESS_DENIED；
- * 错误 aud 401（validator 拒绝，与 file 模块语义一致）。（actuator 按 application-test.yml
- * 运行在独立 management 端口，不在主 SecurityFilterChain 作用域内，故不在此断言匿名可达。）</p>
+ * 错误 aud 401；非信任密钥（验签失败）401；过期 token 401。（actuator 按
+ * application-test.yml 运行在独立 management 端口，不在主 SecurityFilterChain 作用域内，
+ * 故不在此断言匿名可达。）</p>
  */
 @SpringBootTest(classes = CourseApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class SecurityConfigTest {
 
+    private static final String ISSUER = "https://issuer.educloud.local";
     private static final TestJwtKeys TEST_KEYS = new TestJwtKeys();
 
     @Autowired
@@ -81,14 +83,39 @@ class SecurityConfigTest {
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
 
+    @Test
+    void rejectsTokenSignedByUntrustedKey() throws Exception {
+        // 相同 claims、不同密钥对签发：kid 未知/验签失败 → 401。
+        TestJwtKeys untrusted = new TestJwtKeys();
+        mockMvc.perform(get("/api/v1/courses/security-probe")
+                        .header("Authorization", "Bearer " + untrusted.signedToken(
+                                userClaims("educloud-api", List.of("course:audit"), Instant.now()))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void rejectsExpiredToken() throws Exception {
+        Instant issued = Instant.now().minusSeconds(300);
+        Map<String, Object> claims = userClaims("educloud-api", List.of("course:audit"), issued);
+        claims.put("exp", issued.plusSeconds(120)); // 已过期 180s，超出 30s 时钟容差
+        mockMvc.perform(get("/api/v1/courses/security-probe")
+                        .header("Authorization", "Bearer " + TEST_KEYS.signedToken(claims)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
     private static String userToken(List<String> permissions) {
         return userToken("educloud-api", permissions);
     }
 
     private static String userToken(String audience, List<String> permissions) {
-        Instant now = Instant.now();
+        return TEST_KEYS.signedToken(userClaims(audience, permissions, Instant.now()));
+    }
+
+    private static Map<String, Object> userClaims(String audience, List<String> permissions, Instant now) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("iss", "https://issuer.educloud.local");
+        claims.put("iss", ISSUER);
         claims.put("aud", List.of(audience));
         claims.put("exp", now.plusSeconds(300));
         claims.put("nbf", now.minusSeconds(1));
@@ -99,6 +126,6 @@ class SecurityConfigTest {
         claims.put("userType", "STUDENT");
         claims.put("roles", List.of("STUDENT"));
         claims.put("permissions", permissions);
-        return TEST_KEYS.signedToken(claims);
+        return claims;
     }
 }

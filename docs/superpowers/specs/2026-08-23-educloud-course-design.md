@@ -149,7 +149,7 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 
 ## 9. 安全设计
 
-- JWT Resource Server（`course:*` 权限码）；内部接口 InternalApiFilter（clientId → ownerService 推导，未知 clientId 403）。
+- JWT Resource Server（`course:*` 权限码）；内部接口 InternalApiFilter（clientId → ownerService 推导，未知 clientId 403）。内部控制器（任务 17）只用 `InternalApiFilter.requireClientId` 取调用方身份，不配 `@PreAuthorize`（服务令牌无 permissions claim）。
 - 归属校验硬规则：草稿读/改/提交、学生列表、下架/归档/重上架均须 `course_teacher`（OWNER 或 CO_TEACHER）；`course:audit` 角色不能审批自己的提交。
 - 信任边界（对齐 M04 坑 5）：封面 bind 前校验上传者属主；grant 只对通过可见性校验的课程组装，匿名 `PUBLIC_CATALOG` 只能签已发布课程封面，禁止伪造 courseId/ownerId 取草稿/下架文件。
 - 越权门禁用例（验收必测）：教师 A 读教师 B 草稿 403；未选课学生写评价 403；学生查他人课程学生列表 403；匿名访问未发布课程 404/403；伪造封面 fileId 绑定 403；审核角色自审 403。
@@ -212,6 +212,7 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 | 分类管理 | 种子 + 数据库维护 | 管理 API 归 M12 运营面 |
 | 时间字段类型 | LocalDateTime（对齐 DATETIME(3) 本地时间语义） | file 模块实体用 Instant 为既有差异；Course 模块统一 LocalDateTime |
 | advice 共存顺序 | Course handler `@Order(LOWEST_PRECEDENCE - 1)` 先于 common（无 @Order ≈ LOWEST_PRECEDENCE） | Spring 异常解析为「首个匹配 advice 获胜」（非跨 advice 特异度）：域 advice 必须靠前，其 BusinessException/AccessDenied 处理器才不被 common 的 Exception 兜底抢先吞成 500（file 模块同类共存顺序问题即因此产生，M04 已验收，留待独立评审）；坏 JSON/缺参/404/405/未知 500 等共享错误 course 无匹配时仍由 common 的 400/404/405/500 语义处理 |
+| JWKS 强制字段 | use=sig + alg=RS256 | course 与 file 同策略强制（JwksLoader 校验）；user 侧 generate-user-jwt-keys.sh 输出需含此二字段，联调时验证 |
 
 ## 16. 参考文档
 

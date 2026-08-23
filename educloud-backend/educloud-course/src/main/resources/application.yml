@@ -50,9 +50,9 @@ educloud:
       enabled: ${EDUCLOUD_COURSE_FILE_ENABLED:true}
     jwt:
       # User 公钥 JWKS（用户令牌验签），任务 6 的 JwtDecoderConfiguration 消费。
-      # 生产由 env 注入 COURSE_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json；
-      # 本地/测试默认 classpath:jwks-test.json（测试资源里的公开测试密钥）。
-      jwks-location: ${COURSE_JWKS_LOCATION:classpath:jwks-test.json}
+      # 无默认（与 file FILE_JWKS_LOCATION / user 空默认同基线）：未配置即启动 fail-fast，
+      # 生产/联调必须注入 COURSE_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json。
+      jwks-location: ${COURSE_JWKS_LOCATION:}
       issuer: ${EDUCLOUD_COURSE_JWT_ISSUER:https://issuer.educloud.local}
       audience: ${EDUCLOUD_COURSE_JWT_AUDIENCE:educloud-api}
     internal:

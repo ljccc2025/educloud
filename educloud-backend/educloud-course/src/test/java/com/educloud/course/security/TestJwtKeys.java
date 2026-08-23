@@ -9,7 +9,6 @@ import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.PlainJWT;
 import com.nimbusds.jwt.SignedJWT;
 
 import java.security.KeyPair;
@@ -76,10 +75,6 @@ public final class TestJwtKeys {
         } catch (JOSEException exception) {
             throw new IllegalStateException("temporary JWT signing failed", exception);
         }
-    }
-
-    String unsignedToken(Map<String, Object> claims) {
-        return new PlainJWT(claims(claims)).serialize();
     }
 
     private static JWTClaimsSet claims(Map<String, Object> claims) {

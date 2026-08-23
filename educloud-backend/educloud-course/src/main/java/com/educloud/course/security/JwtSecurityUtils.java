@@ -66,24 +66,34 @@ public final class JwtSecurityUtils {
     /** 组装 common {@link AuthenticatedUser}（后续任务控制器取当前用户的标准入口）。 */
     public static AuthenticatedUser authenticatedUser(Jwt jwt) {
         Objects.requireNonNull(jwt, "jwt");
-        Set<String> roles = roles(jwt);
-        return new AuthenticatedUser(
-                jwt.getSubject(),
-                (String) jwt.getClaim("sid"),
-                roles,
-                permissions(jwt));
+        Object sidValue = jwt.getClaim("sid");
+        if (!(sidValue instanceof String sessionId)) {
+            throw new BusinessException(
+                    CommonErrorCode.UNAUTHENTICATED,
+                    "JWT sid claim must be a string");
+        }
+        return new AuthenticatedUser(jwt.getSubject(), sessionId, roles(jwt), permissions(jwt));
     }
 
+    /** 提取 roles claim（字符串数组）；缺失 → 空集；非数组或含非字符串 → UNAUTHENTICATED（与 permissions 对称）。 */
     private static Set<String> roles(Jwt jwt) {
         Object value = jwt.getClaim("roles");
-        if (!(value instanceof Collection<?> collection)) {
+        if (value == null) {
             return Set.of();
+        }
+        if (!(value instanceof Collection<?> collection)) {
+            throw new BusinessException(
+                    CommonErrorCode.UNAUTHENTICATED,
+                    "JWT roles claim must be an array of strings");
         }
         LinkedHashSet<String> roles = new LinkedHashSet<>();
         for (Object item : collection) {
-            if (item instanceof String text) {
-                roles.add(text);
+            if (!(item instanceof String text)) {
+                throw new BusinessException(
+                        CommonErrorCode.UNAUTHENTICATED,
+                        "JWT roles claim must be an array of strings");
             }
+            roles.add(text);
         }
         return Set.copyOf(roles);
     }

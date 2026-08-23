@@ -7,6 +7,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,7 +32,7 @@ class InternalApiFilterTest {
     private static CourseProperties properties() {
         return new CourseProperties(
                 "test",
-                new CourseProperties.Jwt("classpath:jwks-test.json", "https://issuer.educloud.local", "educloud-api"),
+                new CourseProperties.Jwt("", "https://issuer.educloud.local", "educloud-api"),
                 new CourseProperties.Internal(List.of("educloud-content"), "educloud-course"));
     }
 
@@ -55,7 +56,21 @@ class InternalApiFilterTest {
         filter.doFilter(request, response, chain);
 
         assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(chain.getRequest()).isSameAs(request);
         assertThat(request.getAttribute(InternalApiFilter.CLIENT_ID_ATTRIBUTE)).isEqualTo("educloud-content");
+    }
+
+    @Test
+    void rejectsDecodeFailureWith401() throws Exception {
+        when(jwtDecoder.decode("bad")).thenThrow(new JwtException("invalid signature"));
+        MockHttpServletRequest request = internalRequest("/internal/v1/courses/1");
+        request.addHeader("Authorization", "Bearer bad");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(request.getAttribute(InternalApiFilter.CLIENT_ID_ATTRIBUTE)).isNull();
     }
 
     @Test

@@ -69,6 +69,41 @@ class JwtSecurityUtilsTest {
                 .hasMessageContaining("array of strings");
     }
 
+    @Test
+    void rejectsMalformedRolesAndMissingSidFailClosed() {
+        Jwt rolesNotArray = Jwt.withTokenValue("t")
+                .header("alg", "none")
+                .subject("1001")
+                .claim("sid", "s")
+                .claim("roles", "TEACHER")
+                .claim("permissions", List.of("course:audit"))
+                .build();
+        assertThatThrownBy(() -> JwtSecurityUtils.authenticatedUser(rolesNotArray))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("roles claim");
+
+        Jwt rolesWithNonString = Jwt.withTokenValue("t")
+                .header("alg", "none")
+                .subject("1001")
+                .claim("sid", "s")
+                .claim("roles", List.of("TEACHER", 42))
+                .claim("permissions", List.of("course:audit"))
+                .build();
+        assertThatThrownBy(() -> JwtSecurityUtils.authenticatedUser(rolesWithNonString))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("roles claim");
+
+        Jwt missingSid = Jwt.withTokenValue("t")
+                .header("alg", "none")
+                .subject("1001")
+                .claim("roles", List.of("TEACHER"))
+                .claim("permissions", List.of("course:audit"))
+                .build();
+        assertThatThrownBy(() -> JwtSecurityUtils.authenticatedUser(missingSid))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("sid claim");
+    }
+
     private static Jwt jwt(String subject, String sessionId, List<String> permissions, List<String> roles) {
         Instant now = Instant.now();
         return Jwt.withTokenValue("test-token")
