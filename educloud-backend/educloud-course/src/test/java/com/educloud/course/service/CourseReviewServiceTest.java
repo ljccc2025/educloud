@@ -2,17 +2,21 @@ package com.educloud.course.service;
 
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
+import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.course.dto.request.ReviewUpsertRequest;
 import com.educloud.course.dto.response.CourseReviewResponse;
 import com.educloud.course.entity.CourseEnrollmentEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseReviewEntity;
 import com.educloud.course.exception.CourseErrorCode;
+import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseReviewMapper;
 import com.educloud.course.mapper.CourseReviewSummaryRow;
+import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.support.MybatisPlusTestSupport;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +24,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -68,8 +74,16 @@ class CourseReviewServiceTest {
     @Mock
     private CourseReviewMapper reviewMapper;
 
+    @Mock
+    private AuditEventMapper auditEventMapper;
+
+    @Mock
+    private RequestContextAccessor requestContextAccessor;
+
     private CourseReviewService service() {
-        return new CourseReviewService(courseMapper, enrollmentMapper, reviewMapper);
+        return new CourseReviewService(courseMapper, enrollmentMapper, reviewMapper,
+                new AuditWriter(auditEventMapper, requestContextAccessor,
+                        new ObjectMapper(), Clock.systemUTC()));
     }
 
     // ---------------------------------------------------------------- upsert：拒绝路径

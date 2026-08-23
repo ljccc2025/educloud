@@ -1,5 +1,6 @@
 package com.educloud.course;
 
+import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseAuditSubmissionMapper;
 import com.educloud.course.mapper.CourseCategoryMapper;
 import com.educloud.course.mapper.CourseContentReadinessProjectionMapper;
@@ -27,6 +28,11 @@ import static org.mockito.Mockito.mock;
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class ExternalDependencyConfiguration {
+
+    @Bean
+    public AuditEventMapper auditEventMapper() {
+        return mock(AuditEventMapper.class);
+    }
 
     @Bean
     public CourseAuditSubmissionMapper courseAuditSubmissionMapper() {

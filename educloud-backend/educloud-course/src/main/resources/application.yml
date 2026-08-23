@@ -89,9 +89,9 @@ management:
       group:
         liveness:
           include: livenessState
-        # M05 任务 0: readiness 默认只含 readinessState；mysql/redis/rabbit/nacos 聚合组在任务 16 引入。
+        # M05 任务 16: readiness 含 readinessState + courseDependencies（mysql/redis/rabbit/nacos 聚合，HealthIndicatorConfig）。
         readiness:
-          include: readinessState
+          include: readinessState,courseDependencies
       show-details: never
   tracing:
     sampling:

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.educloud.common.api.PageResponse;
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
+import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.course.dto.response.CourseStudentResponse;
 import com.educloud.course.dto.response.EnrollmentResponse;
 import com.educloud.course.dto.response.MyCourseResponse;
@@ -12,6 +13,7 @@ import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.exception.CourseErrorCode;
+import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseMyCourseRow;
@@ -19,7 +21,11 @@ import com.educloud.course.mapper.CourseStudentRow;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
+import com.educloud.course.observability.AuditWriter;
+import com.educloud.course.observability.CourseMetrics;
 import com.educloud.course.support.MybatisPlusTestSupport;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.educloud.course.support.TeacherAccessGuard;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -31,6 +37,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +97,12 @@ class EnrollmentServiceTest {
 
     @Mock
     private FileClient fileClient;
+
+    @Mock
+    private AuditEventMapper auditEventMapper;
+
+    @Mock
+    private RequestContextAccessor requestContextAccessor;
 
     // ---------------------------------------------------------------- 选课：成功/幂等
 
@@ -378,7 +391,10 @@ class EnrollmentServiceTest {
                 enrollmentMapper,
                 new TeacherAccessGuard(courseTeacherMapper),
                 eventPublisher,
-                fileClient);
+                fileClient,
+                new CourseMetrics(new SimpleMeterRegistry()),
+                new AuditWriter(auditEventMapper, requestContextAccessor,
+                        new ObjectMapper(), Clock.systemUTC()));
     }
 
     private void assignEnrollmentId(Long id) {

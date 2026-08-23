@@ -16,6 +16,7 @@ import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.entity.OutboxEventEntity;
 import com.educloud.course.exception.CourseErrorCode;
+import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseAuditSubmissionMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
@@ -24,10 +25,13 @@ import com.educloud.course.mapper.OutboxEventMapper;
 import com.educloud.course.mapper.OutboxSequenceMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.messaging.OutboxWriter;
+import com.educloud.course.observability.AuditWriter;
+import com.educloud.course.observability.CourseMetrics;
 import com.educloud.course.support.TeacherAccessGuard;
 import com.educloud.course.testcontainers.TestContainerImages;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +50,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -139,7 +144,10 @@ class CourseAuditPublishIT {
                 sqlSessionTemplate.getMapper(CourseVersionMapper.class),
                 sqlSessionTemplate.getMapper(CourseAuditSubmissionMapper.class),
                 new TeacherAccessGuard(sqlSessionTemplate.getMapper(CourseTeacherMapper.class)),
-                eventPublisher);
+                eventPublisher,
+                new CourseMetrics(new SimpleMeterRegistry()),
+                new AuditWriter(sqlSessionTemplate.getMapper(AuditEventMapper.class),
+                        requestContext, new ObjectMapper(), Clock.systemUTC()));
     }
 
     @BeforeEach
@@ -292,6 +300,7 @@ class CourseAuditPublishIT {
                 CourseVersionMapper.class,
                 CourseTeacherMapper.class,
                 CourseAuditSubmissionMapper.class,
+                AuditEventMapper.class,
                 OutboxEventMapper.class,
                 OutboxSequenceMapper.class);
     }

@@ -11,10 +11,14 @@ import com.educloud.course.dto.request.ReviewUpsertRequest;
 import com.educloud.course.entity.CourseEnrollmentEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseReviewEntity;
+import com.educloud.common.web.RequestContextAccessor;
+import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseReviewMapper;
+import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.testcontainers.TestContainerImages;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,8 +37,10 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -113,10 +119,23 @@ class ReviewSummaryIT {
         transactionTemplate = new TransactionTemplate(transactionManager);
 
         courseMapper = sqlSessionTemplate.getMapper(CourseMapper.class);
+        RequestContextAccessor requestContext = new RequestContextAccessor() {
+            @Override
+            public String requestId() {
+                return "it-review-request";
+            }
+
+            @Override
+            public Optional<String> traceId() {
+                return Optional.of("it-review-trace");
+            }
+        };
         reviewService = new CourseReviewService(
                 courseMapper,
                 sqlSessionTemplate.getMapper(CourseEnrollmentMapper.class),
-                sqlSessionTemplate.getMapper(CourseReviewMapper.class));
+                sqlSessionTemplate.getMapper(CourseReviewMapper.class),
+                new AuditWriter(sqlSessionTemplate.getMapper(AuditEventMapper.class),
+                        requestContext, new ObjectMapper(), Clock.systemUTC()));
     }
 
     @BeforeEach
@@ -327,7 +346,8 @@ class ReviewSummaryIT {
         return List.of(
                 CourseMapper.class,
                 CourseEnrollmentMapper.class,
-                CourseReviewMapper.class);
+                CourseReviewMapper.class,
+                AuditEventMapper.class);
     }
 
     private static Path migrationDirectory() {

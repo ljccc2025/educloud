@@ -3,6 +3,7 @@ package com.educloud.course.service;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
+import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.course.dto.request.CourseCreateRequest;
 import com.educloud.course.dto.request.CourseDraftUpdateRequest;
 import com.educloud.course.dto.response.CourseDraftResponse;
@@ -10,11 +11,14 @@ import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.exception.CourseErrorCode;
+import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
+import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.support.MybatisPlusTestSupport;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.educloud.course.support.TeacherAccessGuard;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -24,6 +28,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -69,6 +75,12 @@ class CourseDraftServiceTest {
 
     @Mock
     private CourseEventPublisher eventPublisher;
+
+    @Mock
+    private AuditEventMapper auditEventMapper;
+
+    @Mock
+    private RequestContextAccessor requestContextAccessor;
 
     @Mock
     private FileClient fileClient;
@@ -481,7 +493,9 @@ class CourseDraftServiceTest {
                 courseVersionMapper,
                 new TeacherAccessGuard(courseTeacherMapper),
                 eventPublisher,
-                fileClient);
+                fileClient,
+                new AuditWriter(auditEventMapper, requestContextAccessor,
+                        new ObjectMapper(), Clock.systemUTC()));
     }
 
     private CourseVersionService versionService() {

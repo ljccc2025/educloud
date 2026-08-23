@@ -14,6 +14,7 @@ import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseReviewMapper;
 import com.educloud.course.mapper.CourseReviewSummaryRow;
+import com.educloud.course.observability.AuditWriter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,14 +67,17 @@ public class CourseReviewService {
     private final CourseMapper courseMapper;
     private final CourseEnrollmentMapper enrollmentMapper;
     private final CourseReviewMapper reviewMapper;
+    private final AuditWriter auditWriter;
 
     public CourseReviewService(
             CourseMapper courseMapper,
             CourseEnrollmentMapper enrollmentMapper,
-            CourseReviewMapper reviewMapper) {
+            CourseReviewMapper reviewMapper,
+            AuditWriter auditWriter) {
         this.courseMapper = Objects.requireNonNull(courseMapper, "courseMapper");
         this.enrollmentMapper = Objects.requireNonNull(enrollmentMapper, "enrollmentMapper");
         this.reviewMapper = Objects.requireNonNull(reviewMapper, "reviewMapper");
+        this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
     }
 
     /**
@@ -149,6 +153,8 @@ public class CourseReviewService {
         review.setUpdatedBy(adminUserId);
         review.setUpdatedAt(now);
         recalculate(course);
+        auditWriter.write("REVIEW_HIDDEN", "course_review", String.valueOf(reviewId),
+                adminUserId, roles, "SUCCESS", null);
         return toResponse(review);
     }
 

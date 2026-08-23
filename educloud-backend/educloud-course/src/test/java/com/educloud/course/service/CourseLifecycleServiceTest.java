@@ -2,15 +2,19 @@ package com.educloud.course.service;
 
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
+import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.exception.CourseErrorCode;
+import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
+import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.support.MybatisPlusTestSupport;
 import com.educloud.course.support.TeacherAccessGuard;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -69,6 +74,12 @@ class CourseLifecycleServiceTest {
 
     @Mock
     private FileClient fileClient;
+
+    @Mock
+    private AuditEventMapper auditEventMapper;
+
+    @Mock
+    private RequestContextAccessor requestContextAccessor;
 
     // ---------------------------------------------------------------- offline
 
@@ -299,7 +310,9 @@ class CourseLifecycleServiceTest {
                 courseVersionMapper,
                 new TeacherAccessGuard(courseTeacherMapper),
                 eventPublisher,
-                fileClient);
+                fileClient,
+                new AuditWriter(auditEventMapper, requestContextAccessor,
+                        new ObjectMapper(), Clock.systemUTC()));
     }
 
     private void bumpVersionOnRootUpdate() {

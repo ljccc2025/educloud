@@ -19,6 +19,8 @@ import com.educloud.course.mapper.CourseMyCourseRow;
 import com.educloud.course.mapper.CourseStudentRow;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
+import com.educloud.course.observability.AuditWriter;
+import com.educloud.course.observability.CourseMetrics;
 import com.educloud.course.support.TeacherAccessGuard;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 选课服务（M05 任务 13）：免费选课（幂等）/我的课程/教师学生列表。
@@ -75,6 +78,8 @@ public class EnrollmentService {
     private final TeacherAccessGuard teacherAccessGuard;
     private final CourseEventPublisher eventPublisher;
     private final FileClient fileClient;
+    private final CourseMetrics courseMetrics;
+    private final AuditWriter auditWriter;
 
     public EnrollmentService(
             CourseMapper courseMapper,
@@ -82,13 +87,17 @@ public class EnrollmentService {
             CourseEnrollmentMapper enrollmentMapper,
             TeacherAccessGuard teacherAccessGuard,
             CourseEventPublisher eventPublisher,
-            FileClient fileClient) {
+            FileClient fileClient,
+            CourseMetrics courseMetrics,
+            AuditWriter auditWriter) {
         this.courseMapper = Objects.requireNonNull(courseMapper, "courseMapper");
         this.versionMapper = Objects.requireNonNull(versionMapper, "versionMapper");
         this.enrollmentMapper = Objects.requireNonNull(enrollmentMapper, "enrollmentMapper");
         this.teacherAccessGuard = Objects.requireNonNull(teacherAccessGuard, "teacherAccessGuard");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
         this.fileClient = Objects.requireNonNull(fileClient, "fileClient");
+        this.courseMetrics = Objects.requireNonNull(courseMetrics, "courseMetrics");
+        this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
     }
 
     /**
@@ -173,6 +182,9 @@ public class EnrollmentService {
                 SOURCE_FREE,
                 enrollment.getVersion(),
                 now);
+        courseMetrics.recordEnrollmentCreated();
+        auditWriter.write("ENROLLMENT_CREATED", "enrollment", String.valueOf(enrollment.getId()),
+                studentId, Set.of("STUDENT"), "SUCCESS", null);
         return toResponse(enrollment);
     }
 

@@ -4,20 +4,26 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
+import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.course.dto.response.CourseAuditResponse;
 import com.educloud.course.entity.CourseAuditSubmissionEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.exception.CourseErrorCode;
+import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseAuditSubmissionMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
+import com.educloud.course.observability.AuditWriter;
+import com.educloud.course.observability.CourseMetrics;
 import com.educloud.course.state.CourseVersionStateMachine;
 import com.educloud.course.support.MybatisPlusTestSupport;
 import com.educloud.course.support.TeacherAccessGuard;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -77,6 +84,12 @@ class CourseAuditServiceTest {
 
     @Mock
     private CourseEventPublisher eventPublisher;
+
+    @Mock
+    private AuditEventMapper auditEventMapper;
+
+    @Mock
+    private RequestContextAccessor requestContextAccessor;
 
     // ---------------------------------------------------------------- submit
 
@@ -501,7 +514,10 @@ class CourseAuditServiceTest {
                 courseVersionMapper,
                 submissionMapper,
                 new TeacherAccessGuard(courseTeacherMapper),
-                eventPublisher);
+                eventPublisher,
+                new CourseMetrics(new SimpleMeterRegistry()),
+                new AuditWriter(auditEventMapper, requestContextAccessor,
+                        new ObjectMapper(), Clock.systemUTC()));
     }
 
     private void assignSubmissionId(Long id) {

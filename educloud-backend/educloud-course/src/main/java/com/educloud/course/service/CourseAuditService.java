@@ -15,6 +15,8 @@ import com.educloud.course.mapper.CourseAuditSubmissionMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
+import com.educloud.course.observability.AuditWriter;
+import com.educloud.course.observability.CourseMetrics;
 import com.educloud.course.state.AuditStateMachine;
 import com.educloud.course.state.CourseVersionStateMachine;
 import com.educloud.course.support.TeacherAccessGuard;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 课程审核服务（M05 任务 9）：提交/审批（原子发布）/驳回/撤回 + 待审列表/详情。
@@ -59,18 +62,24 @@ public class CourseAuditService {
     private final CourseAuditSubmissionMapper submissionMapper;
     private final TeacherAccessGuard teacherAccessGuard;
     private final CourseEventPublisher eventPublisher;
+    private final CourseMetrics courseMetrics;
+    private final AuditWriter auditWriter;
 
     public CourseAuditService(
             CourseMapper courseMapper,
             CourseVersionMapper versionMapper,
             CourseAuditSubmissionMapper submissionMapper,
             TeacherAccessGuard teacherAccessGuard,
-            CourseEventPublisher eventPublisher) {
+            CourseEventPublisher eventPublisher,
+            CourseMetrics courseMetrics,
+            AuditWriter auditWriter) {
         this.courseMapper = Objects.requireNonNull(courseMapper, "courseMapper");
         this.versionMapper = Objects.requireNonNull(versionMapper, "versionMapper");
         this.submissionMapper = Objects.requireNonNull(submissionMapper, "submissionMapper");
         this.teacherAccessGuard = Objects.requireNonNull(teacherAccessGuard, "teacherAccessGuard");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
+        this.courseMetrics = Objects.requireNonNull(courseMetrics, "courseMetrics");
+        this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
     }
 
     /**
@@ -125,6 +134,8 @@ public class CourseAuditService {
         }
 
         version.setVersionStatus(CourseVersionStateMachine.PENDING_REVIEW);
+        auditWriter.write("SUBMIT_FOR_REVIEW", "course_version", String.valueOf(versionId),
+                teacherId, Set.of("TEACHER"), "SUCCESS", null);
         return CourseAuditResponse.from(submission, course, version);
     }
 
@@ -192,6 +203,10 @@ public class CourseAuditService {
                     "Course root changed concurrently: " + course.getId());
         }
         eventPublisher.coursePublished(course.getId(), version.getId(), course.getVersion(), now);
+        courseMetrics.recordCoursePublished();
+        courseMetrics.recordAuditApproved();
+        auditWriter.write("AUDIT_APPROVED", "course_audit", String.valueOf(auditId),
+                reviewerId, Set.of("COURSE_REVIEWER"), "SUCCESS", null);
 
         version.setVersionStatus(CourseVersionStateMachine.PUBLISHED);
         return CourseAuditResponse.from(submission, course, version);
@@ -244,6 +259,9 @@ public class CourseAuditService {
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
                     "Course root changed concurrently: " + course.getId());
         }
+        courseMetrics.recordAuditRejected();
+        auditWriter.write("AUDIT_REJECTED", "course_audit", String.valueOf(auditId),
+                reviewerId, Set.of("COURSE_REVIEWER"), "SUCCESS", reason);
 
         version.setVersionStatus(CourseVersionStateMachine.REJECTED);
         return CourseAuditResponse.from(submission, course, version);

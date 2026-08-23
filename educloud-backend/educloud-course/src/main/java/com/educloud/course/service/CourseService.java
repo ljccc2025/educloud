@@ -12,6 +12,7 @@ import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
+import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.support.SnowflakeIds;
 import com.educloud.course.support.TeacherAccessGuard;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 课程聚合根服务（M05 任务 8/10）：建课（根 + 负责人关系 + 首版草稿同一事务）与
@@ -47,6 +49,7 @@ public class CourseService {
     private final TeacherAccessGuard teacherAccessGuard;
     private final CourseEventPublisher eventPublisher;
     private final FileClient fileClient;
+    private final AuditWriter auditWriter;
 
     public CourseService(
             CourseMapper courseMapper,
@@ -54,13 +57,15 @@ public class CourseService {
             CourseVersionMapper courseVersionMapper,
             TeacherAccessGuard teacherAccessGuard,
             CourseEventPublisher eventPublisher,
-            FileClient fileClient) {
+            FileClient fileClient,
+            AuditWriter auditWriter) {
         this.courseMapper = Objects.requireNonNull(courseMapper, "courseMapper");
         this.courseTeacherMapper = Objects.requireNonNull(courseTeacherMapper, "courseTeacherMapper");
         this.courseVersionMapper = Objects.requireNonNull(courseVersionMapper, "courseVersionMapper");
         this.teacherAccessGuard = Objects.requireNonNull(teacherAccessGuard, "teacherAccessGuard");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
         this.fileClient = Objects.requireNonNull(fileClient, "fileClient");
+        this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
     }
 
     /**
@@ -114,6 +119,8 @@ public class CourseService {
             fileClient.bindCover(course.getId(), draft.getCoverFileId(), teacherId);
         }
         courseMapper.updateById(course);
+        auditWriter.write("COURSE_CREATED", "course", String.valueOf(course.getId()),
+                teacherId, Set.of("TEACHER"), "SUCCESS", null);
 
         return CourseDraftResponse.from(course, draft,
                 List.of(new CourseDraftResponse.Teacher(String.valueOf(teacherId), TEACHER_ROLE_OWNER)));
@@ -140,6 +147,8 @@ public class CourseService {
         course.setLifecycleStatus(LIFECYCLE_OFFLINE);
         requireRootUpdate(course);
         eventPublisher.courseOfflined(courseId, course.getPublishedVersionId(), course.getVersion(), now);
+        auditWriter.write("COURSE_OFFLINED", "course", String.valueOf(courseId),
+                teacherId, Set.of("TEACHER"), "SUCCESS", null);
     }
 
     /**
@@ -186,6 +195,8 @@ public class CourseService {
         course.setLifecycleStatus(LIFECYCLE_ARCHIVED);
         requireRootUpdate(course);
         eventPublisher.courseArchived(courseId, course.getPublishedVersionId(), course.getVersion(), now);
+        auditWriter.write("COURSE_ARCHIVED", "course", String.valueOf(courseId),
+                teacherId, Set.of("TEACHER"), "SUCCESS", null);
     }
 
     /** 锁根读课程（SELECT ... FOR UPDATE，规格 §7 版本乐观锁）；不存在 → 404。 */
