@@ -28,7 +28,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>以 root 连接执行 V000+V001+V002（ReviewSummaryIT 同款模式，V001 GRANT 由 root 天然满足），
  * 断言种子数量与形态：分类树 9 行（3 顶级 + 6 子分类）、课程 8 门
  * （PUBLISHED×6 / DRAFT×1 / PENDING_REVIEW×1）、版本 8 行、course_teacher 归属 8 行
- * （全部 OWNER = demo_teacher）、选课 2 行（fe_demo_10）、评价 2 行；
+ * （全部 OWNER = demo_teacher）、选课 3 行（fe_demo_10 2 + demo_student_2 1）、评价 3 行
+ * （110 课程 5+4 → avg 4.50 落规格 §5.3 区间 [3.8, 4.9]，111 课程 4 → avg 4.00）；
  * 指针与汇总一致性：published/draft 指针、published_at、cover_file_id 全 NULL、
  * enrollment_count/rating_avg/rating_count 与明细吻合；V002 重放幂等（行数不变）。
  * 本机无 Docker，IT 在 VM 上以 -Pintegration 执行（EDUCLOUD_TEST_MYSQL_IMAGE 华为云镜像）。</p>
@@ -142,7 +143,7 @@ class CourseSeedIT {
                     .as("pending submission by demo_teacher").isEqualTo(1L);
 
             assertThat(count(statement, "SELECT COUNT(*) FROM course_enrollment"))
-                    .as("enrollment seed rows").isEqualTo(2L);
+                    .as("enrollment seed rows").isEqualTo(3L);
             assertThat(count(statement,
                     "SELECT COUNT(*) FROM course_enrollment "
                             + "WHERE student_id = " + FE_DEMO_10_STUDENT_ID
@@ -153,7 +154,10 @@ class CourseSeedIT {
                     .as("enrolled on two distinct courses").isEqualTo(2L);
 
             assertThat(count(statement, "SELECT COUNT(*) FROM course_review"))
-                    .as("review seed rows").isEqualTo(2L);
+                    .as("review seed rows").isEqualTo(3L);
+            assertThat(count(statement,
+                    "SELECT COUNT(*) FROM course_review WHERE status <> 'VISIBLE'"))
+                    .as("all reviews VISIBLE").isZero();
             assertThat(count(statement,
                     "SELECT COUNT(*) FROM course_review WHERE status = 'VISIBLE' "
                             + "AND student_id = " + FE_DEMO_10_STUDENT_ID))
@@ -267,8 +271,8 @@ class CourseSeedIT {
             assertThat(count(statement, "SELECT COUNT(*) FROM course_version")).isEqualTo(8L);
             assertThat(count(statement, "SELECT COUNT(*) FROM course_teacher")).isEqualTo(8L);
             assertThat(count(statement, "SELECT COUNT(*) FROM course_audit_submission")).isEqualTo(1L);
-            assertThat(count(statement, "SELECT COUNT(*) FROM course_enrollment")).isEqualTo(2L);
-            assertThat(count(statement, "SELECT COUNT(*) FROM course_review")).isEqualTo(2L);
+            assertThat(count(statement, "SELECT COUNT(*) FROM course_enrollment")).isEqualTo(3L);
+            assertThat(count(statement, "SELECT COUNT(*) FROM course_review")).isEqualTo(3L);
         }
     }
 

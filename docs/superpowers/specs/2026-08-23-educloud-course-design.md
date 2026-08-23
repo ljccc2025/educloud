@@ -91,9 +91,14 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 
 - 分类树：3 个顶级分类（前端开发/后端开发/数据分析）+ 各 2 个子分类，`slug` 唯一、`sort_order` 有序。
 - 演示课程 6 门已发布（`lifecycle_status=PUBLISHED`）：价格含免费 2 门 + 付费 4 门、难度覆盖三级、评分种子 3.8-4.9、归属 demo_teacher 1 门 + demo_admin 名下教师 1 门 + 其他教师账号；另 seed demo_teacher 名下 DRAFT 草稿 1 门 + PENDING_REVIEW 1 门。
-- 选课种子：fe_demo_10 已选 2 门免费课程（我的课程可演示）。
-- 评价种子：2 条（对应已选课程）。
+- 选课种子：fe_demo_10 已选 2 门免费课程（我的课程可演示）+ demo_student_2（预留学生 ID 9000000000000000201）选 110，为其第二条评价提供 ACTIVE 选课依据。
+- 评价种子：3 条（110 课程 5+4 → avg 4.50、111 课程 4 → avg 4.00，全部落在评分区间 [3.8, 4.9] 且与明细一致）。
 - 封面 `cover_file_id` 初始为空 → 前端卡片兜底图；VM 演示时教师端真实上传封面走完整链路。
+
+> **执行备注（规格审查 2026-08-24 记录）：**
+> 1. 教师归属：`seed-demo-users.sh` 仅创建 demo_teacher / demo_admin，无其他 TEACHER 账号，故 V002 种子课程（含 DRAFT/PENDING_REVIEW）当前全部归属 demo_teacher；归属分散（其他教师账号）待后续扩展账号后以 V003 调整。
+> 2. VM 部署序列：user 迁移（V000-V004，含 `course:*` 权限）→ `seed-demo-users.sh`（demo_teacher/demo_admin）→ 确认 fe_demo_10 学生存在 → course 迁移（V000-V002）。
+> 3. demo_student_2 为 course 库侧预留引用（无外键约束），若教师学生列表需展示其用户名，需先在 user 库补建同名账号。
 
 ## 6. API 契约（20 端点，全部经网关）
 
