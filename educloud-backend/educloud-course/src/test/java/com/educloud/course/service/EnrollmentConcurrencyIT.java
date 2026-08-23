@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.course.dto.response.EnrollmentResponse;
@@ -17,6 +18,8 @@ import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.entity.OutboxEventEntity;
 import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
+import com.educloud.course.mapper.CourseMyCourseRow;
+import com.educloud.course.mapper.CourseStudentRow;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.mapper.OutboxEventMapper;
@@ -282,6 +285,114 @@ class EnrollmentConcurrencyIT {
         throw new IllegalStateException(
                 "migration directory not found at " + candidate.toAbsolutePath()
                         + "; run failsafe from the educloud-course module directory");
+    }
+
+    @Test
+    void myCoursesAndStudentListQueriesFilterSortAndPaginate() {
+        // 问题 2（规格审查建议）：真实 MySQL 验证两个 JOIN 分页查询 —— ACTIVE 过滤、
+        // enrolled_at 倒序、JOIN 字段映射（title/cover_file_id）、分页 total。
+        CourseMapper courseMapper = sqlSessionTemplate.getMapper(CourseMapper.class);
+        CourseVersionMapper versionMapper = sqlSessionTemplate.getMapper(CourseVersionMapper.class);
+        CourseEnrollmentMapper enrollmentMapper = sqlSessionTemplate.getMapper(CourseEnrollmentMapper.class);
+
+        seedPublishedCourse(courseMapper, versionMapper, 10001L, 90001L, "高等数学", 88L);
+        seedPublishedCourse(courseMapper, versionMapper, 10002L, 90002L, "Java 入门", null);
+
+        LocalDateTime t1 = LocalDateTime.of(2026, 8, 23, 10, 0);
+        LocalDateTime t2 = LocalDateTime.of(2026, 8, 23, 9, 0);
+        LocalDateTime revoked = LocalDateTime.of(2026, 8, 23, 9, 30);
+        LocalDateTime t4 = LocalDateTime.of(2026, 8, 23, 8, 0);
+        // 课程 A：5001 ACTIVE 10:00、5002 ACTIVE 09:00、5003 REVOKED 09:30（REVOKED 必须被过滤）。
+        insertEnrollment(enrollmentMapper, 1L, 10001L, 5001L, "ACTIVE", t1);
+        insertEnrollment(enrollmentMapper, 2L, 10001L, 5002L, "ACTIVE", t2);
+        insertEnrollment(enrollmentMapper, 3L, 10001L, 5003L, "REVOKED", revoked);
+        // 课程 B：5001 ACTIVE 08:00（无封面）。
+        insertEnrollment(enrollmentMapper, 4L, 10002L, 5001L, "ACTIVE", t4);
+
+        // 我的课程：5001 → A(10:00, cover 88) 在前、B(08:00, 无封面) 在后，total=2。
+        Page<CourseMyCourseRow> myPage = new Page<>(1, 10);
+        var myResult = enrollmentMapper.selectMyCoursesPage(myPage, 5001L);
+        assertThat(myResult.getTotal()).isEqualTo(2);
+        assertThat(myResult.getRecords()).extracting(CourseMyCourseRow::getCourseId)
+                .containsExactly(10001L, 10002L);
+        assertThat(myResult.getRecords().get(0).getTitle()).isEqualTo("高等数学");
+        assertThat(myResult.getRecords().get(0).getCoverFileId()).isEqualTo(88L);
+        assertThat(myResult.getRecords().get(0).getStatus()).isEqualTo("ACTIVE");
+        assertThat(myResult.getRecords().get(0).getEnrolledAt()).isEqualTo(t1);
+        assertThat(myResult.getRecords().get(1).getTitle()).isEqualTo("Java 入门");
+        assertThat(myResult.getRecords().get(1).getCoverFileId()).isNull();
+
+        // 我的课程分页：size=1 → 只返回第一页（A），total 保持 2。
+        Page<CourseMyCourseRow> myPage1 = new Page<>(1, 1);
+        var myPageResult = enrollmentMapper.selectMyCoursesPage(myPage1, 5001L);
+        assertThat(myPageResult.getTotal()).isEqualTo(2);
+        assertThat(myPageResult.getRecords()).extracting(CourseMyCourseRow::getCourseId)
+                .containsExactly(10001L);
+
+        // 学生列表：课程 A → 5001(10:00)、5002(09:00)，REVOKED 的 5003 不出现，total=2。
+        Page<CourseStudentRow> studentPage = new Page<>(1, 10);
+        var studentResult = enrollmentMapper.selectStudentPage(studentPage, 10001L);
+        assertThat(studentResult.getTotal()).isEqualTo(2);
+        assertThat(studentResult.getRecords()).extracting(CourseStudentRow::getStudentId)
+                .containsExactly(5001L, 5002L);
+        assertThat(studentResult.getRecords().get(0).getEnrolledAt()).isEqualTo(t1);
+        assertThat(studentResult.getRecords().get(1).getEnrolledAt()).isEqualTo(t2);
+    }
+
+    private void seedPublishedCourse(
+            CourseMapper courseMapper,
+            CourseVersionMapper versionMapper,
+            Long courseId,
+            Long versionId,
+            String title,
+            Long coverFileId) {
+        CourseVersionEntity version = new CourseVersionEntity();
+        version.setId(versionId);
+        version.setCourseId(courseId);
+        version.setVersionNo(1);
+        version.setCategoryId(5L);
+        version.setTitle(title);
+        version.setLevel("BEGINNER");
+        version.setPrice(new BigDecimal("0.00"));
+        version.setCurrency("CNY");
+        version.setVersionStatus("PUBLISHED");
+        version.setCreatedBy(TEACHER_ID);
+        version.setCreatedAt(LocalDateTime.of(2026, 8, 23, 8, 0));
+        if (coverFileId != null) {
+            version.setCoverFileId(coverFileId);
+        }
+        versionMapper.insert(version);
+
+        CourseEntity course = new CourseEntity();
+        course.setId(courseId);
+        course.setOwnerTeacherId(TEACHER_ID);
+        course.setLifecycleStatus("PUBLISHED");
+        course.setPublishedVersionId(versionId);
+        course.setEnrollmentCount(0);
+        course.setVersion(0L);
+        course.setCreatedBy(TEACHER_ID);
+        course.setCreatedAt(LocalDateTime.of(2026, 8, 23, 8, 0));
+        course.setUpdatedBy(TEACHER_ID);
+        course.setUpdatedAt(LocalDateTime.of(2026, 8, 23, 8, 0));
+        courseMapper.insert(course);
+    }
+
+    private void insertEnrollment(
+            CourseEnrollmentMapper enrollmentMapper,
+            Long id,
+            Long courseId,
+            Long studentId,
+            String status,
+            LocalDateTime enrolledAt) {
+        CourseEnrollmentEntity enrollment = new CourseEnrollmentEntity();
+        enrollment.setId(id);
+        enrollment.setCourseId(courseId);
+        enrollment.setStudentId(studentId);
+        enrollment.setSource("FREE");
+        enrollment.setStatus(status);
+        enrollment.setEnrolledAt(enrolledAt);
+        enrollment.setVersion(0L);
+        assertThat(enrollmentMapper.insert(enrollment)).isEqualTo(1);
     }
 
 }

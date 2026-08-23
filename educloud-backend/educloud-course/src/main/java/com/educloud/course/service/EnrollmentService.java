@@ -42,8 +42,10 @@ import java.util.Objects;
  *       插入 ACTIVE/FREE + course.enrollment_count 乐观锁递增（UPDATE ... WHERE
  *       id=? AND version=?，0 行 → 409 VERSION_CONFLICT）+ outbox EnrollmentCreated，
  *       全部同一事务；</li>
- *   <li>并发兜底：uk(course_id,student_id) 冲突（DuplicateKeyException）→ 重查返回
- *       现状（锁根已在入口序列化同一课程，此为最后防线）；</li>
+ *   <li>并发兜底：uk(course_id,student_id) 冲突（DuplicateKeyException）→ 用当前读
+ *       （selectByCourseAndStudentForUpdate，SELECT ... FOR UPDATE）重查返回现状——
+ *       REPEATABLE READ 一致读快照看不到并发提交行，普通 selectOne 会 500（锁根已
+ *       在入口序列化同一课程，此为最后防线）；</li>
  *   <li>我的课程：enrollment JOIN course JOIN published version 分页（ACTIVE、
  *       enrolled_at 倒序），封面按页一次 File 批量 grant（subject=USER 当前学生：
  *       已选课学生访问自己的课程封面，不签匿名公开 URL）；</li>
@@ -145,10 +147,14 @@ public class EnrollmentService {
                         "enrollment insert failed for course " + course.getId() + " student " + studentId);
             }
         } catch (DuplicateKeyException duplicate) {
-            CourseEnrollmentEntity existing = findEnrollment(course.getId(), studentId);
+            // 审查修复：重查必须用当前读（SELECT ... FOR UPDATE）——MySQL REPEATABLE READ
+            // 下本事务一致读快照看不到并发事务已提交的 uk 行，普通 selectOne 会返回 null
+            // 导致 500；锁读（当前读）直接读最新已提交数据，才能命中并发插入的行。
+            CourseEnrollmentEntity existing = enrollmentMapper.selectByCourseAndStudentForUpdate(
+                    course.getId(), studentId);
             if (existing == null) {
                 throw new IllegalStateException(
-                        "enrollment insert raced and no row found for course "
+                        "enrollment insert raced and current read found no row for course "
                                 + course.getId() + " student " + studentId,
                         duplicate);
             }

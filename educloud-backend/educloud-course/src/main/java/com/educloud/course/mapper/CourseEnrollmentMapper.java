@@ -53,4 +53,15 @@ public interface CourseEnrollmentMapper extends BaseMapper<CourseEnrollmentEntit
     IPage<CourseStudentRow> selectStudentPage(
             Page<CourseStudentRow> page,
             @Param("courseId") Long courseId);
+
+    /**
+     * 当前读（SELECT ... FOR UPDATE）重查指定选课（M05 任务 13 审查修复）：
+     * DuplicateKey 兜底专用 —— MySQL REPEATABLE READ 下本事务一致读快照看不到并发
+     * 事务已提交的 uk 行，重查必须用锁读（当前读）才能命中并发提交的 enrollment。
+     */
+    @Select("SELECT * FROM course_enrollment "
+            + "WHERE course_id = #{courseId} AND student_id = #{studentId} FOR UPDATE")
+    CourseEnrollmentEntity selectByCourseAndStudentForUpdate(
+            @Param("courseId") Long courseId,
+            @Param("studentId") Long studentId);
 }
