@@ -13,5 +13,8 @@ public record UserSummary(
         String userType,
         List<String> roles,
         List<String> permissions,
-        String avatarUrl) {
+        String avatarUrl,
+        // M04：当前头像 fileId（可空）。前端 PATCH /me/profile 全量更新需携带，
+        // 否则后端会解绑清空头像；经 /me 返回保证前端刷新后不丢失。
+        String avatarFileId) {
 }

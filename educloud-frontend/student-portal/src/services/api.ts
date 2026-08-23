@@ -471,6 +471,8 @@ export interface AuthUser {
   roles: string[];
   permissions: string[];
   avatarUrl?: string;
+  /** 当前头像 fileId（M04：全量 PATCH 需携带，/me 返回保证刷新不丢失）。 */
+  avatarFileId?: string;
 }
 
 function mapAuthUser(a: AuthUser): StudentUser {
@@ -482,6 +484,7 @@ function mapAuthUser(a: AuthUser): StudentUser {
     phone: '',
     avatar: a.avatarUrl ?? avatar(a.username),
     avatarUrl: a.avatarUrl,
+    avatarFileId: a.avatarFileId,
     bio: '',
     joinDate: new Date().toISOString().slice(0, 10),
     learnedCourses: 0,

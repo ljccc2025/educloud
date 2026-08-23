@@ -63,7 +63,7 @@ class MeControllerTest {
     void meReturnsCurrentUserSummary() throws Exception {
         when(profileService.me(1001L)).thenReturn(new UserSummary(
                 "1001", "student01", "学生01", "STUDENT",
-                List.of("STUDENT"), List.of("course:read"), null));
+                List.of("STUDENT"), List.of("course:read"), null, "99"));
 
         mockMvc.perform(get("/api/v1/me").with(STUDENT_JWT))
                 .andExpect(status().isOk())

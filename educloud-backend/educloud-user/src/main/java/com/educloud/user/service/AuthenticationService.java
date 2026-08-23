@@ -193,6 +193,7 @@ public class AuthenticationService {
                                 user.getUserType(),
                                 roles,
                                 permissions,
+                                null,
                                 null)));
     }
 

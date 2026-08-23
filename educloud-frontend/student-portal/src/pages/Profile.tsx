@@ -83,12 +83,14 @@ export default function Profile() {
         avatarFileId: displayUser.avatarFileId ?? null,
       });
       await refresh();
+      // refresh 是异步的：闭包里的 displayUser 仍是旧值，必须从 store 取最新用户重置表单。
+      const fresh = useAuthStore.getState().user ?? displayUser;
       setEditing(false);
       setSaved(true);
       setForm({
-        name: displayUser.realName,
-        email: displayUser.email,
-        bio: displayUser.bio,
+        name: fresh.realName,
+        email: fresh.email,
+        bio: fresh.bio,
       });
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {

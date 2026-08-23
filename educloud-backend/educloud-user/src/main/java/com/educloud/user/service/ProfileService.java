@@ -70,7 +70,10 @@ public class ProfileService {
                 user.getUserType(),
                 roles,
                 permissions,
-                avatarUrl);
+                avatarUrl,
+                profile == null || profile.getAvatarFileId() == null
+                        ? null
+                        : String.valueOf(profile.getAvatarFileId()));
     }
 
     @Transactional

@@ -188,6 +188,7 @@ public class RefreshSessionService {
                                 user.getUserType(),
                                 roles,
                                 permissions,
+                                null,
                                 null)));
     }
 
