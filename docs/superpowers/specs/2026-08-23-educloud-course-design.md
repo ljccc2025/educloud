@@ -15,7 +15,7 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 前置条件（均已满足）：
 
 - M01 `educloud-common`：统一响应、错误基类、requestId/traceId、EventEnvelope、Outbox 基础设施（`OutboxWriter`/`OutboxEventDispatcher` 复用 M03/M04 模式）。
-- M02 `educloud-gateway`：`RouteGroups.COURSE` 组已预留（`/api/v1/me/enrollments`、`/api/v1/categories/**`、`/api/v1/course-drafts/**`、`/api/v1/course-audits/**`、`/api/v1/courses/**`、`/api/v1/course-reviews/**`、`/api/v1/teacher/courses`、`/api/v1/teacher/courses/*/draft`）；路由 `course-core`（order 70）与 `course-enrollments`（order 40）已指向 `lb://educloud-course`；`AccessPolicy.PUBLIC_READ` 已放行 `GET /api/v1/categories`、`GET /api/v1/courses`、`GET /api/v1/courses/{courseId}`。
+- M02 `educloud-gateway`：`RouteGroups.COURSE` 组已预留（`/api/v1/me/enrollments`、`/api/v1/categories/**`、`/api/v1/course-drafts/**`、`/api/v1/course-audits/**`、`/api/v1/courses/**`、`/api/v1/course-reviews/**`、`/api/v1/admin/courses`、`/api/v1/teacher/courses`、`/api/v1/teacher/courses/*/draft`）；路由 `course-core`（order 70）与 `course-enrollments`（order 40）已指向 `lb://educloud-course`；`AccessPolicy.PUBLIC_READ` 已放行 `GET /api/v1/categories`、`GET /api/v1/courses`、`GET /api/v1/courses/{courseId}`。
 - M03 `educloud-user`：JWT RS256 + JWKS、服务令牌签发（`client_credentials`）、RBAC（角色/权限/角色权限关联表）、`audit_event.actor_type` 已扩到 VARCHAR(32)。
 - M04 `educloud-file`：上传会话、受控绑定（ownerService 由 clientId 推导）、批量下载授权已支持 `PUBLIC_CATALOG` purpose + `ANONYMOUS` subject（课程封面直接复用）；`GrantPurposePolicy` 白名单可配置。
 
@@ -100,16 +100,17 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 > 2. VM 部署序列：user 迁移（V000-V004，含 `course:*` 权限）→ `seed-demo-users.sh`（demo_teacher/demo_admin）→ 确认 fe_demo_10 学生存在 → course 迁移（V000-V002）。
 > 3. demo_student_2 为 course 库侧预留引用（无外键约束），若教师学生列表需展示其用户名，需先在 user 库补建同名账号。
 
-## 6. API 契约（20 端点，全部经网关）
+## 6. API 契约（23 端点，含任务 22/23 计划外补齐，全部经网关）
 
 | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|
 | GET | `/categories` | 匿名 | 可见分类树（分页不需要，全量有序） |
-| GET | `/courses` | 匿名（管理查询用权限参数） | 已发布分页列表 |
+| GET | `/courses` | 匿名 | 已发布分页列表（管理全状态查询走 `GET /admin/courses`） |
 | GET | `/courses/{id}` | 按可见性 | 课程详情（已发布公开；教师本人可见自己的草稿/待审） |
 | POST | `/courses` | `course:create` | 教师创建草稿 |
 | GET | `/teacher/courses` | `course:update` + 归属 | 教师课程管理列表（任务 22 计划外补齐）：归属教师的全部课程含生命周期/版本状态分页；当前工作版本 COALESCE(draft_version_id, published_version_id, 最新版本) 驱动（撤回后指针清空仍可列出），封面按页 USER grant |
 | GET | `/teacher/courses/{id}/draft` | `course:update` + 归属 | 返回当前可编辑草稿，不影响公开版本；无活动草稿（含撤回后指针清空）404 |
+| GET | `/admin/courses` | `course:audit` | 管理端全状态课程列表（任务 23 计划外补齐）：全部生命周期（DRAFT/PENDING_REVIEW/PUBLISHED/OFFLINE/ARCHIVED）分页，`lifecycleStatus` 可选过滤；当前工作版本 COALESCE(draft_version_id, published_version_id, 最新版本) 驱动，封面按页 USER grant |
 | POST | `/courses/{id}/drafts` | `course:update` + 归属 | 从发布/驳回/已撤回版本复制新草稿（WITHDRAWN 纳入复制源，撤回恢复路径） |
 | PUT | `/course-drafts/{versionId}` | `course:update` + 归属 | 只更新 DRAFT 版本（全量字段） |
 | POST | `/course-drafts/{versionId}/submit-review` | `course:submit` + 归属 | 提交不可变版本审核 → PENDING_REVIEW |
@@ -130,7 +131,7 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 **契约要点：**
 
 - 所有 Snowflake ID（courseId/versionId/auditId/coverFileId/enrollmentId/reviewId）在 DTO 一律 String；前端禁止 Number()（M04 坑 1）。
-- `GET /courses` 查询参数：`keyword`、`categoryId`、`level`、`priceRange`（free/under200/200to400/above400）、`sort`（popular/newest/price-asc/price-desc/rating 白名单）、`page`、`size`；管理查询加 `status` 参数（需 `course:audit` 或归属）。
+- `GET /courses` 查询参数：`keyword`、`categoryId`、`level`、`priceRange`（free/under200/200to400/above400）、`sort`（popular/newest/price-asc/price-desc/rating 白名单）、`page`、`size`（公开目录仅已发布，匿名）；管理全状态查询不在公开端点加 `status` 参数（网关 PUBLIC_READ 匿名放行、CourseListQuery 无 status），改由 `GET /admin/courses`（`course:audit`）承载（任务 23 计划外补齐）。
 - 课程列表项：`id`、`title`、短期 `coverUrl`、教师展示名、分类、难度、价格、评分（avg/count）、选课数、`enrolled`（已登录用户是否已选）。已发布课程封面每页至多一次 File 批量 grant（ANONYMOUS + PUBLIC_CATALOG）；未通过可见性校验的课程不签封面，不能以伪造 courseId/ownerId 取得草稿/下架课程文件。
 - 课程详情：`id`、`title`、`subtitle`、`description`、`coverUrl`、`level`、`price`、`currency`、`category`、`teachers`（负责人+共同授课）、`ratingAvg`、`ratingCount`、`enrollmentCount`、`enrolled`、`lifecycleStatus`（教师本人视角可含 DRAFT/PENDING_REVIEW）、`reviews`（可见评价列表，分页）。不泄露内部审核快照（course_version 不可变版本内部字段、audit submission 内部字段不下发）。
 - 错误码（对齐 CommonErrorCode 模式）：`COURSE_NOT_FOUND` 404、`COURSE_NOT_FREE` 409、`COURSE_OFFLINE_OR_ARCHIVED` 409（选课目标不可用）、`VERSION_NOT_DRAFT` 409、`SUBMISSION_NOT_PENDING` 409、`REVIEW_REJECT_REASON_REQUIRED` 400、`NOT_ENROLLED` 403（评价）、`COURSE_ACCESS_DENIED` 403（归属/越权）、`REVIEW_NOT_FOUND` 404。

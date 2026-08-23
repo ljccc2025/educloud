@@ -382,11 +382,13 @@ educloud-frontend/admin-portal/...             # 阶段 3 联调
 - 修改：\`educloud-frontend/admin-portal/src/services/api.ts\`（或新增 courseAdminApi.ts：待审列表/详情/批准/驳回）、\`src/pages/CourseAudit.tsx\`（真实审核 + 原因必填）、上下架/归档入口（可并入 CourseAudit 或独立页）、types 对齐
 - 测试：\`tsc --noEmit\` + \`vite build\` + 浏览器冒烟
 
-- [ ] **步骤 1：typecheck 基线**
-- [ ] **步骤 2：实现 admin 课程 API 层**
-- [ ] **步骤 3：替换 CourseAudit + 生命周期操作**
-- [ ] **步骤 4：浏览器冒烟**（教师提交→admin 批准→学生端出现；驳回原因必填）
-- [ ] **步骤 5：Commit**（\`feat(admin): 课程审核与生命周期管理真实联调\`）
+> **执行记录（任务 23 已完成，commit 70ea0d5）：计划外后端补充 —— 管理全状态课程列表端点缺口确认：规格 §6 原述「管理查询加 status 参数」，但 \`GET /api/v1/courses\` 是网关 PUBLIC_READ 匿名放行（仅 PUBLISHED，CourseListQuery 无 status），公开端点无法承载管理查询；本任务按需补齐 \`GET /api/v1/admin/courses\`（\`course:audit\`，全生命周期分页 + lifecycleStatus 过滤，COALESCE(draft,published,最新版本) 驱动，封面 USER grant），并同步网关路由（course-core Path + RouteGroups + 路由契约测试）。另发现服务层归属硬校验（TeacherAccessGuard）会挡住管理员对任意教师课程执行下架/重上架/归档，已按 V004「管理角色挂全部 course:* 权限」语义放行 SYSTEM_ADMIN/SUPER_ADMIN。前端以新增 \`services/courseAdminApi.ts\` 接入（无 mock 回退，保留其余模块 mock 不动）。
+
+- [x] **步骤 1：typecheck 基线**
+- [x] **步骤 2：实现 admin 课程 API 层**
+- [x] **步骤 3：替换 CourseAudit + 生命周期操作**
+- [ ] **步骤 4：浏览器冒烟**（教师提交→admin 批准→学生端出现；驳回原因必填；留待最终 Playwright 统一执行）
+- [x] **步骤 5：Commit**（\`feat(admin): 课程审核与生命周期管理真实联调\`）
 
 ## 任务 24：全量门禁与独立代码审查
 

@@ -453,6 +453,9 @@ export const userApi = {
 };
 
 // 课程审核
+// M05 任务 23：CourseAudit 页已改用 services/courseAdminApi.ts（真实 API，无 mock 回退），
+// 本 mock courseApi 不再被页面使用；保留仅因 generateOrders 依赖上方 courses/courseTitles
+// mock 数据。新代码勿再引用本对象。
 export const courseApi = {
   getCourses: (status?: CourseStatus | 'ALL'): Promise<Course[]> => {
     if (!status || status === 'ALL') return delay(courses);

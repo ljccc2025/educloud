@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle, XCircle, RefreshCw, AlertCircle, Archive, RotateCcw, Ban } from 'lucide-react';
 import dayjs from 'dayjs';
 import { courseAuditApi, adminCourseApi, courseLifecycleApi } from '../services/courseAdminApi';
@@ -44,6 +44,13 @@ function formatTime(value: string | null | undefined): string {
   return dayjs(value).format('YYYY-MM-DD HH:mm');
 }
 
+/** 审核操作错误文案：自审 403（COURSE_ACCESS_DENIED）给审核场景专属提示。 */
+function auditActionError(e: unknown): string {
+  const code = (e as { code?: string } | null)?.code;
+  if (code === 'COURSE_ACCESS_DENIED') return '不能审核自己提交的课程';
+  return apiErrorText(e);
+}
+
 const PAGE_SIZE = 20;
 
 export default function CourseAudit() {
@@ -63,6 +70,7 @@ export default function CourseAudit() {
   const [rejectReason, setRejectReason] = useState('');
   const [modalSubmitting, setModalSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const auditModalOpenRef = useRef(false);
 
   // ---- 课程管理 -
   const [lifecycleTab, setLifecycleTab] = useState<LifecycleTab>('PUBLISHED');
@@ -107,11 +115,28 @@ export default function CourseAudit() {
     if (mainTab === 'MANAGE') loadManage();
   }, [mainTab, loadManage]);
 
+  const closeAuditModal = () => {
+    auditModalOpenRef.current = false;
+    setSelectedAudit(null);
+  };
+
   const openAuditModal = (item: CourseAuditItem) => {
+    auditModalOpenRef.current = true;
     setSelectedAudit(item);
     setModalMode('idle');
     setRejectReason('');
     setModalError(null);
+    // 规格审查：打开弹窗时按 auditId 拉取最新详情，避免列表快照过期
+    // （如已被并发审批/撤回）导致 approve 409 兜底才暴露；刷新失败静默
+    // 保留快照，提交时错误由后端兜底提示。
+    courseAuditApi
+      .getDetail(item.auditId)
+      .then((fresh) => {
+        if (auditModalOpenRef.current) setSelectedAudit(fresh);
+      })
+      .catch(() => {
+        // 忽略：快照仍可用。
+      });
   };
 
   const handleApprove = async () => {
@@ -120,10 +145,10 @@ export default function CourseAudit() {
     setModalError(null);
     try {
       await courseAuditApi.approve(selectedAudit.auditId);
-      setSelectedAudit(null);
+      closeAuditModal();
       loadAudit();
     } catch (e) {
-      setModalError(apiErrorText(e));
+      setModalError(auditActionError(e));
     } finally {
       setModalSubmitting(false);
     }
@@ -135,10 +160,10 @@ export default function CourseAudit() {
     setModalError(null);
     try {
       await courseAuditApi.reject(selectedAudit.auditId, rejectReason.trim());
-      setSelectedAudit(null);
+      closeAuditModal();
       loadAudit();
     } catch (e) {
-      setModalError(apiErrorText(e));
+      setModalError(auditActionError(e));
     } finally {
       setModalSubmitting(false);
     }
@@ -360,14 +385,24 @@ export default function CourseAudit() {
                         <td>
                           <div className="flex items-center justify-end gap-1">
                             {course.lifecycleStatus === 'PUBLISHED' && (
-                              <button
-                                onClick={() => void runLifecycle(course, 'offline')}
-                                className="btn-outline py-1.5 px-3 text-amber-600 border-amber-300 hover:border-amber-600"
-                                title="下架（学生将无法购买）"
-                              >
-                                <Ban size={14} />
-                                下架
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => void runLifecycle(course, 'offline')}
+                                  className="btn-outline py-1.5 px-3 text-amber-600 border-amber-300 hover:border-amber-600"
+                                  title="下架（学生将无法购买）"
+                                >
+                                  <Ban size={14} />
+                                  下架
+                                </button>
+                                <button
+                                  disabled
+                                  title="归档需先下架"
+                                  className="btn-outline py-1.5 px-3 opacity-40 cursor-not-allowed"
+                                >
+                                  <Archive size={14} />
+                                  归档
+                                </button>
+                              </>
                             )}
                             {course.lifecycleStatus === 'OFFLINE' && (
                               <>
@@ -427,14 +462,14 @@ export default function CourseAudit() {
       {/* 审核弹窗 */}
       {selectedAudit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => !modalSubmitting && setSelectedAudit(null)} />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => !modalSubmitting && closeAuditModal()} />
           <div className="relative bg-surface w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-ink-200 shadow-2xl animate-fade-up rounded-2xl">
             <div className="flex items-center justify-between px-8 py-5 border-b border-ink-100 bg-surface-light">
               <div>
                 <div className="section-label mb-1">审核详情</div>
                 <h2 className="font-display text-2xl font-bold text-ink-900">{selectedAudit.title ?? '（未命名课程）'}</h2>
               </div>
-              <button onClick={() => !modalSubmitting && setSelectedAudit(null)} className="p-2 text-ink-400 hover:text-ink-800 transition-colors">
+              <button onClick={() => !modalSubmitting && closeAuditModal()} className="p-2 text-ink-400 hover:text-ink-800 transition-colors">
                 <XCircle size={20} />
               </button>
             </div>
