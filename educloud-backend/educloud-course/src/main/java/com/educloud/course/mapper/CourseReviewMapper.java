@@ -6,6 +6,9 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
+import java.time.LocalDateTime;
 
 /**
  * 评价数据访问（CourseReviewEntity，M05 任务 14）。
@@ -47,4 +50,17 @@ public interface CourseReviewMapper extends BaseMapper<CourseReviewEntity> {
     @Select("SELECT AVG(rating) AS rating_avg, COUNT(*) AS rating_count "
             + "FROM course_review WHERE course_id = #{courseId} AND status = 'VISIBLE'")
     CourseReviewSummaryRow selectVisibleSummary(@Param("courseId") Long courseId);
+
+    /**
+     * 管理端隐藏窄更新（P1b 竞态修复）：只写 status/updated_by/updated_at，WHERE id=?，
+     * 不触碰 rating/content —— 与「学生并发改分」天然免疫（陈旧实体整行 updateById
+     * 会把旧评分/内容回写覆盖学生新提交）。调用方已持课程根行锁。
+     */
+    @Update("UPDATE course_review SET status = #{status}, updated_by = #{updatedBy}, "
+            + "updated_at = #{updatedAt} WHERE id = #{id}")
+    int updateStatus(
+            @Param("id") Long id,
+            @Param("status") String status,
+            @Param("updatedBy") Long updatedBy,
+            @Param("updatedAt") LocalDateTime updatedAt);
 }

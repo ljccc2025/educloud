@@ -50,6 +50,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>以 MyBatis-Plus（分页/乐观锁拦截器）+ DataSourceTransactionManager 驱动真实
  * {@link CourseReviewService}：多学生 upsert 后断言 course.rating_avg/rating_count 等于
  * VISIBLE 评价聚合（HIDDEN 不计入）；管理角色隐藏一条后重算正确且重复隐藏幂等；
+ * 首评归一化 5.00/1、隐藏最后一条 VISIBLE 归一化 0.00/0（P3 归一化锁定）；
+ * 学生改分（5→2）后隐藏不覆盖新评分（P1b 窄更新端到端）；
  * 并发 upsert（course 根行锁串行化 + 同事务聚合）后汇总一致。VM/CI 上以
  * -Pintegration 执行（本机无 Docker）。</p>
  */
@@ -224,6 +226,66 @@ class ReviewSummaryIT {
         CourseEntity course = courseMapper.selectById(COURSE_ID);
         assertThat(course.getRatingAvg()).isEqualByComparingTo("4.00");
         assertThat(course.getRatingCount()).isEqualTo(2);
+    }
+
+    @Test
+    void firstReviewNormalizesSummaryTo5_00And1() {
+        // P3 归一化：首条 VISIBLE 评价 → rating_avg=5.00 / rating_count=1。
+        seedCourseAndEnrollments(List.of(STUDENT_1));
+        transactionTemplate.execute(status -> {
+            reviewService.upsert(COURSE_ID, STUDENT_1, new ReviewUpsertRequest(5, "首评"));
+            return null;
+        });
+
+        CourseEntity course = courseMapper.selectById(COURSE_ID);
+        assertThat(course.getRatingAvg()).isEqualByComparingTo("5.00");
+        assertThat(course.getRatingCount()).isEqualTo(1);
+    }
+
+    @Test
+    void hidingLastVisibleReviewNormalizesSummaryTo0_00And0() {
+        // P3 归一化：隐藏最后一条 VISIBLE 后无可见评价 → rating_avg=0.00 / rating_count=0
+        // （AVG 聚合为 NULL，服务层归一化写 0.00，而非残留旧均值）。
+        seedCourseAndEnrollments(List.of(STUDENT_1));
+        transactionTemplate.execute(status -> {
+            reviewService.upsert(COURSE_ID, STUDENT_1, new ReviewUpsertRequest(5, "唯一"));
+            return null;
+        });
+        Long reviewId = reviewIdOf(STUDENT_1);
+        transactionTemplate.execute(status -> {
+            reviewService.hide(reviewId, ADMIN_ID, Set.of("SYSTEM_ADMIN"));
+            return null;
+        });
+
+        CourseEntity course = courseMapper.selectById(COURSE_ID);
+        assertThat(course.getRatingAvg()).isEqualByComparingTo("0.00");
+        assertThat(course.getRatingCount()).isEqualTo(0);
+    }
+
+    @Test
+    void hideAfterStudentRerateKeepsNewRating() {
+        // P1b 端到端：学生先评 5 分再改 2 分，管理端随后隐藏 —— 窄更新只写
+        // status/updated_by/updated_at（WHERE id=?），库中 rating/content 保持 2 分/新内容。
+        seedCourseAndEnrollments(List.of(STUDENT_1));
+        transactionTemplate.execute(status -> {
+            reviewService.upsert(COURSE_ID, STUDENT_1, new ReviewUpsertRequest(5, "第一次"));
+            reviewService.upsert(COURSE_ID, STUDENT_1, new ReviewUpsertRequest(2, "改两星"));
+            return null;
+        });
+        Long reviewId = reviewIdOf(STUDENT_1);
+        transactionTemplate.execute(status -> {
+            reviewService.hide(reviewId, ADMIN_ID, Set.of("SYSTEM_ADMIN"));
+            return null;
+        });
+
+        CourseReviewEntity row = sqlSessionTemplate.getMapper(CourseReviewMapper.class)
+                .selectById(reviewId);
+        assertThat(row.getRating()).isEqualTo(2);
+        assertThat(row.getContent()).isEqualTo("改两星");
+        assertThat(row.getStatus()).isEqualTo("HIDDEN");
+        CourseEntity course = courseMapper.selectById(COURSE_ID);
+        assertThat(course.getRatingAvg()).isEqualByComparingTo("0.00");
+        assertThat(course.getRatingCount()).isEqualTo(0);
     }
 
     private void seedCourseAndEnrollments(List<Long> studentIds) {

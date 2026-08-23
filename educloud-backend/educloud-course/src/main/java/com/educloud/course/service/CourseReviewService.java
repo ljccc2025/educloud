@@ -36,11 +36,17 @@ import java.util.Set;
  *       专用码，且安全链的 JwtAuthenticationConverter 只把 permissions claim 映射为
  *       authority（无 ROLE_ 前缀，hasRole 不可达），故参照规格「管理角色」语义在服务层
  *       按 JWT roles claim 判定 SYSTEM_ADMIN/SUPER_ADMIN（组合模式与 TeacherAccessGuard
- *       的「服务内硬规则」对齐）；非管理角色 → 403 COURSE_ACCESS_DENIED；软隐藏
- *       （status → HIDDEN，保留审计行）后重算；已隐藏重复删幂等返回现状；</li>
+ *       的「服务内硬规则」对齐；长期方案 V005 加 course:review:hide 权限码 +
+ *       @PreAuthorize，见规格 §15 决策点）；非管理角色 → 403 COURSE_ACCESS_DENIED；
+ *       软隐藏（status → HIDDEN，保留审计行）后重算；已隐藏重复删幂等返回现状；
+ *       隐藏用窄更新（仅 status/updated_by/updated_at WHERE id=?），学生并发改分
+ *       不会被陈旧实体整行回写覆盖（P1b 竞态修复）；</li>
  *   <li>重算：{@code SELECT AVG(rating), COUNT(*) FROM course_review WHERE course_id=?
  *       AND status='VISIBLE'} → courseMapper.updateRatingSummary（聚合列直写，与
  *       incrementEnrollmentCount 同一风格：不动乐观锁 version）。</li>
+ *   <li>学生重复提交与已隐藏评价（规格 §15 决策点）：upsert 固定写 status=VISIBLE，
+ *       管理端隐藏后学生再次提交即恢复可见（视为重新评价）；维持现状，不做
+ *       「隐藏后禁止复活」，见规格 §15 记录。</li>
  * </ul></p>
  */
 @Service
@@ -135,10 +141,13 @@ public class CourseReviewService {
             throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND,
                     "Course not found for review: " + review.getCourseId());
         }
+        // P1b 竞态修复：窄更新只写 status/updated_by/updated_at（WHERE id=?），
+        // 不用陈旧实体整行 updateById —— 学生并发改分（rating/content）不会被覆盖。
+        LocalDateTime now = LocalDateTime.now();
+        reviewMapper.updateStatus(reviewId, STATUS_HIDDEN, adminUserId, now);
         review.setStatus(STATUS_HIDDEN);
         review.setUpdatedBy(adminUserId);
-        review.setUpdatedAt(LocalDateTime.now());
-        reviewMapper.updateById(review);
+        review.setUpdatedAt(now);
         recalculate(course);
         return toResponse(review);
     }

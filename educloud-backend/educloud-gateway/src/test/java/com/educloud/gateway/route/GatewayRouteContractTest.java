@@ -106,7 +106,8 @@ class GatewayRouteContractTest {
                 "/api/v1/teacher/courses/*/content-draft", "/api/v1/courses/*/content-drafts");
         assertThat(pathArguments(route("course-core"))).containsExactly(
                 "/api/v1/categories/**", "/api/v1/course-drafts/**", "/api/v1/course-audits/**",
-                "/api/v1/courses/**", "/api/v1/teacher/courses/*/draft");
+                "/api/v1/courses/**", "/api/v1/course-reviews/**",
+                "/api/v1/teacher/courses/*/draft");
         assertThat(pathArguments(route("order-core"))).containsExactly(
                 "/api/v1/cart/**", "/api/v1/orders/**", "/api/v1/refund-requests/**");
         assertThat(pathArguments(route("payment-core"))).containsExactly(
@@ -122,6 +123,16 @@ class GatewayRouteContractTest {
         assertThat(pathArguments(route("search-core"))).containsExactly("/api/v1/search/**");
         assertThat(pathArguments(route("recommendation-core"))).containsExactly(
                 "/api/v1/recommendations/**", "/api/v1/assistant/**");
+    }
+
+    @Test
+    void routesCourseReviewsToCourseGroupAndCourseCore() {
+        // P1a 规格审查：DELETE /api/v1/course-reviews/{id} 必须经网关 course-core
+        // 路由可达（限流/分类与 COURSE 组一致），且 RouteGroups 归 COURSE 组。
+        assertThat(RouteGroups.forPath(
+                org.springframework.http.server.PathContainer.parsePath("/api/v1/course-reviews/501")))
+                .isEqualTo(RouteGroups.COURSE);
+        assertThat(pathArguments(route("course-core"))).contains("/api/v1/course-reviews/**");
     }
 
     private static RouteDefinition route(String id) {

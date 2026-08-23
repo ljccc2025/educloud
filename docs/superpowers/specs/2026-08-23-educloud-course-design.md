@@ -206,6 +206,8 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 | 内容就绪 gate | M05 恒放行 | `course_content_readiness_projection` 建表不激活，M06 启用 |
 | 种子封面 | 空 → 前端兜底图 | VM 演示时真实上传覆盖 |
 | 评价隐藏 | API 先行（DELETE 置 HIDDEN），管理 UI 后补 | |
+| 管理隐藏权限（长期） | V005 新增 `course:review:hide` 权限码 + `@PreAuthorize` 接入 | 当前 `course:*` 无 review 专用码，服务层按 JWT roles claim 硬判 SYSTEM_ADMIN/SUPER_ADMIN（对齐 TeacherAccessGuard 服务内硬规则）；是否授 COURSE_REVIEWER 隐藏权待产品定 |
+| 隐藏后学生再评价 | upsert 固定写 status=VISIBLE，软隐藏可被学生重新评价覆盖（维持现状） | 已文档化（CourseReviewService 注释）并有单测/IT 锁定（P1b 窄更新 + P3 归一化）；不做「隐藏后禁止复活」 |
 | Redis 缓存 | M05 不做 | 课程规模小，M12 性能阶段再评估 |
 | EnrollmentRevoked | 状态与事件预留，无触发路径 | M07 订单退款接入 |
 | 审核中间态 | 不保留 APPROVED | 审核通过与发布同一本地事务 |

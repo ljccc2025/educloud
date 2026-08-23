@@ -45,7 +45,8 @@ import static org.mockito.Mockito.when;
  * （HIDDEN 不计入）；DELETE /course-reviews/{id}：管理角色（JWT roles claim 含
  * SYSTEM_ADMIN/SUPER_ADMIN，权限码无 review 专用码）→ 置 HIDDEN（软隐藏保留审计）→
  * 重算；已隐藏重复删幂等返回现状；rating 越界 → 400 VALIDATION_FAILED（服务层兜底，
- * 控制器 @Valid 负责 HTTP 入口）。</p>
+ * 控制器 @Valid 负责 HTTP 入口）。隐藏为窄更新（仅 status/updated_by/updated_at
+ * WHERE id=?），学生并发改分不被陈旧实体整行回写覆盖（P1b 竞态修复，含并发单测）。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class CourseReviewServiceTest {
@@ -222,13 +223,10 @@ class CourseReviewServiceTest {
         assertThat(response.id()).isEqualTo("501");
         assertThat(response.status()).isEqualTo("HIDDEN");
 
-        ArgumentCaptor<CourseReviewEntity> captor = ArgumentCaptor.forClass(CourseReviewEntity.class);
-        verify(reviewMapper).updateById(captor.capture());
-        CourseReviewEntity updated = captor.getValue();
-        assertThat(updated.getId()).isEqualTo(501L);
-        assertThat(updated.getStatus()).isEqualTo("HIDDEN");
-        assertThat(updated.getUpdatedBy()).isEqualTo(30001L);
-        assertThat(updated.getUpdatedAt()).isNotNull();
+        // P1b 竞态修复：窄更新只写 status/updated_by/updated_at（WHERE id=?），
+        // 绝不整行回写 —— 陈旧实体（旧 rating/content）不会覆盖学生并发新提交。
+        verify(reviewMapper, never()).updateById(any(CourseReviewEntity.class));
+        verify(reviewMapper).updateStatus(eq(501L), eq("HIDDEN"), eq(30001L), any(LocalDateTime.class));
 
         verify(courseMapper).updateRatingSummary(101L, new BigDecimal("4.00"), 2);
 
@@ -270,6 +268,62 @@ class CourseReviewServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.REVIEW_NOT_FOUND));
         verify(courseMapper, never()).selectByIdForUpdate(anyLong());
+    }
+
+    @Test
+    void hideWithStaleEntityDoesNotOverwriteStudentRatingViaNarrowUpdate() {
+        // P1b 并发竞态（管理端先读到旧行，学生随后改分）：
+        // 管理端 selectById 拿到的是改分前实体（rating=5），学生已把库里改成 2 分。
+        // 旧实现用陈旧实体整行 updateById 会把 5 分回写覆盖学生新提交；
+        // 窄更新只写 status/updated_by/updated_at（WHERE id=?），rating/content
+        // 根本不进入 UPDATE —— 库里评分保持学生最新值（端到端由 ReviewSummaryIT 锁定）。
+        LocalDateTime createdAt = LocalDateTime.of(2026, 8, 20, 9, 0);
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 8, 24, 10, 0);
+        when(reviewMapper.selectById(501L)).thenReturn(
+                review(501L, 101L, 5001L, 5, "旧内容", "VISIBLE", createdAt, updatedAt));
+        when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course(101L, 7L));
+        when(reviewMapper.selectVisibleSummary(101L))
+                .thenReturn(summary(new BigDecimal("2.00"), 1L));
+        when(courseMapper.updateRatingSummary(101L, new BigDecimal("2.00"), 1)).thenReturn(1);
+
+        CourseReviewResponse response = service().hide(501L, 30001L, Set.of("SYSTEM_ADMIN"));
+
+        assertThat(response.status()).isEqualTo("HIDDEN");
+        // 写路径不含 rating/content：整行回写（updateById）被禁止，窄更新只带隐藏三字段。
+        verify(reviewMapper, never()).updateById(any(CourseReviewEntity.class));
+        verify(reviewMapper).updateStatus(eq(501L), eq("HIDDEN"), eq(30001L), any(LocalDateTime.class));
+    }
+
+    @Test
+    void hideAfterStudentRerateKeepsNewRating() {
+        // P1b 顺序模拟（评审要求）：先 upsert rating=5，再 upsert rating=2，
+        // hide 后响应评分仍为 2 —— 学生最新提交不被隐藏动作覆盖。
+        LocalDateTime createdAt = LocalDateTime.of(2026, 8, 20, 9, 0);
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 8, 24, 11, 30);
+        when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course(101L, 7L));
+        when(enrollmentMapper.selectCount(any())).thenReturn(1L);
+        when(reviewMapper.upsert(any())).thenReturn(1);
+        when(reviewMapper.selectOne(any())).thenReturn(
+                review(501L, 101L, 5001L, 5, "第一次", "VISIBLE", createdAt, createdAt),
+                review(501L, 101L, 5001L, 2, "改两星", "VISIBLE", createdAt, updatedAt));
+
+        service().upsert(101L, 5001L, new ReviewUpsertRequest(5, "第一次"));
+        service().upsert(101L, 5001L, new ReviewUpsertRequest(2, "改两星"));
+
+        // 管理端隐藏读到学生改分后的最新行（rating=2）。
+        when(reviewMapper.selectById(501L)).thenReturn(
+                review(501L, 101L, 5001L, 2, "改两星", "VISIBLE", createdAt, updatedAt));
+        when(reviewMapper.selectVisibleSummary(101L))
+                .thenReturn(summary(new BigDecimal("2.00"), 1L));
+        when(courseMapper.updateRatingSummary(101L, new BigDecimal("2.00"), 1)).thenReturn(1);
+
+        CourseReviewResponse response = service().hide(501L, 30001L, Set.of("SYSTEM_ADMIN"));
+
+        assertThat(response.rating()).isEqualTo(2);
+        assertThat(response.content()).isEqualTo("改两星");
+        assertThat(response.status()).isEqualTo("HIDDEN");
+        verify(reviewMapper, never()).updateById(any(CourseReviewEntity.class));
+        verify(reviewMapper).updateStatus(eq(501L), eq("HIDDEN"), eq(30001L), any(LocalDateTime.class));
     }
 
     // ---------------------------------------------------------------- helpers
