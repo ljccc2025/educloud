@@ -22,10 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * educloud_course 技术表 Schema 集成测试（MySQL 8.0.36）。
- * 依据：M05 计划任务 1 与 2026-08-18-educloud-data-design.md 第 14/17.1 节：
- * 迁移脚本以 course_migration（库级权限 + GRANT OPTION，与 init 脚本一致）执行 V000；
- * course_app 仅持有表级授权，验证技术表存在、唯一键/列类型，以及 course_app 可 SELECT/INSERT。
+ * educloud_course Schema 集成测试（MySQL 8.0.36）。
+ * 依据：M05 计划任务 1/2 与 2026-08-18-educloud-data-design.md 第 14/17.1 节、
+ * 2026-08-23-educloud-course-design.md 第 5.2 节：
+ * 迁移脚本以 course_migration（库级权限 + GRANT OPTION，与 init 脚本一致）执行 V000+V001；
+ * course_app 仅持有表级授权，验证技术表/业务表存在、唯一键/列类型、唯一约束强制，
+ * 以及 course_app 可 SELECT/INSERT（且无库级权限）。
  */
 @Testcontainers
 class CourseSchemaIT {
@@ -63,6 +65,12 @@ class CourseSchemaIT {
             ScriptUtils.executeSqlScript(
                     migration,
                     new FileSystemResource(sqlDir.resolve("V000__technical_tables.sql").toFile()));
+            // V001 尚未编写时（RED 阶段）跳过执行，让下方断言以表缺失失败；
+            // 编写后与 V000 一并执行，校验 8 张业务表 DDL。
+            Path v001 = sqlDir.resolve("V001__course.sql");
+            if (Files.exists(v001)) {
+                ScriptUtils.executeSqlScript(migration, new FileSystemResource(v001.toFile()));
+            }
         }
     }
 
@@ -103,6 +111,66 @@ class CourseSchemaIT {
             statement.executeUpdate(String.format(insert, 1, 100));
             assertThatThrownBy(() -> statement.executeUpdate(String.format(insert, 2, 101)))
                     .as("uk_inbox_event_id must reject duplicate event_id")
+                    .isInstanceOf(SQLException.class);
+        }
+    }
+
+    @Test
+    void businessTablesExistWithRequiredKeysAndTypes() throws Exception {
+        try (Connection connection = DriverManager.getConnection(rootUrl, "root", "root-test-password");
+                Statement statement = connection.createStatement()) {
+
+            for (String table : List.of(
+                    "course_category", "course", "course_version", "course_teacher",
+                    "course_audit_submission", "course_enrollment",
+                    "course_content_readiness_projection", "course_review")) {
+                try (ResultSet rows = statement.executeQuery(
+                        "SELECT COUNT(*) FROM information_schema.tables "
+                                + "WHERE table_schema = DATABASE() AND table_name = '" + table + "'")) {
+                    rows.next();
+                    assertThat(rows.getLong(1))
+                            .as("table %s must exist after V001", table)
+                            .isEqualTo(1);
+                }
+            }
+
+            // 规格 5.2 唯一键：版本号 / 选课 / 评价
+            assertUniqueIndex(statement, "course_version", "uk_course_version_no");
+            assertUniqueIndex(statement, "course_enrollment", "uk_course_enrollment");
+            assertUniqueIndex(statement, "course_review", "uk_course_review");
+
+            // 规格 5.2 列类型关键点：状态用 VARCHAR（应用层状态机校验）、价格 DECIMAL(10,2)
+            assertColumnType(statement, "course", "lifecycle_status", "varchar", 32);
+            assertColumnType(statement, "course_version", "version_status", "varchar", 32);
+            assertDecimalColumn(statement, "course_version", "price", 10, 2);
+        }
+    }
+
+    @Test
+    void businessUniqueKeysAreEnforced() throws Exception {
+        try (Connection connection = DriverManager.getConnection(rootUrl, "root", "root-test-password");
+                Statement statement = connection.createStatement()) {
+
+            String versionInsert = "INSERT INTO course_version (id, course_id, version_no, category_id, title, "
+                    + "level, price, currency, version_status, created_by, created_at) "
+                    + "VALUES (%s, 100, 1, 10, 'intro', 'BEGINNER', 0.00, 'CNY', 'DRAFT', 1, NOW(3))";
+            statement.executeUpdate(String.format(versionInsert, 1));
+            assertThatThrownBy(() -> statement.executeUpdate(String.format(versionInsert, 2)))
+                    .as("uk_course_version_no must reject duplicate (course_id, version_no)")
+                    .isInstanceOf(SQLException.class);
+
+            String enrollmentInsert = "INSERT INTO course_enrollment (id, course_id, student_id, source, status, "
+                    + "enrolled_at, version) VALUES (%s, 100, 200, 'FREE', 'ACTIVE', NOW(3), 0)";
+            statement.executeUpdate(String.format(enrollmentInsert, 1));
+            assertThatThrownBy(() -> statement.executeUpdate(String.format(enrollmentInsert, 2)))
+                    .as("uk_course_enrollment must reject duplicate (course_id, student_id)")
+                    .isInstanceOf(SQLException.class);
+
+            String reviewInsert = "INSERT INTO course_review (id, course_id, student_id, rating, content, status, "
+                    + "created_at, updated_at) VALUES (%s, 100, 200, 5, 'good', 'VISIBLE', NOW(3), NOW(3))";
+            statement.executeUpdate(String.format(reviewInsert, 1));
+            assertThatThrownBy(() -> statement.executeUpdate(String.format(reviewInsert, 2)))
+                    .as("uk_course_review must reject duplicate (course_id, student_id)")
                     .isInstanceOf(SQLException.class);
         }
     }
@@ -156,6 +224,18 @@ class CourseSchemaIT {
             assertThat(rows.getLong(1))
                     .as("index %s on %s (NON_UNIQUE=%s) must exist", index, table, nonUnique)
                     .isGreaterThanOrEqualTo(1);
+        }
+    }
+
+    private static void assertDecimalColumn(Statement statement, String table, String column,
+            int expectedPrecision, int expectedScale) throws SQLException {
+        try (ResultSet rows = statement.executeQuery(
+                "SELECT DATA_TYPE, NUMERIC_PRECISION, NUMERIC_SCALE FROM information_schema.columns "
+                        + "WHERE table_schema = DATABASE() AND table_name = '" + table + "' AND column_name = '" + column + "'")) {
+            assertThat(rows.next()).as("column %s.%s must exist", table, column).isTrue();
+            assertThat(rows.getString(1)).as("column %s.%s data type", table, column).isEqualTo("decimal");
+            assertThat(rows.getInt(2)).as("column %s.%s precision", table, column).isEqualTo(expectedPrecision);
+            assertThat(rows.getInt(3)).as("column %s.%s scale", table, column).isEqualTo(expectedScale);
         }
     }
 
