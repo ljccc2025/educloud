@@ -1,7 +1,7 @@
 -- EduCloud User 数据库：课程域权限码与角色挂载（V004）
 -- 依据：docs/superpowers/specs/2026-08-23-educloud-course-design.md 第 3 节「RBAC 扩展」。
--- 幂等约定：全部 INSERT ... ON DUPLICATE KEY UPDATE，可重复执行（角色按 code、权限按 code、关联按
--- (role_id, permission_id) 唯一键命中）。
+-- 幂等约定：全部 INSERT ... AS new ON DUPLICATE KEY UPDATE（MySQL 8.0.19+ 行别名语法），
+-- 可重复执行（角色按 code、权限按 code、关联按 (role_id, permission_id) 唯一键命中）。
 -- id 段：权限 101-109 避开 V001 的 1-9；sys_role_permission 1001+ 避开 V001 的 1-20。
 -- COURSE_REVIEWER 内置角色已在 V001 以 id=3 创建（本迁移按 code 幂等 upsert，不改变既有 id）。
 
@@ -15,20 +15,22 @@ INSERT INTO sys_permission (id, code, name, resource, action, description) VALUE
   (107, 'course:archive', '课程归档', 'course', 'archive', '归档下架课程'),
   (108, 'course:enroll', '课程选课', 'course', 'enroll', '免费课程选课'),
   (109, 'course:student:read', '课程学生读取', 'course', 'student:read', '查看课程学生列表')
+AS new
 ON DUPLICATE KEY UPDATE
-  name = VALUES(name),
-  resource = VALUES(resource),
-  action = VALUES(action),
-  description = VALUES(description);
+  name = new.name,
+  resource = new.resource,
+  action = new.action,
+  description = new.description;
 
 INSERT INTO sys_role (id, code, name, description, status, built_in, created_at, updated_at) VALUES
   (100, 'COURSE_REVIEWER', '课程审核', '课程审核', 'ACTIVE', 1, NOW(3), NOW(3))
+AS new
 ON DUPLICATE KEY UPDATE
-  name = VALUES(name),
-  description = VALUES(description),
-  status = VALUES(status),
-  built_in = VALUES(built_in),
-  updated_at = VALUES(updated_at);
+  name = new.name,
+  description = new.description,
+  status = new.status,
+  built_in = new.built_in,
+  updated_at = new.updated_at;
 
 -- 角色-权限挂载（role_id：2=TEACHER、3=COURSE_REVIEWER、6=SYSTEM_ADMIN、7=SUPER_ADMIN，均来自 V001 seed；
 -- ADMIN 语义 = SYSTEM_ADMIN + SUPER_ADMIN 两个内置管理角色，各挂载全部 9 项，与 V001 用户域权限一致）。
@@ -40,14 +42,16 @@ INSERT INTO sys_role_permission (id, role_id, permission_id) VALUES
   (1015, 6, 106), (1016, 6, 107), (1017, 6, 108), (1018, 6, 109), -- SYSTEM_ADMIN → 全部
   (1019, 7, 101), (1020, 7, 102), (1021, 7, 103), (1022, 7, 104), (1023, 7, 105),
   (1024, 7, 106), (1025, 7, 107), (1026, 7, 108), (1027, 7, 109)  -- SUPER_ADMIN → 全部
+AS new
 ON DUPLICATE KEY UPDATE
-  role_id = VALUES(role_id),
-  permission_id = VALUES(permission_id);
+  role_id = new.role_id,
+  permission_id = new.permission_id;
 
 -- STUDENT → course:enroll（免费选课；规格审查补充——学生 JWT 需携带该权限码，否则选课 403）。
 -- TEACHER → enroll 保留不动，作为安全超集。
 INSERT INTO sys_role_permission (id, role_id, permission_id) VALUES
   (1028, 1, 108) -- STUDENT → course:enroll
+AS new
 ON DUPLICATE KEY UPDATE
-  role_id = VALUES(role_id),
-  permission_id = VALUES(permission_id);
+  role_id = new.role_id,
+  permission_id = new.permission_id;

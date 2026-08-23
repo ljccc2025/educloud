@@ -165,6 +165,9 @@ class CoursePermissionMigrationIT {
             long permissionRows = count(connection, "SELECT COUNT(*) FROM sys_permission");
             long roleRows = count(connection, "SELECT COUNT(*) FROM sys_role");
             long mappingRows = count(connection, "SELECT COUNT(*) FROM sys_role_permission");
+            Set<String> permissionSnapshot = permissionSnapshot(connection);
+            Set<String> roleSnapshot = roleSnapshot(connection);
+            Set<String> mappingSnapshot = rolePermissionSnapshot(connection);
 
             assertThatCode(() -> ScriptUtils.executeSqlScript(connection,
                     new FileSystemResource(sqlDir.resolve("V004__course_permissions.sql").toFile())))
@@ -180,6 +183,16 @@ class CoursePermissionMigrationIT {
             assertThat(count(connection, "SELECT COUNT(*) FROM sys_role_permission"))
                     .as("role-permission rows must be unchanged after replay")
                     .isEqualTo(mappingRows);
+
+            assertThat(permissionSnapshot(connection))
+                    .as("permission semantic columns must be unchanged after replay")
+                    .isEqualTo(permissionSnapshot);
+            assertThat(roleSnapshot(connection))
+                    .as("role semantic columns must be unchanged after replay")
+                    .isEqualTo(roleSnapshot);
+            assertThat(rolePermissionSnapshot(connection))
+                    .as("role-permission pairs must be unchanged after replay")
+                    .isEqualTo(mappingSnapshot);
         }
     }
 
@@ -188,6 +201,35 @@ class CoursePermissionMigrationIT {
                 ResultSet rows = statement.executeQuery(sql)) {
             rows.next();
             return rows.getLong(1);
+        }
+    }
+
+    /** sys_permission 语义列快照：code|name|resource|action。 */
+    private static Set<String> permissionSnapshot(Connection connection) throws SQLException {
+        return stringSet(connection,
+                "SELECT CONCAT_WS('|', code, name, resource, action) FROM sys_permission");
+    }
+
+    /** sys_role 语义列快照：code|name|status。 */
+    private static Set<String> roleSnapshot(Connection connection) throws SQLException {
+        return stringSet(connection,
+                "SELECT CONCAT_WS('|', code, name, status) FROM sys_role");
+    }
+
+    /** sys_role_permission 关联快照：(role_id, permission_id) 对。 */
+    private static Set<String> rolePermissionSnapshot(Connection connection) throws SQLException {
+        return stringSet(connection,
+                "SELECT CONCAT_WS('|', role_id, permission_id) FROM sys_role_permission");
+    }
+
+    private static Set<String> stringSet(Connection connection, String sql) throws SQLException {
+        try (Statement statement = connection.createStatement();
+                ResultSet rows = statement.executeQuery(sql)) {
+            Set<String> values = new HashSet<>();
+            while (rows.next()) {
+                values.add(rows.getString(1));
+            }
+            return values;
         }
     }
 
