@@ -15,7 +15,8 @@ public final class TestContainerImages {
     }
 
     static DockerImageName redis(Function<String, String> environment) {
-        return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment);
+        return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment)
+                .asCompatibleSubstituteFor("redis");
     }
 
     private static DockerImageName resolve(

@@ -21,11 +21,13 @@ final class TestContainerImages {
     }
 
     static DockerImageName redis(Function<String, String> environment) {
-        return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment);
+        return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment)
+                .asCompatibleSubstituteFor("redis");
     }
 
     static DockerImageName nacos(Function<String, String> environment) {
-        return resolve(NACOS_IMAGE_ENV, DEFAULT_NACOS_IMAGE, environment);
+        return resolve(NACOS_IMAGE_ENV, DEFAULT_NACOS_IMAGE, environment)
+                .asCompatibleSubstituteFor("nacos");
     }
 
     static DockerImageName resolve(

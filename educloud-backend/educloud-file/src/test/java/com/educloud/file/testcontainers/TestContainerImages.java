@@ -32,7 +32,8 @@ public final class TestContainerImages {
     }
 
     static DockerImageName mysql(Function<String, String> environment) {
-        return resolve(MYSQL_IMAGE_ENV, DEFAULT_MYSQL_IMAGE, environment);
+        return resolve(MYSQL_IMAGE_ENV, DEFAULT_MYSQL_IMAGE, environment)
+                .asCompatibleSubstituteFor("mysql");
     }
 
     public static DockerImageName rabbitmq() {
@@ -40,7 +41,8 @@ public final class TestContainerImages {
     }
 
     static DockerImageName rabbitmq(Function<String, String> environment) {
-        return resolve(RABBITMQ_IMAGE_ENV, DEFAULT_RABBITMQ_IMAGE, environment);
+        return resolve(RABBITMQ_IMAGE_ENV, DEFAULT_RABBITMQ_IMAGE, environment)
+                .asCompatibleSubstituteFor("rabbitmq");
     }
 
     public static DockerImageName redis() {
@@ -48,7 +50,8 @@ public final class TestContainerImages {
     }
 
     static DockerImageName redis(Function<String, String> environment) {
-        return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment);
+        return resolve(REDIS_IMAGE_ENV, DEFAULT_REDIS_IMAGE, environment)
+                .asCompatibleSubstituteFor("redis");
     }
 
     public static DockerImageName minio() {
