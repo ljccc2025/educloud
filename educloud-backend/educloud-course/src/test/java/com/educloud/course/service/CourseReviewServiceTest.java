@@ -18,6 +18,7 @@ import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.support.MybatisPlusTestSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -80,10 +81,11 @@ class CourseReviewServiceTest {
     @Mock
     private RequestContextAccessor requestContextAccessor;
 
+    @Mock
+    private AuditWriter auditWriter;
+
     private CourseReviewService service() {
-        return new CourseReviewService(courseMapper, enrollmentMapper, reviewMapper,
-                new AuditWriter(auditEventMapper, requestContextAccessor,
-                        new ObjectMapper(), Clock.systemUTC()));
+        return new CourseReviewService(courseMapper, enrollmentMapper, reviewMapper, auditWriter);
     }
 
     // ---------------------------------------------------------------- upsert：拒绝路径
@@ -243,6 +245,8 @@ class CourseReviewServiceTest {
         verify(reviewMapper).updateStatus(eq(501L), eq("HIDDEN"), eq(30001L), any(LocalDateTime.class));
 
         verify(courseMapper).updateRatingSummary(101L, new BigDecimal("4.00"), 2);
+        verify(auditWriter).write("REVIEW_HIDDEN", "course_review", "501",
+                30001L, Set.of("SYSTEM_ADMIN"), "SUCCESS", null);
 
         java.lang.reflect.Method hide = CourseReviewService.class.getDeclaredMethod(
                 "hide", Long.class, Long.class, Set.class);

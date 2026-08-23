@@ -39,7 +39,7 @@ public class CourseLifecycleController {
     public ApiResponse<Void> offline(
             @PathVariable Long courseId,
             @AuthenticationPrincipal Jwt jwt) {
-        courseService.offline(courseId, JwtSecurityUtils.userId(jwt));
+        courseService.offline(courseId, JwtSecurityUtils.userId(jwt), JwtSecurityUtils.roles(jwt));
         return responses.success(null);
     }
 
@@ -48,7 +48,7 @@ public class CourseLifecycleController {
     public ApiResponse<Void> republish(
             @PathVariable Long courseId,
             @AuthenticationPrincipal Jwt jwt) {
-        courseService.republish(courseId, JwtSecurityUtils.userId(jwt));
+        courseService.republish(courseId, JwtSecurityUtils.userId(jwt), JwtSecurityUtils.roles(jwt));
         return responses.success(null);
     }
 
@@ -57,7 +57,7 @@ public class CourseLifecycleController {
     public ApiResponse<Void> archive(
             @PathVariable Long courseId,
             @AuthenticationPrincipal Jwt jwt) {
-        courseService.archive(courseId, JwtSecurityUtils.userId(jwt));
+        courseService.archive(courseId, JwtSecurityUtils.userId(jwt), JwtSecurityUtils.roles(jwt));
         return responses.success(null);
     }
 }

@@ -45,7 +45,8 @@ public class CourseAuditController {
     public ApiResponse<CourseAuditResponse> submitReview(
             @PathVariable Long versionId,
             @AuthenticationPrincipal Jwt jwt) {
-        return responses.success(auditService.submitForReview(versionId, JwtSecurityUtils.userId(jwt)));
+        return responses.success(auditService.submitForReview(versionId, JwtSecurityUtils.userId(jwt),
+                JwtSecurityUtils.roles(jwt)));
     }
 
     @GetMapping("/course-audits")
@@ -67,7 +68,8 @@ public class CourseAuditController {
     public ApiResponse<CourseAuditResponse> approve(
             @PathVariable Long auditId,
             @AuthenticationPrincipal Jwt jwt) {
-        return responses.success(auditService.approve(auditId, JwtSecurityUtils.userId(jwt)));
+        return responses.success(auditService.approve(auditId, JwtSecurityUtils.userId(jwt),
+                JwtSecurityUtils.roles(jwt)));
     }
 
     @PostMapping("/course-audits/{auditId}/reject")
@@ -77,7 +79,8 @@ public class CourseAuditController {
             @Valid @RequestBody AuditRejectRequest request,
             @AuthenticationPrincipal Jwt jwt) {
         return responses.success(
-                auditService.reject(auditId, JwtSecurityUtils.userId(jwt), request.reason()));
+                auditService.reject(auditId, JwtSecurityUtils.userId(jwt), request.reason(),
+                        JwtSecurityUtils.roles(jwt)));
     }
 
     @PostMapping("/course-audits/{auditId}/withdraw")
@@ -85,6 +88,7 @@ public class CourseAuditController {
     public ApiResponse<CourseAuditResponse> withdraw(
             @PathVariable Long auditId,
             @AuthenticationPrincipal Jwt jwt) {
-        return responses.success(auditService.withdraw(auditId, JwtSecurityUtils.userId(jwt)));
+        return responses.success(auditService.withdraw(auditId, JwtSecurityUtils.userId(jwt),
+                JwtSecurityUtils.roles(jwt)));
     }
 }

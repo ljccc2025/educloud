@@ -30,6 +30,8 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -71,7 +73,7 @@ class CourseLifecycleControllerTest {
                         .header("Authorization", "Bearer test-token"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("COURSE_ACCESS_DENIED"));
-        verify(courseService, never()).offline(101L, 1001L);
+        verify(courseService, never()).offline(eq(101L), eq(1001L), anySet());
     }
 
     @Test
@@ -82,7 +84,7 @@ class CourseLifecycleControllerTest {
                         .header("Authorization", "Bearer test-token"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("COURSE_ACCESS_DENIED"));
-        verify(courseService, never()).republish(101L, 1001L);
+        verify(courseService, never()).republish(eq(101L), eq(1001L), anySet());
     }
 
     @Test
@@ -93,7 +95,7 @@ class CourseLifecycleControllerTest {
                         .header("Authorization", "Bearer test-token"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("COURSE_ACCESS_DENIED"));
-        verify(courseService, never()).archive(101L, 1001L);
+        verify(courseService, never()).archive(eq(101L), eq(1001L), anySet());
     }
 
     /** 生命周期端点全缺对应权限 → 403（参数化覆盖三端点）。 */
@@ -123,7 +125,7 @@ class CourseLifecycleControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"));
 
-        verify(courseService).offline(101L, 1001L);
+        verify(courseService).offline(eq(101L), eq(1001L), anySet());
     }
 
     @Test
@@ -135,7 +137,7 @@ class CourseLifecycleControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"));
 
-        verify(courseService).republish(101L, 1001L);
+        verify(courseService).republish(eq(101L), eq(1001L), anySet());
     }
 
     @Test
@@ -147,7 +149,7 @@ class CourseLifecycleControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"));
 
-        verify(courseService).archive(101L, 1001L);
+        verify(courseService).archive(eq(101L), eq(1001L), anySet());
     }
 
     private static Jwt token(String subject, List<String> permissions) {

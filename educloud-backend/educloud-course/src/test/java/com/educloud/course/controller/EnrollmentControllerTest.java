@@ -36,6 +36,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -85,7 +86,7 @@ class EnrollmentControllerTest {
     @Test
     void enrollReturnsIdempotentEnrollmentResponse() throws Exception {
         when(jwtDecoder.decode(any())).thenReturn(token("5001", List.of("course:enroll")));
-        when(enrollmentService.enroll(101L, 5001L))
+        when(enrollmentService.enroll(eq(101L), eq(5001L), anySet()))
                 .thenReturn(new EnrollmentResponse(
                         "501", "101", "5001", "FREE", "ACTIVE",
                         LocalDateTime.of(2026, 8, 23, 10, 30)));
@@ -100,7 +101,7 @@ class EnrollmentControllerTest {
                 .andExpect(jsonPath("$.data.source").value("FREE"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
 
-        verify(enrollmentService).enroll(101L, 5001L);
+        verify(enrollmentService).enroll(eq(101L), eq(5001L), anySet());
     }
 
     @Test

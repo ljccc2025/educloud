@@ -15,7 +15,7 @@ import java.util.Objects;
  * Micrometer 命名约定一致）；无动态标签。</p>
  */
 @Component
-public final class CourseMetrics {
+public class CourseMetrics {
 
     private final Counter coursePublished;
     private final Counter enrollmentCreated;

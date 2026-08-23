@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.course.dto.response.CourseAuditResponse;
+import com.educloud.course.entity.AuditEventEntity;
 import com.educloud.course.entity.CourseAuditSubmissionEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
@@ -54,6 +55,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -161,6 +163,7 @@ class CourseAuditPublishIT {
             statement.execute("DELETE FROM course_teacher");
             statement.execute("DELETE FROM course");
             statement.execute("DELETE FROM outbox_event");
+            statement.execute("DELETE FROM audit_event");
             statement.execute("UPDATE outbox_sequence SET `last_value` = 0 WHERE source_name = 'educloud-course'");
         }
     }
@@ -169,9 +172,9 @@ class CourseAuditPublishIT {
     void submitThenApprovePublishesVersionSupersedesOldAndWritesOutboxInOneTransaction() throws Exception {
         Long auditId = transactionTemplate.execute(status -> {
             seedPublishedCourseAndNewDraft();
-            CourseAuditResponse submitted = auditService.submitForReview(DRAFT_VERSION_ID, TEACHER_ID);
+            CourseAuditResponse submitted = auditService.submitForReview(DRAFT_VERSION_ID, TEACHER_ID, Set.of("TEACHER"));
             assertThat(submitted.submissionStatus()).isEqualTo("PENDING");
-            CourseAuditResponse approved = auditService.approve(Long.parseLong(submitted.auditId()), REVIEWER_ID);
+            CourseAuditResponse approved = auditService.approve(Long.parseLong(submitted.auditId()), REVIEWER_ID, Set.of("SYSTEM_ADMIN"));
             assertThat(approved.submissionStatus()).isEqualTo("APPROVED");
             return Long.parseLong(approved.auditId());
         });
@@ -218,6 +221,20 @@ class CourseAuditPublishIT {
         assertThat(payload.get("publishedAt").asText()).isNotBlank();
         assertThat(event.getRequestId()).isEqualTo("it-request");
         assertThat(event.getTraceId()).isEqualTo("it-trace");
+
+        // 审计（任务 16 + 审查修复）：同事务写 SUBMIT_FOR_REVIEW + AUDIT_APPROVED 两行，
+        // actor_type 取真实 JWT 角色（SYSTEM_ADMIN）。
+        List<AuditEventEntity> approvedAudits = sqlSessionTemplate.getMapper(AuditEventMapper.class)
+                .selectList(new QueryWrapper<AuditEventEntity>().eq("action", "AUDIT_APPROVED"));
+        assertThat(approvedAudits).hasSize(1);
+        AuditEventEntity approvedAudit = approvedAudits.get(0);
+        assertThat(approvedAudit.getActorType()).isEqualTo("SYSTEM_ADMIN");
+        assertThat(approvedAudit.getActorId()).isEqualTo(String.valueOf(REVIEWER_ID));
+        assertThat(approvedAudit.getResourceType()).isEqualTo("course_audit");
+        assertThat(approvedAudit.getResult()).isEqualTo("SUCCESS");
+        assertThat(approvedAudit.getRequestId()).isEqualTo("it-request");
+        assertThat(sqlSessionTemplate.getMapper(AuditEventMapper.class)
+                .selectCount(new QueryWrapper<AuditEventEntity>().eq("action", "SUBMIT_FOR_REVIEW"))).isEqualTo(1);
     }
 
     @Test
@@ -226,9 +243,9 @@ class CourseAuditPublishIT {
         // 否则 seed 行随自审异常一起回滚，事务外 selectById 拿到 null 导致 NPE。
         seedPublishedCourseAndNewDraft();
         assertThatThrownBy(() -> transactionTemplate.execute(status -> {
-            CourseAuditResponse submitted = auditService.submitForReview(DRAFT_VERSION_ID, TEACHER_ID);
+            CourseAuditResponse submitted = auditService.submitForReview(DRAFT_VERSION_ID, TEACHER_ID, Set.of("TEACHER"));
             // 自审拒绝 403：提交教师同时作为审核人 → 异常回滚整个提交+发布事务。
-            auditService.approve(Long.parseLong(submitted.auditId()), TEACHER_ID);
+            auditService.approve(Long.parseLong(submitted.auditId()), TEACHER_ID, Set.of("SYSTEM_ADMIN"));
             return null;
         })).isInstanceOfSatisfying(BusinessException.class, exception ->
                 assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED));
@@ -245,6 +262,8 @@ class CourseAuditPublishIT {
         assertThat(sqlSessionTemplate.getMapper(CourseAuditSubmissionMapper.class)
                 .selectCount(new QueryWrapper<>())).isZero();
         assertThat(sqlSessionTemplate.getMapper(OutboxEventMapper.class)
+                .selectCount(new QueryWrapper<>())).isZero();
+        assertThat(sqlSessionTemplate.getMapper(AuditEventMapper.class)
                 .selectCount(new QueryWrapper<>())).isZero();
     }
 

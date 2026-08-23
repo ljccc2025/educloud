@@ -19,6 +19,7 @@ import com.educloud.course.support.MybatisPlusTestSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.educloud.course.support.TeacherAccessGuard;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -26,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.util.Set;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,6 +72,9 @@ class CourseCoverBindTest {
 
     @Mock
     private RequestContextAccessor requestContextAccessor;
+
+    @Mock
+    private AuditWriter auditWriter;
 
     @Mock
     private FileClient fileClient;
@@ -162,7 +167,7 @@ class CourseCoverBindTest {
         assignIdOnVersionInsert(301L);
         when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
 
-        CourseDraftResponse response = courseService().createCourse(1001L, request);
+        CourseDraftResponse response = courseService().createCourse(1001L, request, Set.of("TEACHER"));
 
         org.assertj.core.api.Assertions.assertThat(response.coverFileId()).isEqualTo("77");
         verify(fileClient).bindCover(101L, 77L, 1001L);
@@ -178,7 +183,7 @@ class CourseCoverBindTest {
         assignIdOnVersionInsert(301L);
         when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
 
-        courseService().createCourse(1001L, request);
+        courseService().createCourse(1001L, request, Set.of("TEACHER"));
 
         verifyNoInteractions(fileClient);
     }
@@ -195,7 +200,7 @@ class CourseCoverBindTest {
                 "File 拒绝访问: bind 77 (HTTP 403)"))
                 .when(fileClient).bindCover(101L, 77L, 1001L);
 
-        assertThatThrownBy(() -> courseService().createCourse(1001L, request))
+        assertThatThrownBy(() -> courseService().createCourse(1001L, request, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         org.assertj.core.api.Assertions.assertThat(exception.errorCode())
                                 .isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED));
@@ -209,8 +214,7 @@ class CourseCoverBindTest {
         return new CourseService(
                 courseMapper, courseTeacherMapper, courseVersionMapper,
                 new TeacherAccessGuard(courseTeacherMapper), eventPublisher, fileClient,
-                new AuditWriter(auditEventMapper, requestContextAccessor,
-                        new ObjectMapper(), Clock.systemUTC()));
+                auditWriter);
     }
 
     private CourseVersionService versionService() {

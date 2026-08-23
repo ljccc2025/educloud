@@ -21,15 +21,17 @@ import java.util.stream.Collectors;
 /**
  * Course 审计事实写入器（audit_event 只追加；应用账号仅 INSERT/SELECT）。
  *
- * <p>M05 任务 16：关键写操作（建课/提交审核/审批/驳回/下架/归档/选课/评价隐藏）在业务
- * 事务内追加审计行。actor_type 存角色名（{@link #actorType(Set)} 取角色集合中字典序
- * 首个角色）或回退 USER；与 audit_event.actor_type VARCHAR(32) 对齐，超长截断
- * （{@link #safeActorType(String)}）。request_id/trace_id 由 {@link RequestContextAccessor}
- * 解析；ip 仅在存在 Servlet 请求上下文时记录（无上下文为 NULL，与
- * FileAccessAuditWriter 同语义）。</p>
+ * <p>M05 任务 16 + 审查修复：关键写操作（建课/提交审核/审批/驳回/下架/重上架/归档/选课/
+ * 评价隐藏/撤回）在业务事务内追加审计行。actor_type 存角色名（{@link #actorType(Set)}
+ * 按特权优先级 ADMIN>REVIEWER>TEACHER>STUDENT 取最高角色；多角色取高特权，未知角色
+ * 回退字典序首个，空角色回退 USER）或回退 USER；与 audit_event.actor_type VARCHAR(32)
+ * 对齐，超长截断（{@link #safeActorType(String)}）。request_id/trace_id 由
+ * {@link RequestContextAccessor} 解析；ip 仅在存在 Servlet 请求上下文时记录（无上下文
+ * 为 NULL，与 FileAccessAuditWriter 同语义）。write 入口对 action/resourceType/result/
+ * actorId 做 {@link Objects#requireNonNull} 硬校验，防止审计事实失真。</p>
  */
 @Component
-public final class AuditWriter {
+public class AuditWriter {
 
     /** 与 audit_event.actor_type VARCHAR(32) 对齐。 */
     private static final int MAX_ACTOR_TYPE_LENGTH = 32;
@@ -37,6 +39,9 @@ public final class AuditWriter {
     private static final int MAX_REASON_LENGTH = 512;
     private static final String ACTOR_TYPE_FALLBACK = "USER";
     private static final String RETENTION_CLASS = "standard";
+    /** actor_type 特权优先级：ADMIN（SUPER_ADMIN/SYSTEM_ADMIN）> REVIEWER（COURSE_REVIEWER）> TEACHER > STUDENT。 */
+    private static final java.util.List<String> ROLE_PRIVILEGE_ORDER = java.util.List.of(
+            "SUPER_ADMIN", "SYSTEM_ADMIN", "COURSE_REVIEWER", "TEACHER", "STUDENT");
 
     private final AuditEventMapper auditEventMapper;
     private final RequestContextAccessor requestContextAccessor;
@@ -73,6 +78,10 @@ public final class AuditWriter {
             Set<String> roles,
             String result,
             String reason) {
+        Objects.requireNonNull(action, "action");
+        Objects.requireNonNull(resourceType, "resourceType");
+        Objects.requireNonNull(actorId, "actorId");
+        Objects.requireNonNull(result, "result");
         AuditEventEntity audit = new AuditEventEntity();
         audit.setAuditId(UUID.randomUUID().toString());
         audit.setActorType(safeActorType(actorType(roles)));
@@ -94,10 +103,16 @@ public final class AuditWriter {
         auditEventMapper.insert(audit);
     }
 
-    /** 角色集合 → actor_type：取字典序首个角色（确定性），空/缺失 → USER。 */
+    /** 角色集合 → actor_type：特权优先级 ADMIN>REVIEWER>TEACHER>STUDENT（多角色取最高
+     *  特权）；未知角色取字典序首个保证确定性；空/缺失 → USER。 */
     public static String actorType(Set<String> roles) {
         if (roles == null || roles.isEmpty()) {
             return ACTOR_TYPE_FALLBACK;
+        }
+        for (String privileged : ROLE_PRIVILEGE_ORDER) {
+            if (roles.contains(privileged)) {
+                return privileged;
+            }
         }
         return roles.stream().sorted().findFirst().orElse(ACTOR_TYPE_FALLBACK);
     }

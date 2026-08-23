@@ -17,6 +17,7 @@ import java.time.ZoneOffset;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,7 +53,7 @@ class AuditWriterTest {
 
         AuditEventEntity entity = capturedEntity();
         assertThat(entity.getAuditId()).isNotBlank();
-        assertThat(entity.getActorType()).isEqualTo("COURSE_REVIEWER");
+        assertThat(entity.getActorType()).isEqualTo("SYSTEM_ADMIN");
         assertThat(entity.getActorId()).isEqualTo("1001");
         assertThat(entity.getActorRolesJson()).contains("COURSE_REVIEWER", "SYSTEM_ADMIN");
         assertThat(entity.getAction()).isEqualTo("AUDIT_APPROVED");
@@ -95,6 +96,27 @@ class AuditWriterTest {
         assertThat(AuditWriter.actorType(Set.of("STUDENT"))).isEqualTo("STUDENT");
         assertThat(AuditWriter.actorType(null)).isEqualTo("USER");
         assertThat(AuditWriter.actorType(Set.of())).isEqualTo("USER");
+    }
+
+    @Test
+    void actorTypePicksHighestPrivilegeRole() {
+        assertThat(AuditWriter.actorType(Set.of("STUDENT", "SYSTEM_ADMIN"))).isEqualTo("SYSTEM_ADMIN");
+        assertThat(AuditWriter.actorType(Set.of("SUPER_ADMIN", "COURSE_REVIEWER"))).isEqualTo("SUPER_ADMIN");
+        assertThat(AuditWriter.actorType(Set.of("COURSE_REVIEWER", "TEACHER", "STUDENT"))).isEqualTo("COURSE_REVIEWER");
+        assertThat(AuditWriter.actorType(Set.of("TEACHER", "STUDENT"))).isEqualTo("TEACHER");
+        assertThat(AuditWriter.actorType(Set.of("UNKNOWN_ROLE", "STUDENT"))).isEqualTo("STUDENT");
+    }
+
+    @Test
+    void writeRejectsNullMandatoryFields() {
+        assertThatThrownBy(() -> writer.write(null, "course", "1", 1L, Set.of("TEACHER"), "SUCCESS", null))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> writer.write("COURSE_CREATED", null, "1", 1L, Set.of("TEACHER"), "SUCCESS", null))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> writer.write("COURSE_CREATED", "course", "1", null, Set.of("TEACHER"), "SUCCESS", null))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> writer.write("COURSE_CREATED", "course", "1", 1L, Set.of("TEACHER"), null, null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     private AuditEventEntity capturedEntity() {

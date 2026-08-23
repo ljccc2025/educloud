@@ -44,7 +44,8 @@ public class EnrollmentController {
     public ApiResponse<EnrollmentResponse> enroll(
             @PathVariable Long courseId,
             @AuthenticationPrincipal Jwt jwt) {
-        return responses.success(enrollmentService.enroll(courseId, JwtSecurityUtils.userId(jwt)));
+        return responses.success(enrollmentService.enroll(courseId, JwtSecurityUtils.userId(jwt),
+                JwtSecurityUtils.roles(jwt)));
     }
 
     @GetMapping("/me/enrollments")

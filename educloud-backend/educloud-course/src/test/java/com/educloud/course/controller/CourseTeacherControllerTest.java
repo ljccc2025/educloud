@@ -35,6 +35,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -98,7 +99,7 @@ class CourseTeacherControllerTest {
     @Test
     void createCourseReturnsCreatedDraft() throws Exception {
         when(jwtDecoder.decode(any())).thenReturn(token("1001", List.of("course:create", "course:update")));
-        when(courseService.createCourse(eq(1001L), any(CourseCreateRequest.class)))
+        when(courseService.createCourse(eq(1001L), any(CourseCreateRequest.class), anySet()))
                 .thenReturn(draftResponse("101", "301", 1, "Java 入门", "199.00"));
 
         mockMvc.perform(post("/api/v1/courses")
@@ -117,7 +118,7 @@ class CourseTeacherControllerTest {
                 .andExpect(jsonPath("$.data.teachers[0].teacherId").value("1001"))
                 .andExpect(jsonPath("$.data.teachers[0].role").value("OWNER"));
 
-        verify(courseService).createCourse(eq(1001L), any(CourseCreateRequest.class));
+        verify(courseService).createCourse(eq(1001L), any(CourseCreateRequest.class), anySet());
     }
 
     @Test

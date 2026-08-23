@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.course.dto.response.EnrollmentResponse;
+import com.educloud.course.entity.AuditEventEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseEnrollmentEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
@@ -56,6 +57,7 @@ import java.sql.Statement;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -169,6 +171,7 @@ class EnrollmentConcurrencyIT {
             statement.execute("DELETE FROM course_version");
             statement.execute("DELETE FROM course");
             statement.execute("DELETE FROM outbox_event");
+            statement.execute("DELETE FROM audit_event");
             statement.execute("UPDATE outbox_sequence SET `last_value` = 0 WHERE source_name = 'educloud-course'");
         }
     }
@@ -184,7 +187,7 @@ class EnrollmentConcurrencyIT {
             Callable<EnrollmentResponse> enrollTask = () -> {
                 ready.countDown();
                 start.await(10, TimeUnit.SECONDS);
-                return transactionTemplate.execute(status -> enrollmentService.enroll(COURSE_ID, STUDENT_ID));
+                return transactionTemplate.execute(status -> enrollmentService.enroll(COURSE_ID, STUDENT_ID, Set.of("STUDENT")));
             };
             Future<EnrollmentResponse> first = executor.submit(enrollTask);
             Future<EnrollmentResponse> second = executor.submit(enrollTask);
@@ -212,6 +215,11 @@ class EnrollmentConcurrencyIT {
 
         CourseEntity course = sqlSessionTemplate.getMapper(CourseMapper.class).selectById(COURSE_ID);
         assertThat(course.getEnrollmentCount()).as("enrollment_count must increment exactly once").isEqualTo(1);
+
+        // 审计（任务 16 + 审查修复）：仅成功创建的那一次选课写 ENROLLMENT_CREATED（幂等返回不重复审计）。
+        Long auditCount = sqlSessionTemplate.getMapper(AuditEventMapper.class)
+                .selectCount(new QueryWrapper<AuditEventEntity>().eq("action", "ENROLLMENT_CREATED"));
+        assertThat(auditCount).as("only the single created enrollment is audited").isEqualTo(1L);
 
         List<OutboxEventEntity> events = sqlSessionTemplate.getMapper(OutboxEventMapper.class)
                 .selectList(new QueryWrapper<OutboxEventEntity>().eq("event_type", "EnrollmentCreated"));

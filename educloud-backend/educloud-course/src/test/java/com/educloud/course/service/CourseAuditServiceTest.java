@@ -25,6 +25,7 @@ import com.educloud.course.support.TeacherAccessGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -36,6 +37,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -91,6 +93,12 @@ class CourseAuditServiceTest {
     @Mock
     private RequestContextAccessor requestContextAccessor;
 
+    @Mock
+    private CourseMetrics courseMetrics;
+
+    @Mock
+    private AuditWriter auditWriter;
+
     // ---------------------------------------------------------------- submit
 
     @Test
@@ -104,7 +112,7 @@ class CourseAuditServiceTest {
         assignSubmissionId(401L);
         when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
 
-        CourseAuditResponse response = auditService().submitForReview(301L, 1001L);
+        CourseAuditResponse response = auditService().submitForReview(301L, 1001L, Set.of("TEACHER"));
 
         assertThat(response.auditId()).isEqualTo("401");
         assertThat(response.courseId()).isEqualTo("101");
@@ -115,6 +123,8 @@ class CourseAuditServiceTest {
         assertThat(response.submittedBy()).isEqualTo("1001");
         assertThat(response.submittedAt()).isNotNull();
         assertThat(response.title()).isEqualTo("待审标题");
+        verify(auditWriter).write("SUBMIT_FOR_REVIEW", "course_version", "301",
+                1001L, Set.of("TEACHER"), "SUCCESS", null);
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         ArgumentCaptor<LambdaUpdateWrapper> versionCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
@@ -138,7 +148,7 @@ class CourseAuditServiceTest {
         assertThat(courseCaptor.getValue().getLifecycleStatus()).isEqualTo("PENDING_REVIEW");
 
         java.lang.reflect.Method submit = CourseAuditService.class.getDeclaredMethod(
-                "submitForReview", Long.class, Long.class);
+                "submitForReview", Long.class, Long.class, Set.class);
         assertThat(submit.getAnnotation(Transactional.class)).isNotNull();
     }
 
@@ -149,7 +159,7 @@ class CourseAuditServiceTest {
         when(courseMapper.selectById(101L)).thenReturn(course(101L, 1001L, 301L, null, "PENDING_REVIEW", 1L));
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
 
-        assertThatThrownBy(() -> auditService().submitForReview(301L, 1001L))
+        assertThatThrownBy(() -> auditService().submitForReview(301L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.VERSION_NOT_DRAFT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -165,7 +175,7 @@ class CourseAuditServiceTest {
         when(courseMapper.selectById(101L)).thenReturn(course(101L, 2002L, 301L, null, "DRAFT", 1L));
         when(courseTeacherMapper.selectCount(any())).thenReturn(0L);
 
-        assertThatThrownBy(() -> auditService().submitForReview(301L, 1001L))
+        assertThatThrownBy(() -> auditService().submitForReview(301L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED));
         verify(courseVersionMapper, never()).update(any(), any());
@@ -176,7 +186,7 @@ class CourseAuditServiceTest {
     void submitReturns404WhenVersionNotFound() {
         when(courseVersionMapper.selectById(999L)).thenReturn(null);
 
-        assertThatThrownBy(() -> auditService().submitForReview(999L, 1001L))
+        assertThatThrownBy(() -> auditService().submitForReview(999L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_NOT_FOUND));
     }
@@ -188,7 +198,7 @@ class CourseAuditServiceTest {
         when(courseMapper.selectById(101L)).thenReturn(course(101L, 1001L, 399L, null, "DRAFT", 1L));
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
 
-        assertThatThrownBy(() -> auditService().submitForReview(301L, 1001L))
+        assertThatThrownBy(() -> auditService().submitForReview(301L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.VERSION_NOT_DRAFT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -216,13 +226,17 @@ class CourseAuditServiceTest {
             return 1;
         }).when(courseMapper).update(any(CourseEntity.class), any());
 
-        CourseAuditResponse response = auditService().approve(401L, 3001L);
+        CourseAuditResponse response = auditService().approve(401L, 3001L, Set.of("SYSTEM_ADMIN"));
 
         assertThat(response.submissionStatus()).isEqualTo("APPROVED");
         assertThat(response.versionStatus()).isEqualTo("PUBLISHED");
         assertThat(response.lifecycleStatus()).isEqualTo("PUBLISHED");
         assertThat(response.reviewedBy()).isEqualTo("3001");
         assertThat(response.reviewedAt()).isNotNull();
+        verify(courseMetrics).recordCoursePublished();
+        verify(courseMetrics).recordAuditApproved();
+        verify(auditWriter).write("AUDIT_APPROVED", "course_audit", "401",
+                3001L, Set.of("SYSTEM_ADMIN"), "SUCCESS", null);
 
         verify(courseMapper).selectByIdForUpdate(101L);
 
@@ -265,7 +279,7 @@ class CourseAuditServiceTest {
         verify(eventPublisher).coursePublished(101L, 302L, 8L, updated.getPublishedAt());
 
         java.lang.reflect.Method approve = CourseAuditService.class.getDeclaredMethod(
-                "approve", Long.class, Long.class);
+                "approve", Long.class, Long.class, Set.class);
         assertThat(approve.getAnnotation(Transactional.class)).isNotNull();
     }
 
@@ -274,7 +288,7 @@ class CourseAuditServiceTest {
         CourseAuditSubmissionEntity submission = submission(401L, 101L, 302L, "PENDING", 3001L);
         when(submissionMapper.selectById(401L)).thenReturn(submission);
 
-        assertThatThrownBy(() -> auditService().approve(401L, 3001L))
+        assertThatThrownBy(() -> auditService().approve(401L, 3001L, Set.of("SYSTEM_ADMIN")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(403);
@@ -289,7 +303,7 @@ class CourseAuditServiceTest {
         CourseAuditSubmissionEntity submission = submission(401L, 101L, 302L, "APPROVED", 1001L);
         when(submissionMapper.selectById(401L)).thenReturn(submission);
 
-        assertThatThrownBy(() -> auditService().approve(401L, 3001L))
+        assertThatThrownBy(() -> auditService().approve(401L, 3001L, Set.of("SYSTEM_ADMIN")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.SUBMISSION_NOT_PENDING);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -303,7 +317,7 @@ class CourseAuditServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course(101L, 1001L, null, null, "PENDING_REVIEW", 1L));
         when(courseVersionMapper.selectById(302L)).thenReturn(version(302L, 101L, 2, "REJECTED", "已驳回"));
 
-        assertThatThrownBy(() -> auditService().approve(401L, 3001L))
+        assertThatThrownBy(() -> auditService().approve(401L, 3001L, Set.of("SYSTEM_ADMIN")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.VERSION_NOT_DRAFT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -324,7 +338,7 @@ class CourseAuditServiceTest {
         when(submissionMapper.updateById(any(CourseAuditSubmissionEntity.class))).thenReturn(1);
         when(courseMapper.update(any(CourseEntity.class), any())).thenReturn(0);
 
-        assertThatThrownBy(() -> auditService().approve(401L, 3001L))
+        assertThatThrownBy(() -> auditService().approve(401L, 3001L, Set.of("SYSTEM_ADMIN")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CommonErrorCode.VERSION_CONFLICT));
         verify(eventPublisher, never()).coursePublished(any(), any(), anyLong(), any());
@@ -335,7 +349,7 @@ class CourseAuditServiceTest {
     @Test
     void rejectRequiresReasonWith400() {
         // 原因校验先于任何查询/写操作（空原因直接 400）。
-        assertThatThrownBy(() -> auditService().reject(401L, 3001L, "  "))
+        assertThatThrownBy(() -> auditService().reject(401L, 3001L, "  ", Set.of("SYSTEM_ADMIN")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.REVIEW_REJECT_REASON_REQUIRED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(400);
@@ -355,13 +369,16 @@ class CourseAuditServiceTest {
         when(courseVersionMapper.update(isNull(), any())).thenReturn(1);
         when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
 
-        CourseAuditResponse response = auditService().reject(401L, 3001L, "内容不完整");
+        CourseAuditResponse response = auditService().reject(401L, 3001L, "内容不完整", Set.of("SYSTEM_ADMIN"));
 
         assertThat(response.submissionStatus()).isEqualTo("REJECTED");
         assertThat(response.versionStatus()).isEqualTo("REJECTED");
         assertThat(response.reason()).isEqualTo("内容不完整");
         assertThat(response.reviewedBy()).isEqualTo("3001");
         assertThat(response.reviewedAt()).isNotNull();
+        verify(courseMetrics).recordAuditRejected();
+        verify(auditWriter).write("AUDIT_REJECTED", "course_audit", "401",
+                3001L, Set.of("SYSTEM_ADMIN"), "SUCCESS", "内容不完整");
 
         ArgumentCaptor<CourseAuditSubmissionEntity> submissionCaptor =
                 ArgumentCaptor.forClass(CourseAuditSubmissionEntity.class);
@@ -387,7 +404,7 @@ class CourseAuditServiceTest {
         CourseAuditSubmissionEntity submission = submission(401L, 101L, 302L, "PENDING", 3001L);
         when(submissionMapper.selectById(401L)).thenReturn(submission);
 
-        assertThatThrownBy(() -> auditService().reject(401L, 3001L, "理由"))
+        assertThatThrownBy(() -> auditService().reject(401L, 3001L, "理由", Set.of("SYSTEM_ADMIN")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED));
         verify(submissionMapper, never()).updateById(any(CourseAuditSubmissionEntity.class));
@@ -398,7 +415,7 @@ class CourseAuditServiceTest {
         CourseAuditSubmissionEntity submission = submission(401L, 101L, 302L, "WITHDRAWN", 1001L);
         when(submissionMapper.selectById(401L)).thenReturn(submission);
 
-        assertThatThrownBy(() -> auditService().reject(401L, 3001L, "理由"))
+        assertThatThrownBy(() -> auditService().reject(401L, 3001L, "理由", Set.of("SYSTEM_ADMIN")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.SUBMISSION_NOT_PENDING));
     }
@@ -417,11 +434,13 @@ class CourseAuditServiceTest {
         when(courseVersionMapper.update(isNull(), any())).thenReturn(1);
         when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
 
-        CourseAuditResponse response = auditService().withdraw(401L, 1001L);
+        CourseAuditResponse response = auditService().withdraw(401L, 1001L, Set.of("TEACHER"));
 
         assertThat(response.submissionStatus()).isEqualTo("WITHDRAWN");
         assertThat(response.versionStatus()).isEqualTo("WITHDRAWN");
         assertThat(response.withdrawnAt()).isNotNull();
+        verify(auditWriter).write("SUBMISSION_WITHDRAWN", "course_audit", "401",
+                1001L, Set.of("TEACHER"), "SUCCESS", null);
 
         ArgumentCaptor<CourseAuditSubmissionEntity> submissionCaptor =
                 ArgumentCaptor.forClass(CourseAuditSubmissionEntity.class);
@@ -440,7 +459,7 @@ class CourseAuditServiceTest {
         CourseAuditSubmissionEntity submission = submission(401L, 101L, 302L, "PENDING", 1001L);
         when(submissionMapper.selectById(401L)).thenReturn(submission);
 
-        assertThatThrownBy(() -> auditService().withdraw(401L, 9999L))
+        assertThatThrownBy(() -> auditService().withdraw(401L, 9999L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(403);
@@ -454,7 +473,7 @@ class CourseAuditServiceTest {
         CourseAuditSubmissionEntity submission = submission(401L, 101L, 302L, "REJECTED", 1001L);
         when(submissionMapper.selectById(401L)).thenReturn(submission);
 
-        assertThatThrownBy(() -> auditService().withdraw(401L, 1001L))
+        assertThatThrownBy(() -> auditService().withdraw(401L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.SUBMISSION_NOT_PENDING));
     }
@@ -515,9 +534,8 @@ class CourseAuditServiceTest {
                 submissionMapper,
                 new TeacherAccessGuard(courseTeacherMapper),
                 eventPublisher,
-                new CourseMetrics(new SimpleMeterRegistry()),
-                new AuditWriter(auditEventMapper, requestContextAccessor,
-                        new ObjectMapper(), Clock.systemUTC()));
+                courseMetrics,
+                auditWriter);
     }
 
     private void assignSubmissionId(Long id) {

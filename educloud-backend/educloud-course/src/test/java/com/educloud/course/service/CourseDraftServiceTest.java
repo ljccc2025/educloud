@@ -21,6 +21,7 @@ import com.educloud.course.support.MybatisPlusTestSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.educloud.course.support.TeacherAccessGuard;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +31,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.Set;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -83,6 +85,9 @@ class CourseDraftServiceTest {
     private RequestContextAccessor requestContextAccessor;
 
     @Mock
+    private AuditWriter auditWriter;
+
+    @Mock
     private FileClient fileClient;
 
     @Test
@@ -95,7 +100,7 @@ class CourseDraftServiceTest {
         assignIdOnVersionInsert(301L);
         when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
 
-        CourseDraftResponse response = courseService().createCourse(1001L, request);
+        CourseDraftResponse response = courseService().createCourse(1001L, request, Set.of("TEACHER"));
 
         assertThat(response.courseId()).isEqualTo("101");
         assertThat(response.versionId()).isEqualTo("301");
@@ -111,6 +116,8 @@ class CourseDraftServiceTest {
         assertThat(response.currency()).isEqualTo("CNY");
         assertThat(response.categoryId()).isEqualTo("5");
         assertThat(response.teachers()).containsExactly(new CourseDraftResponse.Teacher("1001", "OWNER"));
+        verify(auditWriter).write("COURSE_CREATED", "course", "101",
+                1001L, Set.of("TEACHER"), "SUCCESS", null);
 
         ArgumentCaptor<CourseEntity> courseCaptor = ArgumentCaptor.forClass(CourseEntity.class);
         verify(courseMapper).insert(courseCaptor.capture());
@@ -143,7 +150,7 @@ class CourseDraftServiceTest {
 
         // 建课必须是同一事务：course + course_teacher + course_version 一起提交。
         java.lang.reflect.Method createMethod = CourseService.class.getDeclaredMethod(
-                "createCourse", Long.class, CourseCreateRequest.class);
+                "createCourse", Long.class, CourseCreateRequest.class, Set.class);
         assertThat(createMethod.getAnnotation(Transactional.class)).isNotNull();
     }
 
@@ -157,7 +164,7 @@ class CourseDraftServiceTest {
         assignIdOnCourseInsert(101L);
         assignIdOnTeacherInsert(201L);
 
-        assertThatThrownBy(() -> courseService().createCourse(1001L, request))
+        assertThatThrownBy(() -> courseService().createCourse(1001L, request, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CommonErrorCode.VALIDATION_FAILED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(400);
@@ -494,8 +501,7 @@ class CourseDraftServiceTest {
                 new TeacherAccessGuard(courseTeacherMapper),
                 eventPublisher,
                 fileClient,
-                new AuditWriter(auditEventMapper, requestContextAccessor,
-                        new ObjectMapper(), Clock.systemUTC()));
+                auditWriter);
     }
 
     private CourseVersionService versionService() {

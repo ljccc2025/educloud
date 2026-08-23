@@ -76,7 +76,7 @@ public final class JwtSecurityUtils {
     }
 
     /** 提取 roles claim（字符串数组）；缺失 → 空集；非数组或含非字符串 → UNAUTHENTICATED（与 permissions 对称）。 */
-    private static Set<String> roles(Jwt jwt) {
+    public static Set<String> roles(Jwt jwt) {
         Object value = jwt.getClaim("roles");
         if (value == null) {
             return Set.of();

@@ -88,7 +88,7 @@ public class CourseAuditService {
      * PENDING_REVIEW，同一事务。
      */
     @Transactional
-    public CourseAuditResponse submitForReview(Long versionId, Long teacherId) {
+    public CourseAuditResponse submitForReview(Long versionId, Long teacherId, Set<String> roles) {
         CourseVersionEntity version = versionMapper.selectById(versionId);
         if (version == null) {
             throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND,
@@ -135,7 +135,7 @@ public class CourseAuditService {
 
         version.setVersionStatus(CourseVersionStateMachine.PENDING_REVIEW);
         auditWriter.write("SUBMIT_FOR_REVIEW", "course_version", String.valueOf(versionId),
-                teacherId, Set.of("TEACHER"), "SUCCESS", null);
+                teacherId, roles, "SUCCESS", null);
         return CourseAuditResponse.from(submission, course, version);
     }
 
@@ -146,7 +146,7 @@ public class CourseAuditService {
      * 同一本地事务提交。aggregateVersion 取课程根更新后的乐观锁版本。
      */
     @Transactional
-    public CourseAuditResponse approve(Long auditId, Long reviewerId) {
+    public CourseAuditResponse approve(Long auditId, Long reviewerId, Set<String> roles) {
         CourseAuditSubmissionEntity submission = requireSubmission(auditId);
         requireNotSelfReview(submission, reviewerId);
         AuditStateMachine.requireTransition(submission.getStatus(), SUBMISSION_APPROVED);
@@ -206,7 +206,7 @@ public class CourseAuditService {
         courseMetrics.recordCoursePublished();
         courseMetrics.recordAuditApproved();
         auditWriter.write("AUDIT_APPROVED", "course_audit", String.valueOf(auditId),
-                reviewerId, Set.of("COURSE_REVIEWER"), "SUCCESS", null);
+                reviewerId, roles, "SUCCESS", null);
 
         version.setVersionStatus(CourseVersionStateMachine.PUBLISHED);
         return CourseAuditResponse.from(submission, course, version);
@@ -218,7 +218,7 @@ public class CourseAuditService {
      * 版本（可复制新草稿），lifecycle 回到 DRAFT。
      */
     @Transactional
-    public CourseAuditResponse reject(Long auditId, Long reviewerId, String reason) {
+    public CourseAuditResponse reject(Long auditId, Long reviewerId, String reason, Set<String> roles) {
         if (reason == null || reason.isBlank()) {
             throw new BusinessException(CourseErrorCode.REVIEW_REJECT_REASON_REQUIRED,
                     "Reject reason is required");
@@ -261,7 +261,7 @@ public class CourseAuditService {
         }
         courseMetrics.recordAuditRejected();
         auditWriter.write("AUDIT_REJECTED", "course_audit", String.valueOf(auditId),
-                reviewerId, Set.of("COURSE_REVIEWER"), "SUCCESS", reason);
+                reviewerId, roles, "SUCCESS", reason);
 
         version.setVersionStatus(CourseVersionStateMachine.REJECTED);
         return CourseAuditResponse.from(submission, course, version);
@@ -273,7 +273,7 @@ public class CourseAuditService {
      * 版本 WITHDRAWN 不可再审批；lifecycle 回到 DRAFT。
      */
     @Transactional
-    public CourseAuditResponse withdraw(Long auditId, Long teacherId) {
+    public CourseAuditResponse withdraw(Long auditId, Long teacherId, Set<String> roles) {
         CourseAuditSubmissionEntity submission = requireSubmission(auditId);
         if (!teacherId.equals(submission.getSubmittedBy())) {
             throw new BusinessException(CourseErrorCode.COURSE_ACCESS_DENIED,
@@ -310,6 +310,8 @@ public class CourseAuditService {
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
                     "Course root changed concurrently: " + course.getId());
         }
+        auditWriter.write("SUBMISSION_WITHDRAWN", "course_audit", String.valueOf(auditId),
+                teacherId, roles, "SUCCESS", null);
 
         version.setVersionStatus(CourseVersionStateMachine.WITHDRAWN);
         return CourseAuditResponse.from(submission, course, version);

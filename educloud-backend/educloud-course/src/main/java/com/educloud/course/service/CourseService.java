@@ -74,7 +74,7 @@ public class CourseService {
      * 主键由 MyBatis-Plus ASSIGN_ID 在 insert 时生成并回写实体。
      */
     @Transactional
-    public CourseDraftResponse createCourse(Long teacherId, CourseCreateRequest request) {
+    public CourseDraftResponse createCourse(Long teacherId, CourseCreateRequest request, Set<String> roles) {
         LocalDateTime now = LocalDateTime.now();
 
         CourseEntity course = new CourseEntity();
@@ -120,7 +120,7 @@ public class CourseService {
         }
         courseMapper.updateById(course);
         auditWriter.write("COURSE_CREATED", "course", String.valueOf(course.getId()),
-                teacherId, Set.of("TEACHER"), "SUCCESS", null);
+                teacherId, roles, "SUCCESS", null);
 
         return CourseDraftResponse.from(course, draft,
                 List.of(new CourseDraftResponse.Teacher(String.valueOf(teacherId), TEACHER_ROLE_OWNER)));
@@ -132,7 +132,7 @@ public class CourseService {
      * 发布版本保持 PUBLISHED 不变（重上架直接复用），非法生命周期 → 409 COURSE_STATE_CONFLICT。
      */
     @Transactional
-    public void offline(Long courseId, Long teacherId) {
+    public void offline(Long courseId, Long teacherId, Set<String> roles) {
         CourseEntity course = requireCourseForUpdate(courseId);
         teacherAccessGuard.requireAccess(course.getId(), teacherId);
         if (!LIFECYCLE_PUBLISHED.equals(course.getLifecycleStatus())) {
@@ -148,7 +148,7 @@ public class CourseService {
         requireRootUpdate(course);
         eventPublisher.courseOfflined(courseId, course.getPublishedVersionId(), course.getVersion(), now);
         auditWriter.write("COURSE_OFFLINED", "course", String.valueOf(courseId),
-                teacherId, Set.of("TEACHER"), "SUCCESS", null);
+                teacherId, roles, "SUCCESS", null);
     }
 
     /**
@@ -160,7 +160,7 @@ public class CourseService {
      * （含归档后不可再销售）或无有效发布版本 → 409 COURSE_STATE_CONFLICT。
      */
     @Transactional
-    public void republish(Long courseId, Long teacherId) {
+    public void republish(Long courseId, Long teacherId, Set<String> roles) {
         CourseEntity course = requireCourseForUpdate(courseId);
         teacherAccessGuard.requireAccess(course.getId(), teacherId);
         if (!LIFECYCLE_OFFLINE.equals(course.getLifecycleStatus())) {
@@ -176,6 +176,8 @@ public class CourseService {
         course.setPublishedAt(now);
         requireRootUpdate(course);
         eventPublisher.courseRepublished(courseId, course.getPublishedVersionId(), course.getVersion(), now);
+        auditWriter.write("COURSE_REPUBLISHED", "course", String.valueOf(courseId),
+                teacherId, roles, "SUCCESS", null);
     }
 
     /**
@@ -184,7 +186,7 @@ public class CourseService {
      * PUBLISHED 直接归档必须先下架 → 409 COURSE_STATE_CONFLICT。
      */
     @Transactional
-    public void archive(Long courseId, Long teacherId) {
+    public void archive(Long courseId, Long teacherId, Set<String> roles) {
         CourseEntity course = requireCourseForUpdate(courseId);
         teacherAccessGuard.requireAccess(course.getId(), teacherId);
         if (!LIFECYCLE_OFFLINE.equals(course.getLifecycleStatus())) {
@@ -196,7 +198,7 @@ public class CourseService {
         requireRootUpdate(course);
         eventPublisher.courseArchived(courseId, course.getPublishedVersionId(), course.getVersion(), now);
         auditWriter.write("COURSE_ARCHIVED", "course", String.valueOf(courseId),
-                teacherId, Set.of("TEACHER"), "SUCCESS", null);
+                teacherId, roles, "SUCCESS", null);
     }
 
     /** 锁根读课程（SELECT ... FOR UPDATE，规格 §7 版本乐观锁）；不存在 → 404。 */

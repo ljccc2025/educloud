@@ -51,7 +51,8 @@ public class CourseTeacherController {
     public ApiResponse<CourseDraftResponse> createCourse(
             @Valid @RequestBody CourseCreateRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        return responses.success(courseService.createCourse(JwtSecurityUtils.userId(jwt), request));
+        return responses.success(courseService.createCourse(JwtSecurityUtils.userId(jwt), request,
+                JwtSecurityUtils.roles(jwt)));
     }
 
     @GetMapping("/teacher/courses/{courseId}/draft")

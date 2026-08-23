@@ -3,11 +3,13 @@ package com.educloud.course.service;
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import com.educloud.course.dto.request.ReviewUpsertRequest;
+import com.educloud.course.entity.AuditEventEntity;
 import com.educloud.course.entity.CourseEnrollmentEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseReviewEntity;
@@ -147,6 +149,7 @@ class ReviewSummaryIT {
             statement.execute("DELETE FROM course_review");
             statement.execute("DELETE FROM course_enrollment");
             statement.execute("DELETE FROM course");
+            statement.execute("DELETE FROM audit_event");
         }
     }
 
@@ -210,6 +213,11 @@ class ReviewSummaryIT {
         course = courseMapper.selectById(COURSE_ID);
         assertThat(course.getRatingAvg()).isEqualByComparingTo("4.00");
         assertThat(course.getRatingCount()).isEqualTo(1);
+
+        // 审计（任务 16 + 审查修复）：隐藏写 REVIEW_HIDDEN（actor_type=SYSTEM_ADMIN）；
+        // 已隐藏重复删幂等不重复写审计。
+        assertThat(sqlSessionTemplate.getMapper(AuditEventMapper.class)
+                .selectCount(new QueryWrapper<AuditEventEntity>().eq("action", "REVIEW_HIDDEN"))).isEqualTo(1);
     }
 
     @Test

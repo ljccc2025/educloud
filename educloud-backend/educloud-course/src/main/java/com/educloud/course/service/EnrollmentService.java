@@ -109,7 +109,7 @@ public class EnrollmentService {
      * DuplicateKeyException 重查返回现状。</p>
      */
     @Transactional
-    public EnrollmentResponse enroll(Long courseId, Long studentId) {
+    public EnrollmentResponse enroll(Long courseId, Long studentId, Set<String> roles) {
         CourseEntity course = courseMapper.selectByIdForUpdate(courseId);
         if (course == null) {
             throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND,
@@ -136,11 +136,11 @@ public class EnrollmentService {
             // 幂等：已存在（M05 可达状态仅 ACTIVE）返回现状，不重复计数、不发事件。
             return toResponse(existing);
         }
-        return insertAndPublish(course, studentId);
+        return insertAndPublish(course, studentId, roles);
     }
 
     /** 插入新 enrollment + 计数递增 + EnrollmentCreated；uk 冲突 → 重查返回现状。 */
-    private EnrollmentResponse insertAndPublish(CourseEntity course, Long studentId) {
+    private EnrollmentResponse insertAndPublish(CourseEntity course, Long studentId, Set<String> roles) {
         LocalDateTime now = LocalDateTime.now();
         CourseEnrollmentEntity enrollment = new CourseEnrollmentEntity();
         enrollment.setCourseId(course.getId());
@@ -184,7 +184,7 @@ public class EnrollmentService {
                 now);
         courseMetrics.recordEnrollmentCreated();
         auditWriter.write("ENROLLMENT_CREATED", "enrollment", String.valueOf(enrollment.getId()),
-                studentId, Set.of("STUDENT"), "SUCCESS", null);
+                studentId, roles, "SUCCESS", null);
         return toResponse(enrollment);
     }
 

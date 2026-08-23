@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.educloud.course.support.TeacherAccessGuard;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -41,6 +42,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -104,6 +106,12 @@ class EnrollmentServiceTest {
     @Mock
     private RequestContextAccessor requestContextAccessor;
 
+    @Mock
+    private CourseMetrics courseMetrics;
+
+    @Mock
+    private AuditWriter auditWriter;
+
     // ---------------------------------------------------------------- 选课：成功/幂等
 
     @Test
@@ -115,7 +123,7 @@ class EnrollmentServiceTest {
         assignEnrollmentId(501L);
         when(courseMapper.incrementEnrollmentCount(101L, 7L)).thenReturn(1);
 
-        EnrollmentResponse response = service().enroll(101L, 5001L);
+        EnrollmentResponse response = service().enroll(101L, 5001L, Set.of("STUDENT"));
 
         assertThat(response.enrollmentId()).isEqualTo("501");
         assertThat(response.courseId()).isEqualTo("101");
@@ -137,9 +145,12 @@ class EnrollmentServiceTest {
         verify(courseMapper).incrementEnrollmentCount(101L, 7L);
         verify(eventPublisher).enrollmentCreated(
                 eq(501L), eq(101L), eq(5001L), eq("FREE"), eq(0L), any(LocalDateTime.class));
+        verify(courseMetrics).recordEnrollmentCreated();
+        verify(auditWriter).write("ENROLLMENT_CREATED", "enrollment", "501",
+                5001L, Set.of("STUDENT"), "SUCCESS", null);
 
         java.lang.reflect.Method enroll = EnrollmentService.class.getDeclaredMethod(
-                "enroll", Long.class, Long.class);
+                "enroll", Long.class, Long.class, Set.class);
         assertThat(enroll.getAnnotation(Transactional.class)).isNotNull();
     }
 
@@ -151,7 +162,7 @@ class EnrollmentServiceTest {
         LocalDateTime enrolledAt = LocalDateTime.of(2026, 8, 23, 10, 30);
         when(enrollmentMapper.selectOne(any())).thenReturn(enrollment(501L, 101L, 5001L, enrolledAt));
 
-        EnrollmentResponse response = service().enroll(101L, 5001L);
+        EnrollmentResponse response = service().enroll(101L, 5001L, Set.of("STUDENT"));
 
         assertThat(response.enrollmentId()).isEqualTo("501");
         assertThat(response.enrolledAt()).isEqualTo(enrolledAt);
@@ -176,7 +187,7 @@ class EnrollmentServiceTest {
         doThrow(new DuplicateKeyException("uk_course_enrollment")).when(enrollmentMapper)
                 .insert(any(CourseEnrollmentEntity.class));
 
-        EnrollmentResponse response = service().enroll(101L, 5001L);
+        EnrollmentResponse response = service().enroll(101L, 5001L, Set.of("STUDENT"));
 
         assertThat(response.enrollmentId()).isEqualTo("501");
         assertThat(response.enrolledAt()).isEqualTo(LocalDateTime.of(2026, 8, 23, 9, 0));
@@ -194,7 +205,7 @@ class EnrollmentServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(versionMapper.selectById(301L)).thenReturn(version(301L, 101L, "199.00"));
 
-        assertThatThrownBy(() -> service().enroll(101L, 5001L))
+        assertThatThrownBy(() -> service().enroll(101L, 5001L, Set.of("STUDENT")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_NOT_FREE);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -209,7 +220,7 @@ class EnrollmentServiceTest {
         CourseEntity course = course(101L, 1001L, 301L, "OFFLINE", 7L);
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
 
-        assertThatThrownBy(() -> service().enroll(101L, 5001L))
+        assertThatThrownBy(() -> service().enroll(101L, 5001L, Set.of("STUDENT")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_OFFLINE_OR_ARCHIVED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -222,7 +233,7 @@ class EnrollmentServiceTest {
         CourseEntity course = course(101L, 1001L, 301L, "ARCHIVED", 7L);
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
 
-        assertThatThrownBy(() -> service().enroll(101L, 5001L))
+        assertThatThrownBy(() -> service().enroll(101L, 5001L, Set.of("STUDENT")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_OFFLINE_OR_ARCHIVED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -234,7 +245,7 @@ class EnrollmentServiceTest {
     void enrollReturns404WhenCourseNotFound() {
         when(courseMapper.selectByIdForUpdate(999L)).thenReturn(null);
 
-        assertThatThrownBy(() -> service().enroll(999L, 5001L))
+        assertThatThrownBy(() -> service().enroll(999L, 5001L, Set.of("STUDENT")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_NOT_FOUND));
         verify(versionMapper, never()).selectById(any());
@@ -249,7 +260,7 @@ class EnrollmentServiceTest {
         assignEnrollmentId(501L);
         when(courseMapper.incrementEnrollmentCount(101L, 7L)).thenReturn(0);
 
-        assertThatThrownBy(() -> service().enroll(101L, 5001L))
+        assertThatThrownBy(() -> service().enroll(101L, 5001L, Set.of("STUDENT")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CommonErrorCode.VERSION_CONFLICT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -324,7 +335,7 @@ class EnrollmentServiceTest {
         CourseEntity course = course(101L, 1001L, null, "PUBLISHED", 7L);
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
 
-        assertThatThrownBy(() -> service().enroll(101L, 5001L))
+        assertThatThrownBy(() -> service().enroll(101L, 5001L, Set.of("STUDENT")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_OFFLINE_OR_ARCHIVED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -340,7 +351,7 @@ class EnrollmentServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(versionMapper.selectById(301L)).thenReturn(null);
 
-        assertThatThrownBy(() -> service().enroll(101L, 5001L))
+        assertThatThrownBy(() -> service().enroll(101L, 5001L, Set.of("STUDENT")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_OFFLINE_OR_ARCHIVED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -357,7 +368,7 @@ class EnrollmentServiceTest {
         version.setPrice(null);
         when(versionMapper.selectById(301L)).thenReturn(version);
 
-        assertThatThrownBy(() -> service().enroll(101L, 5001L))
+        assertThatThrownBy(() -> service().enroll(101L, 5001L, Set.of("STUDENT")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_NOT_FREE);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -392,9 +403,8 @@ class EnrollmentServiceTest {
                 new TeacherAccessGuard(courseTeacherMapper),
                 eventPublisher,
                 fileClient,
-                new CourseMetrics(new SimpleMeterRegistry()),
-                new AuditWriter(auditEventMapper, requestContextAccessor,
-                        new ObjectMapper(), Clock.systemUTC()));
+                courseMetrics,
+                auditWriter);
     }
 
     private void assignEnrollmentId(Long id) {

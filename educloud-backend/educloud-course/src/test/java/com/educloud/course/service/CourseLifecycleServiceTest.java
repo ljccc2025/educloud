@@ -16,6 +16,7 @@ import com.educloud.course.support.MybatisPlusTestSupport;
 import com.educloud.course.support.TeacherAccessGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -81,6 +83,9 @@ class CourseLifecycleServiceTest {
     @Mock
     private RequestContextAccessor requestContextAccessor;
 
+    @Mock
+    private AuditWriter auditWriter;
+
     // ---------------------------------------------------------------- offline
 
     @Test
@@ -90,7 +95,7 @@ class CourseLifecycleServiceTest {
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
         bumpVersionOnRootUpdate();
 
-        service().offline(101L, 1001L);
+        service().offline(101L, 1001L, Set.of("TEACHER"));
 
         verify(courseTeacherMapper).selectCount(any());
         ArgumentCaptor<CourseEntity> captor = ArgumentCaptor.forClass(CourseEntity.class);
@@ -99,9 +104,11 @@ class CourseLifecycleServiceTest {
         assertThat(captor.getValue().getPublishedVersionId()).isEqualTo(301L);
         // 下架只切根生命周期，不改版本状态；事件带根更新后的乐观锁版本。
         verify(eventPublisher).courseOfflined(eq(101L), eq(301L), eq(8L), any(LocalDateTime.class));
+        verify(auditWriter).write("COURSE_OFFLINED", "course", "101",
+                1001L, Set.of("TEACHER"), "SUCCESS", null);
 
         java.lang.reflect.Method offline = CourseService.class.getDeclaredMethod(
-                "offline", Long.class, Long.class);
+                "offline", Long.class, Long.class, Set.class);
         assertThat(offline.getAnnotation(Transactional.class)).isNotNull();
     }
 
@@ -111,7 +118,7 @@ class CourseLifecycleServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
 
-        assertThatThrownBy(() -> service().offline(101L, 1001L))
+        assertThatThrownBy(() -> service().offline(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_STATE_CONFLICT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -126,7 +133,7 @@ class CourseLifecycleServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(courseTeacherMapper.selectCount(any())).thenReturn(0L);
 
-        assertThatThrownBy(() -> service().offline(101L, 1001L))
+        assertThatThrownBy(() -> service().offline(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(403);
@@ -139,7 +146,7 @@ class CourseLifecycleServiceTest {
     void offlineReturns404WhenCourseNotFound() {
         when(courseMapper.selectByIdForUpdate(999L)).thenReturn(null);
 
-        assertThatThrownBy(() -> service().offline(999L, 1001L))
+        assertThatThrownBy(() -> service().offline(999L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_NOT_FOUND));
         verify(courseTeacherMapper, never()).selectCount(any());
@@ -154,16 +161,18 @@ class CourseLifecycleServiceTest {
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
         bumpVersionOnRootUpdate();
 
-        service().republish(101L, 1001L);
+        service().republish(101L, 1001L, Set.of("TEACHER"));
 
         ArgumentCaptor<CourseEntity> captor = ArgumentCaptor.forClass(CourseEntity.class);
         verify(courseMapper).updateById(captor.capture());
         assertThat(captor.getValue().getLifecycleStatus()).isEqualTo("PUBLISHED");
         assertThat(captor.getValue().getPublishedAt()).isNotNull();
         verify(eventPublisher).courseRepublished(eq(101L), eq(301L), eq(6L), any(LocalDateTime.class));
+        verify(auditWriter).write("COURSE_REPUBLISHED", "course", "101",
+                1001L, Set.of("TEACHER"), "SUCCESS", null);
 
         java.lang.reflect.Method republish = CourseService.class.getDeclaredMethod(
-                "republish", Long.class, Long.class);
+                "republish", Long.class, Long.class, Set.class);
         assertThat(republish.getAnnotation(Transactional.class)).isNotNull();
     }
 
@@ -173,7 +182,7 @@ class CourseLifecycleServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
 
-        assertThatThrownBy(() -> service().republish(101L, 1001L))
+        assertThatThrownBy(() -> service().republish(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_STATE_CONFLICT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -189,7 +198,7 @@ class CourseLifecycleServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
 
-        assertThatThrownBy(() -> service().republish(101L, 1001L))
+        assertThatThrownBy(() -> service().republish(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_STATE_CONFLICT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -204,7 +213,7 @@ class CourseLifecycleServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
 
-        assertThatThrownBy(() -> service().republish(101L, 1001L))
+        assertThatThrownBy(() -> service().republish(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_STATE_CONFLICT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -219,7 +228,7 @@ class CourseLifecycleServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(courseTeacherMapper.selectCount(any())).thenReturn(0L);
 
-        assertThatThrownBy(() -> service().republish(101L, 1001L))
+        assertThatThrownBy(() -> service().republish(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED));
         verify(courseMapper, never()).updateById(any(CourseEntity.class));
@@ -232,7 +241,7 @@ class CourseLifecycleServiceTest {
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
         when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(0);
 
-        assertThatThrownBy(() -> service().republish(101L, 1001L))
+        assertThatThrownBy(() -> service().republish(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CommonErrorCode.VERSION_CONFLICT));
         verify(eventPublisher, never()).courseRepublished(any(), any(), anyLong(), any());
@@ -247,15 +256,17 @@ class CourseLifecycleServiceTest {
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
         bumpVersionOnRootUpdate();
 
-        service().archive(101L, 1001L);
+        service().archive(101L, 1001L, Set.of("TEACHER"));
 
         ArgumentCaptor<CourseEntity> captor = ArgumentCaptor.forClass(CourseEntity.class);
         verify(courseMapper).updateById(captor.capture());
         assertThat(captor.getValue().getLifecycleStatus()).isEqualTo("ARCHIVED");
         verify(eventPublisher).courseArchived(eq(101L), eq(301L), eq(6L), any(LocalDateTime.class));
+        verify(auditWriter).write("COURSE_ARCHIVED", "course", "101",
+                1001L, Set.of("TEACHER"), "SUCCESS", null);
 
         java.lang.reflect.Method archive = CourseService.class.getDeclaredMethod(
-                "archive", Long.class, Long.class);
+                "archive", Long.class, Long.class, Set.class);
         assertThat(archive.getAnnotation(Transactional.class)).isNotNull();
     }
 
@@ -266,7 +277,7 @@ class CourseLifecycleServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
 
-        assertThatThrownBy(() -> service().archive(101L, 1001L))
+        assertThatThrownBy(() -> service().archive(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_STATE_CONFLICT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
@@ -281,7 +292,7 @@ class CourseLifecycleServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
 
-        assertThatThrownBy(() -> service().archive(101L, 1001L))
+        assertThatThrownBy(() -> service().archive(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_STATE_CONFLICT));
         verify(courseMapper, never()).updateById(any(CourseEntity.class));
@@ -293,7 +304,7 @@ class CourseLifecycleServiceTest {
         when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
         when(courseTeacherMapper.selectCount(any())).thenReturn(0L);
 
-        assertThatThrownBy(() -> service().archive(101L, 1001L))
+        assertThatThrownBy(() -> service().archive(101L, 1001L, Set.of("TEACHER")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_ACCESS_DENIED);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(403);
@@ -311,8 +322,7 @@ class CourseLifecycleServiceTest {
                 new TeacherAccessGuard(courseTeacherMapper),
                 eventPublisher,
                 fileClient,
-                new AuditWriter(auditEventMapper, requestContextAccessor,
-                        new ObjectMapper(), Clock.systemUTC()));
+                auditWriter);
     }
 
     private void bumpVersionOnRootUpdate() {
