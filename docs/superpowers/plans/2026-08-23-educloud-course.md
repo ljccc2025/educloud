@@ -61,7 +61,7 @@ educloud-backend/educloud-course/
 deploy/sql/course/V000__technical_tables.sql   # 技术表（复刻 file，GRANT 改 course_app/course_migration）
 deploy/sql/course/V001__course.sql             # 8 业务表 + 索引 + GRANT
 deploy/sql/course/V002__seed.sql               # 分类/演示课程/选课/评价种子（幂等）
-deploy/sql/user/V004__course_permissions.sql   # 9 权限码 + COURSE_REVIEWER + TEACHER/ADMIN 挂载
+deploy/sql/user/V004__course_permissions.sql   # 9 权限码 + COURSE_REVIEWER + STUDENT/TEACHER/ADMIN 挂载
 deploy/scripts/provision-course-nacos.sh       # 复制 provision-file-nacos.sh，账号 educloud_course
 deploy/scripts/start-dev.sh                    # 修改：新增 [4/6] educloud-course 段（8089/8090）
 deploy/docker-compose/.env.example            # 修改：新增 COURSE 相关变量
@@ -116,7 +116,7 @@ educloud-frontend/admin-portal/...             # 阶段 3 联调
 ## 任务 3：RBAC 迁移（user 库 V004）与验证
 
 **文件：**
-- 创建：\`deploy/sql/user/V004__course_permissions.sql\`（幂等 INSERT：9 个 \`course:*\` 权限码；\`COURSE_REVIEWER\` 内置角色；\`sys_role_permission\` 挂载——COURSE_REVIEWER→course:audit，TEACHER→create/update/submit/offline/republish/archive/enroll/student:read，ADMIN→全部）
+- 创建：\`deploy/sql/user/V004__course_permissions.sql\`（幂等 INSERT：9 个 \`course:*\` 权限码；\`COURSE_REVIEWER\` 内置角色；\`sys_role_permission\` 挂载——COURSE_REVIEWER→course:audit，STUDENT→course:enroll，TEACHER→create/update/submit/offline/republish/archive/enroll/student:read，ADMIN→全部）
 - 测试：\`educloud-backend/educloud-user/src/test/java/.../CoursePermissionMigrationIT.java\`（Testcontainer MySQL 执行 V004，断言权限码/角色/关联存在且幂等可重放）
 
 - [ ] **步骤 1：写失败测试**（断言 course:audit 权限码、COURSE_REVIEWER 角色、关联行存在；重复执行 V004 不报错）

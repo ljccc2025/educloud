@@ -144,6 +144,9 @@ class CoursePermissionMigrationIT {
             assertThat(rolePermissionCodes(connection, "COURSE_REVIEWER"))
                     .as("COURSE_REVIEWER mounts")
                     .containsExactlyInAnyOrder("course:audit");
+            assertThat(rolePermissionCodes(connection, "STUDENT"))
+                    .as("STUDENT mounts")
+                    .containsExactlyInAnyOrder("course:enroll");
             assertThat(rolePermissionCodes(connection, "TEACHER"))
                     .as("TEACHER mounts")
                     .containsExactlyInAnyOrderElementsOf(TEACHER_PERMISSION_CODES);

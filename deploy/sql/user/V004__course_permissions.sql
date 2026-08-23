@@ -43,3 +43,11 @@ INSERT INTO sys_role_permission (id, role_id, permission_id) VALUES
 ON DUPLICATE KEY UPDATE
   role_id = VALUES(role_id),
   permission_id = VALUES(permission_id);
+
+-- STUDENT → course:enroll（免费选课；规格审查补充——学生 JWT 需携带该权限码，否则选课 403）。
+-- TEACHER → enroll 保留不动，作为安全超集。
+INSERT INTO sys_role_permission (id, role_id, permission_id) VALUES
+  (1028, 1, 108) -- STUDENT → course:enroll
+ON DUPLICATE KEY UPDATE
+  role_id = VALUES(role_id),
+  permission_id = VALUES(permission_id);
