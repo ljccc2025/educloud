@@ -182,6 +182,12 @@ class OutboxDispatchIT {
                 response = channel.basicGet(QUEUE, true);
             }
             assertThat(response).as("message must arrive on " + EXCHANGE + " with key " + ROUTING_KEY).isNotNull();
+            // 加固：断言实际 routing key（envelope.routingKey 等价于 Spring AMQP 的
+            // receivedRoutingKey）为 aggregateType.aggregateId = Course.{courseId}，
+            // 而非仅断言“有消息到达”（绑定 Course.# 下错误 key 也会被投递进来）。
+            assertThat(response.getEnvelope().getRoutingKey())
+                    .as("routing key must be " + ROUTING_KEY)
+                    .isEqualTo(ROUTING_KEY);
             String body = new String(response.getBody(), StandardCharsets.UTF_8);
             assertThat(body)
                     .contains("\"eventId\":\"" + eventId + "\"")

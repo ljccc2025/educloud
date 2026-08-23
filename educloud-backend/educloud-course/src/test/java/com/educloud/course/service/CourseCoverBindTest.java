@@ -1,5 +1,6 @@
 package com.educloud.course.service;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.course.dto.request.CourseCreateRequest;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,6 +35,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -95,8 +98,25 @@ class CourseCoverBindTest {
                 updateRequest("新标题", "88"));
 
         assertThat(response.coverFileId()).isEqualTo("88");
-        verify(fileClient).bindCover(101L, 88L, 1001L);
+        // bind 请求体断言（而非仅 verify 调用）：courseId/fileId/uploaderUserId 三项
+        // 必须与本次保存一致 —— uploaderUserId=当前教师（File 侧上传者属主校验依赖它）。
+        ArgumentCaptor<Long> courseIdCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<Long> fileIdCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<Long> uploaderCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(fileClient).bindCover(courseIdCaptor.capture(), fileIdCaptor.capture(), uploaderCaptor.capture());
+        assertThat(courseIdCaptor.getValue()).isEqualTo(101L);
+        assertThat(fileIdCaptor.getValue()).isEqualTo(88L);
+        assertThat(uploaderCaptor.getValue()).isEqualTo(1001L);
         verify(fileClient).unbindCover(101L, 77L);
+
+        // UPDATE 实体内容断言：新封面 fileId=88 必须真实写入 course_version 的
+        // cover_file_id 字段（bind 与落库同源，防止只调 File 不写库的假绿）。
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaUpdateWrapper> wrapperCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(courseVersionMapper).update(isNull(), wrapperCaptor.capture());
+        LambdaUpdateWrapper<CourseVersionEntity> wrapper = wrapperCaptor.getValue();
+        assertThat(wrapper.getSqlSet()).contains("cover_file_id=");
+        assertThat(wrapper.getParamNameValuePairs()).containsValue(88L);
     }
 
     @Test

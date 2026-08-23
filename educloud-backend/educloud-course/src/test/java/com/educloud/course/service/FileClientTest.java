@@ -99,6 +99,8 @@ class FileClientTest {
     void bindForbiddenMapsToCourseAccessDenied() {
         stubToken("tok-1", 300L);
         server.expect(requestTo(ENDPOINT + "/internal/v1/files/9001/bind"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer tok-1"))
                 .andRespond(withStatus(HttpStatus.FORBIDDEN));
 
         assertThatThrownBy(() -> client.bindCover(101L, 9001L, 1001L))
@@ -113,6 +115,8 @@ class FileClientTest {
     void bindNotFoundMapsToCourseNotFound() {
         stubToken("tok-1", 300L);
         server.expect(requestTo(ENDPOINT + "/internal/v1/files/9001/bind"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer tok-1"))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
         assertThatThrownBy(() -> client.bindCover(101L, 9001L, 1001L))
@@ -127,6 +131,8 @@ class FileClientTest {
     void bindServiceUnavailableMapsToDependencyUnavailable() {
         stubToken("tok-1", 300L);
         server.expect(requestTo(ENDPOINT + "/internal/v1/files/9001/bind"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer tok-1"))
                 .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
         assertThatThrownBy(() -> client.bindCover(101L, 9001L, 1001L))
