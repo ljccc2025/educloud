@@ -61,6 +61,42 @@ public class CourseEventPublisher {
         writeLifecycleEvent("CourseArchived", "archivedAt", courseId, versionId, aggregateVersion, archivedAt);
     }
 
+    /**
+     * 免费选课成功（M05 任务 13）：同事务写 EnrollmentCreated outbox 行。
+     * aggregateType=Enrollment、aggregateId=enrollmentId、aggregateVersion=enrollment.version；
+     * payload 固定 courseId/studentId/source/version/enrolledAt（LinkedHashMap 保序可测）。
+     */
+    public void enrollmentCreated(
+            Long enrollmentId,
+            Long courseId,
+            Long studentId,
+            String source,
+            long aggregateVersion,
+            LocalDateTime enrolledAt) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("courseId", courseId);
+        payload.put("studentId", studentId);
+        payload.put("source", source);
+        payload.put("version", aggregateVersion);
+        payload.put("enrolledAt", enrolledAt.toString());
+        String payloadJson;
+        try {
+            payloadJson = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException failure) {
+            throw new IllegalStateException(
+                    "failed to serialize EnrollmentCreated payload: " + enrollmentId, failure);
+        }
+        outboxWriter.write(
+                "Enrollment",
+                String.valueOf(enrollmentId),
+                "EnrollmentCreated",
+                1,
+                aggregateVersion,
+                payloadJson,
+                requestContextAccessor.requestId(),
+                requestContextAccessor.traceId().orElse(null));
+    }
+
     /** 生命周期事件公共落库：payload 固定 courseId/versionId/时间字段（LinkedHashMap 保序可测）。 */
     private void writeLifecycleEvent(
             String eventType,

@@ -7,10 +7,19 @@ import com.educloud.course.entity.CourseEntity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 /** 课程聚合根数据访问（CourseEntity）。 */
 @Mapper
 public interface CourseMapper extends BaseMapper<CourseEntity> {
+
+    /**
+     * 选课计数递增（M05 任务 13）：enrollment_count+1 且携带锁根读到的 version 条件
+     * （乐观锁兜底；调用方已在锁根事务内，version 不会漂移，0 行命中 → VERSION_CONFLICT）。
+     */
+    @Update("UPDATE course SET enrollment_count = enrollment_count + 1 "
+            + "WHERE id = #{id} AND version = #{version}")
+    int incrementEnrollmentCount(@Param("id") Long id, @Param("version") Long version);
 
     /**
      * 锁定课程根行（SELECT ... FOR UPDATE）：审批/驳回/撤回等根状态切换前加行锁，
