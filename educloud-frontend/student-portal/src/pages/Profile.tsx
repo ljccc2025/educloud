@@ -1,11 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   User, Mail, Calendar, BookOpen, Award, Clock,
   Settings, Edit3, Check, ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { currentUser } from '@/services/api';
 import { uploadAvatar } from '@/services/file';
 import { http, apiErrorText, type ApiEnvelope } from '@/services/http';
 
@@ -15,13 +14,17 @@ const FALLBACK_AVATAR =
 
 export default function Profile() {
   const { user, refresh } = useAuthStore();
-  const displayUser = user ?? currentUser;
+  const displayUser = user;
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({
-    name: displayUser.realName,
-    email: displayUser.email,
-    bio: displayUser.bio,
-  });
+  const [form, setForm] = useState({ name: '', email: '', bio: '' });
+
+  // 表单跟随真实用户（restore 完成后同步），不再回退 mock 用户；
+  // 用户编辑时 user 引用不变，不会覆盖输入中的内容。
+  useEffect(() => {
+    if (user) {
+      setForm({ name: user.realName, email: user.email, bio: user.bio });
+    }
+  }, [user]);
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -46,8 +49,8 @@ export default function Profile() {
       const fileId = await uploadAvatar(file);
       // PATCH 为全量更新：displayName 必填（后端 @NotBlank），带上当前档案字段。
       const patched = await http.patch<ApiEnvelope<{ avatarFileId: string | null }>>('/me/profile', {
-        displayName: displayUser.realName || displayUser.username || '学员',
-        bio: displayUser.bio ?? '',
+        displayName: current.realName || current.username || '学员',
+        bio: current.bio ?? '',
         locale: 'zh-CN',
         avatarFileId: fileId,
       });
@@ -77,26 +80,38 @@ export default function Profile() {
     try {
       // 真实保存：PATCH /me/profile 全量更新（displayName 必填；avatarFileId 携带当前值防止头像被清空）。
       await http.patch('/me/profile', {
-        displayName: form.name.trim() || displayUser.username || '学员',
+        displayName: form.name.trim() || current.username || '学员',
         bio: form.bio ?? '',
         locale: 'zh-CN',
-        avatarFileId: displayUser.avatarFileId ?? null,
+        avatarFileId: current.avatarFileId ?? null,
       });
       await refresh();
       // refresh 是异步的：闭包里的 displayUser 仍是旧值，必须从 store 取最新用户重置表单。
-      const fresh = useAuthStore.getState().user ?? displayUser;
+      const fresh = useAuthStore.getState().user ?? current;
       setEditing(false);
       setSaved(true);
       setForm({
-        name: fresh.realName,
-        email: fresh.email,
-        bio: fresh.bio,
+        name: fresh?.realName ?? '',
+        email: fresh?.email ?? '',
+        bio: fresh?.bio ?? '',
       });
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       setSaveError(apiErrorText(err));
     }
   };
+
+  if (!displayUser) {
+    // user 尚未就绪（restore 异步）：显示加载占位，不再回退 mock 用户。
+    return (
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="bg-white border border-ink-100 p-8">
+          <p className="text-ink-500">正在加载个人资料…</p>
+        </div>
+      </div>
+    );
+  }
+  const current = displayUser; // 收窄：守卫之后非空，闭包内可用
 
   const stats = [
     {

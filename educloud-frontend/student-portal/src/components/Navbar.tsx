@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../features/engagement/useNotificationStore';
-import { currentUser } from '../services/api';
+
 import { cn } from '../utils/cn';
 
 const navLinks = [
@@ -192,7 +192,7 @@ export default function Navbar() {
                   className="flex items-center gap-2 ml-1 p-0.5 rounded-full hover:bg-ink-100/60 dark:hover:bg-ink-800/60 transition-colors"
                 >
                   <img
-                    src={user?.avatarUrl ?? currentUser.avatar}
+                    src={user?.avatarUrl ?? user?.avatar ?? ''}
                     alt="用户头像"
                     onError={(e) => {
                       const img = e.currentTarget;

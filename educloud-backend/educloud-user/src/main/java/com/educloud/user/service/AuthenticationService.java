@@ -129,6 +129,14 @@ public class AuthenticationService {
             clearLock(user.getId(), now);
         }
 
+        // 门户与账号类型必须匹配：STUDENT 账号只能登录学生端，防止教师/管理员账号在错误门户建立会话。
+        if (!user.getUserType().equals(request.portal().name())) {
+            auditFailure(user.getId(), Masking.loginName(loginName), "PORTAL_MISMATCH", ip, userAgent, requestId);
+            throw new BusinessException(
+                    com.educloud.common.error.CommonErrorCode.ACCESS_DENIED,
+                    "Account type does not match the portal");
+        }
+
         resetFailedAttempts(user.getId(), now);
 
         List<String> roles = sysRoleMapper.selectCodesByUserId(user.getId());

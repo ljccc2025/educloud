@@ -237,4 +237,20 @@ class AuthenticationServiceTest {
                 org.mockito.ArgumentMatchers.argThat(wrapper ->
                         wrapper.getSqlSet().contains("locked_until")));
     }
+
+    @Test
+    void rejectsPortalMismatchBetweenAccountTypeAndLoginPortal() {
+        // TEACHER 账号用 STUDENT portal 登录：应 403 ACCESS_DENIED，且不创建会话。
+        SysUserEntity user = activeUser();
+        user.setUserType("TEACHER");
+        when(sysUserMapper.selectByLoginName("student01")).thenReturn(user);
+        when(passwordEncoder.matches("password123", "hashed")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.login(request(), "127.0.0.1", "ua", "req-1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).errorCode())
+                .isEqualTo(com.educloud.common.error.CommonErrorCode.ACCESS_DENIED);
+        org.mockito.Mockito.verify(refreshSessionMapper, org.mockito.Mockito.never())
+                .insert(org.mockito.ArgumentMatchers.<com.educloud.user.entity.RefreshSessionEntity>any());
+    }
 }
