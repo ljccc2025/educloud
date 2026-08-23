@@ -83,6 +83,11 @@ class CourseSeedIT {
             if (Files.exists(v003)) {
                 ScriptUtils.executeSqlScript(root, new FileSystemResource(v003.toFile()));
             }
+            // V004（免费推荐课程 118/119）随 V003 一并执行。
+            Path v004 = sqlDir.resolve("V004__free_courses_seed.sql");
+            if (Files.exists(v004)) {
+                ScriptUtils.executeSqlScript(root, new FileSystemResource(v004.toFile()));
+            }
         }
     }
 
@@ -105,7 +110,7 @@ class CourseSeedIT {
                     .as("all categories VISIBLE").isZero();
 
             assertThat(count(statement, "SELECT COUNT(*) FROM course"))
-                    .as("course seed rows").isEqualTo(8L);
+                    .as("course seed rows").isEqualTo(10L);
             assertThat(count(statement,
                     "SELECT COUNT(*) FROM course WHERE lifecycle_status = 'PUBLISHED'"))
                     .as("published courses").isEqualTo(6L);
@@ -117,7 +122,7 @@ class CourseSeedIT {
                     .as("pending review courses").isEqualTo(1L);
 
             assertThat(count(statement, "SELECT COUNT(*) FROM course_version"))
-                    .as("course version seed rows").isEqualTo(8L);
+                    .as("course version seed rows").isEqualTo(10L);
             assertThat(count(statement,
                     "SELECT COUNT(*) FROM course_version WHERE version_status = 'PUBLISHED'"))
                     .as("published versions").isEqualTo(6L);
@@ -129,11 +134,11 @@ class CourseSeedIT {
                     .as("pending review version").isEqualTo(1L);
             assertThat(count(statement,
                     "SELECT COUNT(*) FROM course_version WHERE cover_file_id IS NOT NULL"))
-                    .as("cover_file_id must all be NULL in seed")
+                    .as("cover_file_id must all be NULL in seed (before cover script)")
                     .isZero();
 
             assertThat(count(statement, "SELECT COUNT(*) FROM course_teacher"))
-                    .as("course_teacher seed rows").isEqualTo(8L);
+                    .as("course_teacher seed rows").isEqualTo(10L);
             assertThat(count(statement,
                     "SELECT COUNT(*) FROM course_teacher WHERE teacher_role = 'OWNER'"))
                     .as("owner rows").isEqualTo(8L);
@@ -149,7 +154,7 @@ class CourseSeedIT {
                     .as("pending submission by demo_teacher").isEqualTo(1L);
 
             assertThat(count(statement, "SELECT COUNT(*) FROM course_enrollment"))
-                    .as("enrollment seed rows").isEqualTo(17L);
+                    .as("enrollment seed rows").isEqualTo(21L);
             assertThat(count(statement,
                     "SELECT COUNT(*) FROM course_enrollment "
                             + "WHERE student_id = " + FE_DEMO_10_STUDENT_ID
@@ -157,10 +162,10 @@ class CourseSeedIT {
                     .as("fe_demo_10 active free enrollments").isEqualTo(2L);
             assertThat(count(statement,
                     "SELECT COUNT(*) FROM (SELECT DISTINCT course_id FROM course_enrollment) t"))
-                    .as("enrolled on six distinct courses").isEqualTo(6L);
+                    .as("enrolled on eight distinct courses").isEqualTo(8L);
 
             assertThat(count(statement, "SELECT COUNT(*) FROM course_review"))
-                    .as("review seed rows").isEqualTo(17L);
+                    .as("review seed rows").isEqualTo(21L);
             assertThat(count(statement,
                     "SELECT COUNT(*) FROM course_review WHERE status <> 'VISIBLE'"))
                     .as("all reviews VISIBLE").isZero();
@@ -269,6 +274,7 @@ class CourseSeedIT {
         Path sqlDir = migrationDirectory();
         try (Connection root = DriverManager.getConnection(rootUrl, "root", "root-test-password")) {
             ScriptUtils.executeSqlScript(root, new FileSystemResource(sqlDir.resolve("V003__course_rich_seed.sql").toFile()));
+        ScriptUtils.executeSqlScript(root, new FileSystemResource(sqlDir.resolve("V004__free_courses_seed.sql").toFile()));
         }
         try (Connection connection = DriverManager.getConnection(rootUrl, "root", "root-test-password");
                 Statement statement = connection.createStatement()) {
@@ -277,8 +283,8 @@ class CourseSeedIT {
             assertThat(count(statement, "SELECT COUNT(*) FROM course_version")).isEqualTo(8L);
             assertThat(count(statement, "SELECT COUNT(*) FROM course_teacher")).isEqualTo(8L);
             assertThat(count(statement, "SELECT COUNT(*) FROM course_audit_submission")).isEqualTo(1L);
-            assertThat(count(statement, "SELECT COUNT(*) FROM course_enrollment")).isEqualTo(17L);
-            assertThat(count(statement, "SELECT COUNT(*) FROM course_review")).isEqualTo(17L);
+            assertThat(count(statement, "SELECT COUNT(*) FROM course_enrollment")).isEqualTo(21L);
+            assertThat(count(statement, "SELECT COUNT(*) FROM course_review")).isEqualTo(21L);
         }
     }
 

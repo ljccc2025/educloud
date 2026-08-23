@@ -7,6 +7,13 @@ import { cover } from '@/services/api';
 import { apiErrorText } from '@/services/http';
 import type { Course, MyCourse } from '@/types';
 
+/** 教师展示名：纯数字（占位的 teacherId）时掩码显示，与 CourseCard 一致。 */
+const displayTeacher = (name?: string) => {
+  if (!name) return '讲师';
+  if (/^\d+$/.test(name)) return '讲师 ···' + name.slice(-6);
+  return name;
+};
+
 function CoverImage({ src, title }: { src: string | null; title: string }) {
   const [imageFailed, setImageFailed] = useState(false);
   const resolved = imageFailed || !src ? cover(0) : src;
@@ -208,7 +215,7 @@ export default function MyCourses() {
                 >
                   {course.title}
                 </Link>
-                <p className="text-sm text-ink-500 mt-1 mb-4">{course.teacherName || '讲师'}</p>
+                <p className="text-sm text-ink-500 mt-1 mb-4">{displayTeacher(course.teacherName)}</p>
                 <div className="mt-auto">
                   {course.enrolled ? (
                     <span className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium">
