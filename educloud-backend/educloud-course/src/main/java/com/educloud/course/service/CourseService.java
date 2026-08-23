@@ -134,7 +134,8 @@ public class CourseService {
 
     /**
      * 重新上架（POST /courses/{id}/republish，course:republish）：锁根 → 归属校验 →
-     * 仅 OFFLINE 且有 published_version_id → lifecycle=PUBLISHED + published_at 刷新 →
+     * 仅 OFFLINE 且有 published_version_id → lifecycle=PUBLISHED +
+     * published_at=最近一次（重）发布时间（重上架会刷新，利于 newest 排序）→
      * outbox CourseRepublished，同一事务。M05 就绪 gate 恒放行（规格 §3/§15：
      * course_content_readiness_projection 不参与判断，M06 启用）。OFFLINE 以外
      * （含归档后不可再销售）或无有效发布版本 → 409 COURSE_STATE_CONFLICT。
