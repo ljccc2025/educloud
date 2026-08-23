@@ -65,7 +65,7 @@ educloud:
       window: ${EDUCLOUD_FILE_STORAGE_TEST_WINDOW:1m}
     internal:
       bootstrap-key: ${EDUCLOUD_FILE_INTERNAL_BOOTSTRAP_KEY:}
-      allowed-client-ids: ${EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS:user-service}
+      allowed-client-ids: ${EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS:user-service,educloud-course}
       audience: ${EDUCLOUD_FILE_INTERNAL_AUDIENCE:educloud-file}
     jwt:
       # User 公钥 JWKS（用户令牌验签），任务 8 的 JwtDecoderConfiguration 消费。

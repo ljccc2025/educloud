@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
  * <p>course JOIN course_version(published_version_id) JOIN course_category JOIN
  * course_teacher(OWNER) 一次取回列表项所需列；MyBatis map-underscore-to-camel-case
  * 自动映射。教师展示名暂以 teacher_id 占位（M05 无 user Profile 客户端）。
- * cover_file_id 本任务不参与响应（coverUrl 恒 null），投影保留供任务 12 使用。</p>
+ * cover_file_id 经 FileClient 批量 grant 组装真实 coverUrl（公开列表 ANONYMOUS +
+ * PUBLIC_CATALOG 封面；M05 任务 12 封面 File 集成）。</p>
  */
 @Data
 public class CourseCatalogRow {
