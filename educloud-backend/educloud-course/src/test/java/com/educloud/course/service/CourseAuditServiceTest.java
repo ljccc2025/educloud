@@ -206,6 +206,24 @@ class CourseAuditServiceTest {
         verify(submissionMapper, never()).insert(any(CourseAuditSubmissionEntity.class));
     }
 
+    @Test
+    void submitRejectsArchivedWith409() {
+        // 归档终态门禁（规格 §15）：残留 DRAFT 指针的归档课程也不可提交审核（防御
+        // 残留指针绕过 republish 复活）→ COURSE_STATE_CONFLICT 409。
+        CourseVersionEntity version = version(301L, 101L, 1, "DRAFT", "归档残留草稿");
+        when(courseVersionMapper.selectById(301L)).thenReturn(version);
+        when(courseMapper.selectById(101L)).thenReturn(course(101L, 1001L, 301L, null, "ARCHIVED", 1L));
+        when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> auditService().submitForReview(301L, 1001L, Set.of("TEACHER")))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_STATE_CONFLICT);
+                    assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
+                });
+        verify(courseVersionMapper, never()).update(any(), any());
+        verify(submissionMapper, never()).insert(any(CourseAuditSubmissionEntity.class));
+    }
+
     // ---------------------------------------------------------------- approve
 
     @Test
@@ -323,6 +341,24 @@ class CourseAuditServiceTest {
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
                 });
         verify(courseVersionMapper, never()).update(any(), any());
+        verify(eventPublisher, never()).coursePublished(any(), any(), anyLong(), any());
+    }
+
+    @Test
+    void approveRejectsArchivedWith409() {
+        // 归档终态门禁（规格 §15）：即使存在 PENDING 提交，归档课程也不得审批发布
+        // （与 submit 构成复活路径双保险）→ COURSE_STATE_CONFLICT 409。
+        CourseAuditSubmissionEntity submission = submission(401L, 101L, 302L, "PENDING", 1001L);
+        when(submissionMapper.selectById(401L)).thenReturn(submission);
+        when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course(101L, 1001L, 302L, null, "ARCHIVED", 1L));
+
+        assertThatThrownBy(() -> auditService().approve(401L, 3001L, Set.of("SYSTEM_ADMIN")))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_STATE_CONFLICT);
+                    assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
+                });
+        verify(courseVersionMapper, never()).update(any(), any());
+        verify(submissionMapper, never()).updateById(any(CourseAuditSubmissionEntity.class));
         verify(eventPublisher, never()).coursePublished(any(), any(), anyLong(), any());
     }
 

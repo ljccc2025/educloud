@@ -41,7 +41,10 @@ import java.util.Set;
  *   <li>reject：原因必填（400 REVIEW_REJECT_REASON_REQUIRED）→ REJECTED，
  *       course.draft_version_id 保留指向 REJECTED 版本（可复制新草稿）；</li>
  *   <li>withdraw：仅提交教师本人（submitted_by==当前 userId，否则 403）→ WITHDRAWN；</li>
- *   <li>自审拒绝：approve/reject 时 submitted_by == 审核人 → COURSE_ACCESS_DENIED 403。</li>
+ *   <li>自审拒绝：approve/reject 时 submitted_by == 审核人 → COURSE_ACCESS_DENIED 403；</li>
+ *   <li>归档终态门禁（规格 §15）：lifecycle=ARCHIVED 是终态（归档且不可再销售），
+ *       submit/approve 均 → COURSE_STATE_CONFLICT 409，防残留指针/残留待审绕过
+ *       republish 的 OFFLINE 门禁复活。</li>
  * </ul>
  * 状态机是前置硬规则；并发兜底用条件更新（WHERE version_status=…）+ 根乐观锁。</p>
  */
@@ -56,6 +59,8 @@ public class CourseAuditService {
     private static final String LIFECYCLE_DRAFT = "DRAFT";
     private static final String LIFECYCLE_PENDING_REVIEW = "PENDING_REVIEW";
     private static final String LIFECYCLE_PUBLISHED = "PUBLISHED";
+    /** 生命周期终态：归档（ARCHIVED）后不可再销售，任何复活路径一律 409。 */
+    private static final String LIFECYCLE_ARCHIVED = "ARCHIVED";
 
     private final CourseMapper courseMapper;
     private final CourseVersionMapper versionMapper;
@@ -86,6 +91,9 @@ public class CourseAuditService {
      * 提交审核（POST /course-drafts/{versionId}/submit-review）：归属校验 +
      * DRAFT→PENDING_REVIEW（条件更新防并发）+ 写 PENDING submission + 根 lifecycle 置
      * PENDING_REVIEW，同一事务。
+     *
+     * <p>归档终态门禁（规格 §15）：lifecycle=ARCHIVED 的课程已归档且不可再销售，即使
+     * 残留 DRAFT 版本指针也不可提交（防御残留指针复活路径）→ COURSE_STATE_CONFLICT 409。</p>
      */
     @Transactional
     public CourseAuditResponse submitForReview(Long versionId, Long teacherId, Set<String> roles) {
@@ -96,6 +104,10 @@ public class CourseAuditService {
         }
         CourseEntity course = requireCourse(version.getCourseId());
         teacherAccessGuard.requireAccess(course.getId(), teacherId);
+        if (LIFECYCLE_ARCHIVED.equals(course.getLifecycleStatus())) {
+            throw new BusinessException(CourseErrorCode.COURSE_STATE_CONFLICT,
+                    "Archived course cannot submit for review (archived is terminal, course cannot be resold): " + course.getId());
+        }
         CourseVersionStateMachine.requireTransition(
                 version.getVersionStatus(), CourseVersionStateMachine.PENDING_REVIEW);
         if (course.getDraftVersionId() == null || !course.getDraftVersionId().equals(versionId)) {
@@ -144,6 +156,10 @@ public class CourseAuditService {
      * submission PENDING→APPROVED → published_version_id 切换 → 旧发布版本 SUPERSEDED →
      * 新版本 PUBLISHED → lifecycle=PUBLISHED + published_at → outbox CoursePublished，
      * 同一本地事务提交。aggregateVersion 取课程根更新后的乐观锁版本。
+     *
+     * <p>归档终态门禁（规格 §15）：lifecycle=ARCHIVED 的课程已归档且不可再销售，审批
+     * 不得把归档课程发布回 PUBLISHED（与 submit 同为复活路径的双保险）→
+     * COURSE_STATE_CONFLICT 409。</p>
      */
     @Transactional
     public CourseAuditResponse approve(Long auditId, Long reviewerId, Set<String> roles) {
@@ -155,6 +171,10 @@ public class CourseAuditService {
         if (course == null) {
             throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND,
                     "Course not found: " + submission.getCourseId());
+        }
+        if (LIFECYCLE_ARCHIVED.equals(course.getLifecycleStatus())) {
+            throw new BusinessException(CourseErrorCode.COURSE_STATE_CONFLICT,
+                    "Archived course cannot be approved for publication (archived is terminal, course cannot be resold): " + course.getId());
         }
         CourseVersionEntity version = requireVersion(submission.getCourseVersionId());
         CourseVersionStateMachine.requireTransition(

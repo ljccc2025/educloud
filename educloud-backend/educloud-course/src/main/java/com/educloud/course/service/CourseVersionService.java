@@ -35,6 +35,10 @@ import java.util.Objects;
  * {@link TeacherAccessGuard} 归属校验。封面集成（任务 12）：PUT 时 coverFileId 变化
  * 则 bind 新封面（uploaderUserId=当前教师，File 校验上传者属主）/unbind 旧封面；
  * 复制草稿沿用同一封面（已绑定，无需重复 bind）。</p>
+ *
+ * <p>归档终态门禁（规格 §15）：lifecycle=ARCHIVED 是终态（归档且不可再销售），禁止
+ * 从归档课程建草稿 → COURSE_STATE_CONFLICT 409，防 createDraft→submit→approve 绕过
+ * republish 的 OFFLINE 门禁复活。</p>
  */
 @Service
 public class CourseVersionService {
@@ -44,6 +48,9 @@ public class CourseVersionService {
     public static final String STATUS_REJECTED = "REJECTED";
     public static final String STATUS_WITHDRAWN = "WITHDRAWN";
     public static final String STATUS_PUBLISHED = "PUBLISHED";
+
+    /** 生命周期终态：归档（ARCHIVED）后不可再销售，任何复活路径一律 409。 */
+    private static final String LIFECYCLE_ARCHIVED = "ARCHIVED";
 
     private final CourseMapper courseMapper;
     private final CourseVersionMapper versionMapper;
@@ -90,11 +97,19 @@ public class CourseVersionService {
      * <p>并发兜底：两请求同时复制同一源版本会撞 uk_course_version_no —— 显式捕获
      * DuplicateKeyException → VERSION_NOT_DRAFT 409（“版本已被并发创建”，语义最贴近）；
      * course 根乐观锁更新（updateById）影响行数 0 → VERSION_CONFLICT 409。</p>
+     *
+     * <p>归档终态门禁（规格 §15）：lifecycle=ARCHIVED 的课程已归档且不可再销售，禁止
+     * 再建草稿（防 createDraft→submitForReview→approve 绕过 republish 的 OFFLINE 门禁
+     * 把归档课程复活为 PUBLISHED）→ COURSE_STATE_CONFLICT 409。</p>
      */
     @Transactional
     public CourseDraftResponse createDraftFromPublishedOrRejected(Long courseId, Long teacherId) {
         CourseEntity course = requireCourse(courseId);
         teacherAccessGuard.requireAccess(courseId, teacherId);
+        if (LIFECYCLE_ARCHIVED.equals(course.getLifecycleStatus())) {
+            throw new BusinessException(CourseErrorCode.COURSE_STATE_CONFLICT,
+                    "Archived course cannot create a new draft (archived is terminal, course cannot be resold): " + courseId);
+        }
 
         CourseVersionEntity current = course.getDraftVersionId() == null
                 ? null

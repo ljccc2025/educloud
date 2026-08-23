@@ -454,6 +454,26 @@ class CourseDraftServiceTest {
     }
 
     @Test
+    void createDraftRejectsArchivedCourseWith409() {
+        // 归档终态门禁（规格 §15）：ARCHIVED 且不可再销售，禁止建草稿 —— 否则
+        // createDraft→submitForReview→approve 可绕过 republish 的 OFFLINE 门禁复活。
+        CourseEntity course = course(101L, 1001L, null, 5L);
+        course.setLifecycleStatus("ARCHIVED");
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> versionService().createDraftFromPublishedOrRejected(101L, 1001L))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.errorCode()).isEqualTo(CourseErrorCode.COURSE_STATE_CONFLICT);
+                    assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
+                });
+        verify(courseVersionMapper, never()).selectById(any());
+        verify(courseVersionMapper, never()).selectOne(any());
+        verify(courseVersionMapper, never()).insert(any(CourseVersionEntity.class));
+        verify(courseMapper, never()).updateById(any(CourseEntity.class));
+    }
+
+    @Test
     void createDraftRejectsCrossTeacherAccessWith403() {
         CourseEntity course = course(101L, 2002L, 301L, 5L);
         when(courseMapper.selectById(101L)).thenReturn(course);
