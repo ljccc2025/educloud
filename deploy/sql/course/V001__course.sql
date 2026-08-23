@@ -18,8 +18,7 @@ CREATE TABLE course_category (
   updated_by BIGINT NULL,
   updated_at DATETIME(3) NOT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uk_course_category_slug (slug),
-  KEY idx_course_category_parent (parent_id)
+  UNIQUE KEY uk_course_category_slug (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 课程聚合根：公开读取只跟随 published_version_id；教师编辑只操作 draft_version_id。
@@ -89,7 +88,7 @@ CREATE TABLE course_audit_submission (
   reason VARCHAR(512) NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uk_course_audit_submission_version (course_version_id),
-  KEY idx_course_audit_submission_status (status)
+  KEY idx_course_audit_submission_status (status, submitted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 选课：(course_id, student_id) 唯一（幂等）；version 行内递增（Enrollment 聚合乐观锁）。
@@ -106,7 +105,7 @@ CREATE TABLE course_enrollment (
   version BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   UNIQUE KEY uk_course_enrollment (course_id, student_id),
-  KEY idx_enrollment_student_status (student_id, status)
+  KEY idx_course_enrollment_student_status (student_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 内容就绪投影：一课程一行（course_id 唯一）+ source_event_id 唯一（幂等）；M05 仅建表不激活 gate。
