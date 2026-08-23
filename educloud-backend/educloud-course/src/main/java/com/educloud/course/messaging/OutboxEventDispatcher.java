@@ -18,7 +18,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Outbox 发布器（M05 任务 15，复用 file/user 模式）：小批锁定 PENDING 事件，组装
+ * Outbox 发布器（M05 任务 15，复用 file/user 模式）：小批领取 PENDING 事件，组装
  * {@link EventEnvelope} 投递 RabbitMQ Topic 交换机 educloud.events 后标记 PUBLISHED；
  * 失败退避重试（attempt_count+1、next_attempt_at 排程），达阈值标记 FAILED 并告警
  * （可靠性设计第 4.1 节；确认不明确允许重投，消费者幂等）。
@@ -26,7 +26,10 @@ import java.util.List;
  * <p>M04 坑 3：routing key 为点分隔 {@code aggregateType.aggregateId}
  * （Course.10001 / Enrollment.70001），可被 Course.# / Enrollment.# 通配绑定命中。
  * 并发安全：成功与失败的状态迁移均带 {@code publish_status='PENDING'} 条件更新
- * （WHERE id=? AND publish_status='PENDING'），多实例轮询不会覆盖已发布/已失败行。</p>
+ * （WHERE id=? AND publish_status='PENDING'），防止已发布/已失败行被并发覆盖。
+ * 注意：当前轮询不带 FOR UPDATE SKIP LOCKED，条件更新不阻止多实例重复投递；
+ * at-least-once 语义已在可靠性设计 4.1.4 声明（消费者幂等），多实例去重
+ * （FOR UPDATE SKIP LOCKED / 租约）在 M06+ 引入消费者后按需评估。</p>
  */
 @Component
 public class OutboxEventDispatcher {

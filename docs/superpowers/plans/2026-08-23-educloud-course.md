@@ -279,6 +279,12 @@ educloud-frontend/admin-portal/...             # 阶段 3 联调
 - [ ] **步骤 4：运行确认通过**
 - [ ] **步骤 5：Commit**：\`feat(course): 课程/选课事件与 Outbox 分发\`
 
+**备注（规格审查通过后记录，2026-08-23）：**
+- EnrollmentRevoked 按规格 §8 为 M07 预留：M05 无触发路径，不实现死代码方法（CourseEventPublisher 仅 4 个生命周期方法 + EnrollmentCreated，共 5 个）。
+- OutboxDispatchIT 仅覆盖 \`Course.#\` 通配绑定接收验证（\`Enrollment.#\` 可选补）。
+- vhost=educloud 由 VM e2e 覆盖验证（本机单元测试不连真实 RabbitMQ；application.yml 已默认 \`RABBITMQ_DEFAULT_VHOST:educloud\`）。
+- Outbox 分发为 at-least-once（可靠性设计 4.1.4，消费者幂等）：当前条件更新只防状态覆盖，多实例去重（FOR UPDATE SKIP LOCKED / 租约）在 M06+ 引入消费者后按需评估。
+
 ## 任务 16：可观测性（readiness/业务指标/审计）
 
 **文件：**
