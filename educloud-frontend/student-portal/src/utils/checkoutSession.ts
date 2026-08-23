@@ -16,7 +16,7 @@ function safeRandomUuid(): string {
   });
 }
 
-export function getCheckoutIntentKey(courseId: number) {
+export function getCheckoutIntentKey(courseId: string) {
   const storageKey = `${INTENT_PREFIX}${courseId}`;
   const existing = window.sessionStorage.getItem(storageKey);
   if (existing) return existing;
@@ -26,7 +26,7 @@ export function getCheckoutIntentKey(courseId: number) {
   return created;
 }
 
-export function clearCheckoutIntentKey(courseId: number) {
+export function clearCheckoutIntentKey(courseId: string) {
   window.sessionStorage.removeItem(`${INTENT_PREFIX}${courseId}`);
 }
 

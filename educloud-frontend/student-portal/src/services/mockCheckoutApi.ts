@@ -1,11 +1,18 @@
 import dayjs from 'dayjs';
 import type {
-  Course,
   MockPaymentOutcome,
   Order,
   PaymentMethod,
   PaymentStatusSnapshot,
 } from '@/types';
+
+/** 结算 mock 需要的课程最小信息（真实课程由 courseApi 解析而来）。 */
+export interface CourseInfo {
+  id: string;
+  title: string;
+  price: number;
+  cover: string;
+}
 
 const STORAGE_KEY = 'educloud:mock-checkout:v1';
 const OUTCOME_KEY = 'educloud:mock-payment-outcome';
@@ -22,8 +29,8 @@ interface PersistedState {
 }
 
 interface CourseRepository {
-  getCourse: (courseId: number) => Course | undefined;
-  grantCourseAccess: (courseId: number) => void;
+  getCourse: (courseId: string) => Promise<CourseInfo | undefined>;
+  grantCourseAccess: (courseId: string) => void;
 }
 
 interface CreateMockCheckoutApiOptions {
@@ -128,7 +135,7 @@ export function createMockCheckoutApi({
       return wait(found ? normalizeExpiry(found) : undefined);
     },
 
-    getPayableByCourse: async (courseId: number) => {
+    getPayableByCourse: async (courseId: string) => {
       const found = allOrders()
         .map(normalizeExpiry)
         .find(
@@ -140,8 +147,8 @@ export function createMockCheckoutApi({
       return wait(found);
     },
 
-    create: async (courseId: number, idempotencyKey: string) => {
-      const course = courses.getCourse(courseId);
+    create: async (courseId: string, idempotencyKey: string) => {
+      const course = await courses.getCourse(courseId);
       if (!course) throw new Error('COURSE_NOT_FOUND');
       if (course.price <= 0) {
         throw new Error('FREE_COURSE_REQUIRES_ENROLLMENT');
@@ -179,7 +186,7 @@ export function createMockCheckoutApi({
         courseId: course.id,
         courseTitle: course.title,
         courseCover: course.cover,
-        originalAmount: course.originalPrice ?? course.price,
+        originalAmount: course.price,
         payableAmount: course.price,
         currency: 'CNY',
         status: 'PENDING_PAYMENT',

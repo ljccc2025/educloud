@@ -1,75 +1,78 @@
-// 课程分类
-export type Category =
-  | '计算机'
-  | '数学'
-  | '语言学习'
-  | '经济管理'
-  | '文学艺术'
-  | '设计'
-  | '心理学'
-  | '法律'
-  | '音乐'
-  | '哲学';
+// 课程分类（真实 API：GET /api/v1/categories，M05 任务 7）
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+  children: Category[];
+}
 
 // 课程难度
 export type CourseLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
-// 课件
-export interface Courseware {
-  id: number;
-  title: string;
-  type: 'video' | 'quiz' | 'file';
-  duration: number;
-  completed: boolean;
-}
-
-// 章节
-export interface Chapter {
-  id: number;
-  title: string;
-  duration: string;
-  free: boolean;
-  completed: boolean;
-  coursewares: Courseware[];
-}
-
-// 评价
+// 课程评价（真实 API：CourseReviewResponse，M05 任务 14；Snowflake id/studentId 为 string）
 export interface Review {
-  id: number;
-  userName: string;
-  avatar: string;
+  id: string;
+  studentId: string;
   rating: number;
   content: string;
-  date: string;
+  status?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-// 课程
+// 课程列表项（真实 API：CourseSummaryResponse，M05 任务 11；id/price 均为 string，禁止 Number() 处理 id）
 export interface Course {
-  id: number;
+  id: string;
   title: string;
-  cover: string;
+  coverUrl: string | null;
   teacherName: string;
-  teacherAvatar: string;
-  teacherTitle: string;
-  category: Category;
+  categoryName: string;
   level: CourseLevel;
-  price: number;
-  originalPrice?: number;
-  description: string;
-  whatYouLearn: string[];
-  requirements: string[];
-  chapters: Chapter[];
-  reviews: Review[];
-  studentCount: number;
-  rating: number;
-  reviewCount: number;
-  totalDuration: string;
-  lastUpdated: string;
+  price: string;
+  ratingAvg: number;
+  ratingCount: number;
+  enrollmentCount: number;
   enrolled: boolean;
-  progress: number;
 }
 
-// 我的课程状态
+// 课程详情教师成员（真实 API：CourseDetailResponse.Teacher）
+export interface CourseTeacher {
+  teacherId: string;
+  teacherRole: string;
+}
+
+// 课程详情（真实 API：CourseDetailResponse，M05 任务 11/14）
+export interface CourseDetail {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  description: string;
+  coverUrl: string | null;
+  level: CourseLevel;
+  price: string;
+  currency: string;
+  categoryId: string;
+  categoryName: string;
+  teachers: CourseTeacher[];
+  ratingAvg: number;
+  ratingCount: number;
+  enrollmentCount: number;
+  enrolled: boolean;
+  lifecycleStatus: string;
+  reviews: Review[];
+}
+
+// 我的课程（真实 API：GET /api/v1/me/enrollments，M05 任务 13；进度归 M06 Content 服务）
+export interface MyCourse {
+  courseId: string;
+  title: string;
+  coverUrl: string | null;
+  status: string;
+  enrolledAt: string;
+}
+
+// 我的课程状态（预留；M05 真实接口仅下发 ACTIVE）
 export type CourseStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 
 // 直播状态
@@ -100,9 +103,9 @@ export interface ChatMessage {
   isTeacher?: boolean;
 }
 
-// 购物车条目
+// 购物车条目（courseId 为 Snowflake string，禁止 Number()）
 export interface CartItem {
-  courseId: number;
+  courseId: string;
   title: string;
   price: number;
   cover: string;
@@ -170,11 +173,11 @@ export type PaymentAttemptStatus =
 
 export type MockPaymentOutcome = 'SUCCESS' | 'FAILED' | 'CANCELLED';
 
-// 订单
+// 订单（courseId 为 Snowflake string，禁止 Number()）
 export interface Order {
   id: string;
   orderNo: string;
-  courseId: number;
+  courseId: string;
   courseTitle: string;
   courseCover: string;
   originalAmount: number;
@@ -230,19 +233,20 @@ export interface HomeStats {
   totalHours: number;
 }
 
-// 分类展示
+// 分类展示（首页 mock 仍保留，仅展示用途）
 export interface CategoryShowcase {
-  name: Category;
+  name: string;
   icon: string;
   courseCount: number;
   studentCount: number;
   description: string;
 }
 
-// 分页
+// 分页响应（真实 API：PageResponse，M05 任务 11/13）
 export interface PaginatedResponse<T> {
-  list: T[];
-  total: number;
+  items: T[];
   page: number;
   pageSize: number;
+  total: number;
+  totalPages: number;
 }

@@ -4,10 +4,10 @@ import type { CartItem } from '@/types';
 interface CartState {
   items: CartItem[];
   addToCart: (item: CartItem) => void;
-  removeFromCart: (courseId: number) => void;
+  removeFromCart: (courseId: string) => void;
   clearCart: () => void;
   total: () => number;
-  isInCart: (courseId: number) => boolean;
+  isInCart: (courseId: string) => boolean;
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
@@ -18,10 +18,10 @@ export const useCartStore = create<CartState>((set, get) => ({
       set((state) => ({ items: [...state.items, item] }));
     }
   },
-  removeFromCart: (courseId: number) => {
+  removeFromCart: (courseId: string) => {
     set((state) => ({ items: state.items.filter((i) => i.courseId !== courseId) }));
   },
   clearCart: () => set({ items: [] }),
   total: () => get().items.reduce((sum, item) => sum + item.price, 0),
-  isInCart: (courseId: number) => get().items.some((i) => i.courseId === courseId),
+  isInCart: (courseId: string) => get().items.some((i) => i.courseId === courseId),
 }));

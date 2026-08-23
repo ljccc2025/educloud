@@ -1,15 +1,17 @@
-import { useEffect, useState, useMemo } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Search, SlidersHorizontal, X, AlertCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useCourseStore } from '@/stores/useCourseStore';
-import { categories } from '@/services/api';
+import { courseApi } from '@/services/courseApi';
 import CourseCard from '@/components/CourseCard';
 import CourseSortSelect, { type CourseSortOption } from '@/components/CourseSortSelect';
 import { cn } from '@/utils/cn';
-import type { CourseLevel } from '@/types';
+import type { Category, CourseLevel } from '@/types';
 
 type SortOption = 'popular' | 'newest' | 'price-asc' | 'price-desc' | 'rating';
 type PriceRange = 'all' | 'free' | 'under200' | '200to400' | 'above400';
+
+const PAGE_SIZE = 12;
 
 const levels: { value: CourseLevel | 'all'; label: string }[] = [
   { value: 'all', label: '全部难度' },
@@ -26,26 +28,54 @@ const sortOptions: readonly CourseSortOption<SortOption>[] = [
   { value: 'rating', label: '评分最高' },
 ];
 
+/** 展平后端分类树（children 递归）为过滤列表。 */
+function flattenCategories(nodes: Category[]): Category[] {
+  const out: Category[] = [];
+  const walk = (list: Category[]) => {
+    list.forEach((node) => {
+      out.push(node);
+      if (node.children && node.children.length > 0) walk(node.children);
+    });
+  };
+  walk(nodes);
+  return out;
+}
+
 export default function CourseList() {
-  const { courses, loading, fetchCourses } = useCourseStore();
+  const { courses, total, loading, error, fetchCourses } = useCourseStore();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [categoryList, setCategoryList] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [priceRange, setPriceRange] = useState<PriceRange>('all');
   const [sort, setSort] = useState<SortOption>('popular');
+  const [page, setPage] = useState(1);
+  const [retryTick, setRetryTick] = useState(0);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
+  // 真实分类（GET /api/v1/categories）
   useEffect(() => {
-    fetchCourses();
-  }, [fetchCourses]);
+    courseApi
+      .getCategories()
+      .then(setCategoryList)
+      .catch(() => setCategoryList([]));
+  }, []);
+
+  const flatCategories = useMemo(() => flattenCategories(categoryList), [categoryList]);
 
   const categoryParam = searchParams.get('category');
   const selectedCategory =
-    categoryParam && categories.some((category) => category.name === categoryParam)
+    categoryParam && flatCategories.some((category) => category.name === categoryParam)
       ? categoryParam
       : 'all';
 
+  const categoryId = useMemo(
+    () => flatCategories.find((category) => category.name === selectedCategory)?.id,
+    [flatCategories, selectedCategory],
+  );
+
   const selectCategory = (category: string) => {
+    setPage(1);
     setSearchParams((currentParams) => {
       const nextParams = new URLSearchParams(currentParams);
       if (category === 'all') {
@@ -57,57 +87,33 @@ export default function CourseList() {
     });
   };
 
-  const filteredCourses = useMemo(() => {
-    let result = [...courses];
-
-    if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (c) =>
-          c.title.toLowerCase().includes(q) ||
-          c.description.toLowerCase().includes(q)
-      );
-    }
-
-    if (selectedCategory !== 'all') {
-      result = result.filter((c) => c.category === selectedCategory);
-    }
-
-    if (selectedLevel !== 'all') {
-      result = result.filter((c) => c.level === selectedLevel);
-    }
-
-    if (priceRange !== 'all') {
-      result = result.filter((c) => {
-        if (priceRange === 'free') return c.price === 0;
-        if (priceRange === 'under200') return c.price < 200;
-        if (priceRange === '200to400') return c.price >= 200 && c.price <= 400;
-        if (priceRange === 'above400') return c.price > 400;
-        return true;
+  // 真实分页/筛选/排序：筛选或排序变化即重新请求（搜索输入 300ms 防抖）
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void fetchCourses({
+        keyword: search.trim() || undefined,
+        categoryId: selectedCategory === 'all' ? undefined : categoryId,
+        level: selectedLevel === 'all' ? undefined : selectedLevel,
+        priceRange: priceRange === 'all' ? undefined : priceRange,
+        sort,
+        page,
+        size: PAGE_SIZE,
       });
-    }
+    }, search ? 300 : 0);
+    return () => window.clearTimeout(timer);
+  }, [
+    fetchCourses,
+    search,
+    selectedCategory,
+    categoryId,
+    selectedLevel,
+    priceRange,
+    sort,
+    page,
+    retryTick,
+  ]);
 
-    switch (sort) {
-      case 'newest':
-        result.reverse();
-        break;
-      case 'price-asc':
-        result.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-desc':
-        result.sort((a, b) => b.price - a.price);
-        break;
-      case 'rating':
-        result.sort((a, b) => b.rating - a.rating);
-        break;
-      case 'popular':
-      default:
-        result.sort((a, b) => b.studentCount - a.studentCount);
-        break;
-    }
-
-    return result;
-  }, [courses, search, selectedCategory, selectedLevel, priceRange, sort]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const clearFilters = () => {
     setSearch('');
@@ -115,6 +121,7 @@ export default function CourseList() {
     setSelectedLevel('all');
     setPriceRange('all');
     setSort('popular');
+    setPage(1);
   };
 
   const FilterSidebar = () => (
@@ -137,9 +144,9 @@ export default function CourseList() {
           >
             全部分类
           </button>
-          {categories.map((cat) => (
+          {flatCategories.map((cat) => (
             <button
-              key={cat.name}
+              key={cat.id}
               type="button"
               aria-pressed={selectedCategory === cat.name}
               data-course-category-filter={cat.name}
@@ -152,7 +159,6 @@ export default function CourseList() {
               )}
             >
               {cat.name}
-              <span className="text-xs text-ink-400">{cat.courseCount}</span>
             </button>
           ))}
         </div>
@@ -168,7 +174,7 @@ export default function CourseList() {
                 type="radio"
                 name="level"
                 checked={selectedLevel === lvl.value}
-                onChange={() => setSelectedLevel(lvl.value)}
+                onChange={() => { setSelectedLevel(lvl.value); setPage(1); }}
                 className="w-4 h-4 accent-indigo-800"
               />
               <span className="text-sm text-ink-600 group-hover:text-ink-900">{lvl.label}</span>
@@ -193,7 +199,7 @@ export default function CourseList() {
                 type="radio"
                 name="price"
                 checked={priceRange === opt.value}
-                onChange={() => setPriceRange(opt.value as PriceRange)}
+                onChange={() => { setPriceRange(opt.value as PriceRange); setPage(1); }}
                 className="w-4 h-4 accent-indigo-800"
               />
               <span className="text-sm text-ink-600 group-hover:text-ink-900">{opt.label}</span>
@@ -218,7 +224,7 @@ export default function CourseList() {
       <div className="mb-10">
         <span className="section-label mb-3">课程目录</span>
         <h1 className="display-heading text-4xl md:text-5xl mt-3">全部课程</h1>
-        <p className="text-ink-500 mt-3">共 {courses.length} 门精品课程，找到最适合你的学习路径</p>
+        <p className="text-ink-500 mt-3">共 {total} 门精品课程，找到最适合你的学习路径</p>
       </div>
 
       {/* Search Bar */}
@@ -228,7 +234,7 @@ export default function CourseList() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="搜索课程名称、标签..."
             className="w-full pl-11 pr-4 py-3 bg-white border border-ink-200 text-ink-800 text-sm placeholder:text-ink-400 focus:outline-none focus:border-indigo-800 transition-colors"
           />
@@ -236,7 +242,7 @@ export default function CourseList() {
         <CourseSortSelect
           value={sort}
           options={sortOptions}
-          onChange={setSort}
+          onChange={(value) => { setSort(value); setPage(1); }}
         />
         <button
           type="button"
@@ -262,7 +268,20 @@ export default function CourseList() {
             <div className="flex items-center justify-center py-32">
               <div className="w-8 h-8 border-2 border-indigo-800 border-t-transparent animate-spin" />
             </div>
-          ) : filteredCourses.length === 0 ? (
+          ) : error ? (
+            <div className="text-center py-32">
+              <AlertCircle size={40} className="mx-auto text-red-400 mb-4" />
+              <p className="font-display text-xl text-ink-600 mb-2">课程加载失败</p>
+              <p className="text-sm text-ink-400 mb-6">{error}</p>
+              <button
+                type="button"
+                onClick={() => setRetryTick((tick) => tick + 1)}
+                className="btn-primary"
+              >
+                重新加载
+              </button>
+            </div>
+          ) : courses.length === 0 ? (
             <div className="text-center py-32">
               <p className="font-display text-2xl text-ink-400 mb-2">未找到匹配的课程</p>
               <p className="text-sm text-ink-400 mb-6">尝试调整筛选条件或搜索关键词</p>
@@ -273,12 +292,35 @@ export default function CourseList() {
           ) : (
             <>
               <p className="text-sm text-ink-500 mb-6">
-                找到 <span className="font-semibold text-ink-900">{filteredCourses.length}</span> 门课程
+                找到 <span className="font-semibold text-ink-900">{total}</span> 门课程
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredCourses.map((course) => (
-                  <CourseCard key={course.id} course={course} />
+                {courses.map((course, index) => (
+                  <CourseCard key={course.id} course={course} index={index} />
                 ))}
+              </div>
+
+              {/* Pagination */}
+              <div className="mt-10 flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  disabled={page <= 1 || loading}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="btn-outline disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  上一页
+                </button>
+                <span className="text-sm text-ink-500">
+                  第 <span className="font-semibold text-ink-900">{page}</span> / {totalPages} 页
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages || loading}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="btn-outline disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  下一页
+                </button>
               </div>
             </>
           )}

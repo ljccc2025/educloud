@@ -1,10 +1,11 @@
 import dayjs from 'dayjs';
 import { http, TOKEN_KEY, apiErrorText, type ApiEnvelope } from './http';
 import type {
-  Course, Chapter, Review, LiveRoom, ChatMessage,
+  LiveRoom, ChatMessage,
   Assignment, Exam, Order, StudentUser, HomeStats,
-  CategoryShowcase, Category, CourseLevel, PaginatedResponse,
+  CategoryShowcase,
 } from '../types';
+import { courseApi } from './courseApi';
 import { createMockCheckoutApi } from './mockCheckoutApi';
 
 // ---------- helpers ----------
@@ -14,7 +15,7 @@ const delay = <T>(data: T, ms = 300): Promise<T> =>
 const avatar = (seed: string) =>
   `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=1e1b4b,d97706,4f46e5,b45309&textColor=ffffff&fontWeight=500&fontSize=24`;
 
-const cover = (seed: number) =>
+export const cover = (seed: number) =>
   `https://picsum.photos/seed/edu${seed}/600/360`;
 
 // ---------- current user ----------
@@ -33,144 +34,33 @@ export const currentUser: StudentUser = {
   consecutiveDays: 23,
 };
 
-// ---------- categories ----------
-const categoryDefinitions: Omit<CategoryShowcase, 'courseCount'>[] = [
-  { name: '计算机', icon: 'Cpu', studentCount: 38420, description: '编程、算法、人工智能与软件工程' },
-  { name: '数学', icon: 'Sigma', studentCount: 24680, description: '从基础代数到高等数学的系统课程' },
-  { name: '语言学习', icon: 'Languages', studentCount: 42150, description: '英语、日语、韩语等多语种学习' },
-  { name: '经济管理', icon: 'TrendingUp', studentCount: 18930, description: '经济学、管理学与商业分析' },
-  { name: '文学艺术', icon: 'BookOpen', studentCount: 15240, description: '中外文学、艺术鉴赏与创作' },
-  { name: '设计', icon: 'Palette', studentCount: 21360, description: 'UI/UX、平面设计与创意表达' },
-  { name: '心理学', icon: 'Brain', studentCount: 16780, description: '认知心理学、社会心理学导论' },
-  { name: '法律', icon: 'Scale', studentCount: 8920, description: '法学基础与实务专题' },
-  { name: '音乐', icon: 'Music', studentCount: 11450, description: '乐器演奏、乐理与音乐欣赏' },
-  { name: '哲学', icon: 'Compass', studentCount: 6340, description: '东西方哲学经典与思辨' },
+// ---------- categories（首页展示 mock，保留非课程 mock） ----------
+const categoryDefinitions: CategoryShowcase[] = [
+  { name: '计算机', icon: 'Cpu', courseCount: 7, studentCount: 38420, description: '编程、算法、人工智能与软件工程' },
+  { name: '数学', icon: 'Sigma', courseCount: 2, studentCount: 24680, description: '从基础代数到高等数学的系统课程' },
+  { name: '语言学习', icon: 'Languages', courseCount: 2, studentCount: 42150, description: '英语、日语、韩语等多语种学习' },
+  { name: '经济管理', icon: 'TrendingUp', courseCount: 3, studentCount: 18930, description: '经济学、管理学与商业分析' },
+  { name: '文学艺术', icon: 'BookOpen', courseCount: 2, studentCount: 15240, description: '中外文学、艺术鉴赏与创作' },
+  { name: '设计', icon: 'Palette', courseCount: 2, studentCount: 21360, description: 'UI/UX、平面设计与创意表达' },
+  { name: '心理学', icon: 'Brain', courseCount: 1, studentCount: 16780, description: '认知心理学、社会心理学导论' },
+  { name: '法律', icon: 'Scale', courseCount: 1, studentCount: 8920, description: '法学基础与实务专题' },
+  { name: '音乐', icon: 'Music', courseCount: 1, studentCount: 11450, description: '乐器演奏、乐理与音乐欣赏' },
+  { name: '哲学', icon: 'Compass', courseCount: 1, studentCount: 6340, description: '东西方哲学经典与思辨' },
 ];
 
-// ---------- courses ----------
-const courseData: Array<{
-  title: string; teacher: string; teacherTitle: string;
-  category: Category; level: CourseLevel; price: number; originalPrice?: number;
-}> = [
-  { title: '高等数学精讲：从极限到微积分', teacher: '李明远', teacherTitle: '数学系教授 · 博导', category: '数学', level: 'BEGINNER', price: 199, originalPrice: 299 },
-  { title: 'Python 数据分析实战', teacher: '王雪琴', teacherTitle: '数据科学高级工程师', category: '计算机', level: 'INTERMEDIATE', price: 299, originalPrice: 399 },
-  { title: '英语口语突破训练营', teacher: '陈建国', teacherTitle: '剑桥英语认证教师', category: '语言学习', level: 'BEGINNER', price: 0 },
-  { title: '机器学习入门与实践', teacher: '赵文博', teacherTitle: 'AI 研究员 · 前谷歌工程师', category: '计算机', level: 'ADVANCED', price: 499, originalPrice: 699 },
-  { title: '中国现代文学经典解读', teacher: '周淑芬', teacherTitle: '文学院副教授', category: '文学艺术', level: 'BEGINNER', price: 99 },
-  { title: '前端工程化与 React 进阶', teacher: '吴志强', teacherTitle: '前端架构师', category: '计算机', level: 'INTERMEDIATE', price: 399, originalPrice: 499 },
-  { title: '微观经济学原理', teacher: '郑丽华', teacherTitle: '经济学院教授', category: '经济管理', level: 'BEGINNER', price: 199 },
-  { title: '摄影构图与光影美学', teacher: '黄敏', teacherTitle: '国家一级摄影师', category: '设计', level: 'BEGINNER', price: 149, originalPrice: 199 },
-  { title: 'Java 后端架构设计', teacher: '徐强', teacherTitle: '资深架构师 · 10年经验', category: '计算机', level: 'ADVANCED', price: 599, originalPrice: 799 },
-  { title: '心理学导论：认识自我', teacher: '孙丽', teacherTitle: '心理学博士', category: '心理学', level: 'BEGINNER', price: 0 },
-  { title: '线性代数及其应用', teacher: '李明远', teacherTitle: '数学系教授 · 博导', category: '数学', level: 'INTERMEDIATE', price: 249 },
-  { title: 'UI/UX 设计思维方法论', teacher: '马超', teacherTitle: '首席设计师', category: '设计', level: 'INTERMEDIATE', price: 349, originalPrice: 449 },
-  { title: '财务管理与报表分析', teacher: '何勇', teacherTitle: 'CPA · 财务总监', category: '经济管理', level: 'INTERMEDIATE', price: 299 },
-  { title: '日语零基础至 N2', teacher: '高桥美咲', teacherTitle: 'JLPT 特级讲师', category: '语言学习', level: 'BEGINNER', price: 399, originalPrice: 599 },
-  { title: '算法与数据结构精讲', teacher: '赵文博', teacherTitle: 'AI 研究员 · 前谷歌工程师', category: '计算机', level: 'INTERMEDIATE', price: 349 },
-  { title: '商务谈判与沟通技巧', teacher: '罗琳', teacherTitle: 'MBA · 企业培训师', category: '经济管理', level: 'BEGINNER', price: 129 },
-  { title: 'Docker 与 Kubernetes 实战', teacher: '吴志强', teacherTitle: '前端架构师', category: '计算机', level: 'ADVANCED', price: 449, originalPrice: 599 },
-  { title: '西方哲学史讲演录', teacher: '郑浩', teacherTitle: '哲学系教授', category: '哲学', level: 'BEGINNER', price: 179 },
-  { title: '产品经理从入门到精通', teacher: '梁宇', teacherTitle: '高级产品总监', category: '经济管理', level: 'BEGINNER', price: 279, originalPrice: 379 },
-  { title: '吉他弹唱速成教程', teacher: '谢雯', teacherTitle: '独立音乐人', category: '音乐', level: 'BEGINNER', price: 199 },
-  { title: '刑事诉讼法专题', teacher: '韩松', teacherTitle: '法学博士 · 执业律师', category: '法律', level: 'ADVANCED', price: 329 },
-  { title: '深度学习与计算机视觉', teacher: '赵文博', teacherTitle: 'AI 研究员 · 前谷歌工程师', category: '计算机', level: 'ADVANCED', price: 699, originalPrice: 899 },
-  { title: '写作训练营：非虚构写作', teacher: '唐悦', teacherTitle: '畅销书作家', category: '文学艺术', level: 'INTERMEDIATE', price: 199 },
-  { title: '围棋入门到业余初段', teacher: '冯刚', teacherTitle: '业余 6 段', category: '文学艺术', level: 'BEGINNER', price: 0 },
+export const categories: CategoryShowcase[] = categoryDefinitions;
+
+// ---------- 订单/结算 mock 种子（课程已切真实 API；此种子仅供订单页与结算 mock 演示） ----------
+const mockCourseSeeds: Array<{ id: string; title: string; price: number; cover: string }> = [
+  { id: '1', title: '高等数学精讲：从极限到微积分', price: 199, cover: cover(1) },
+  { id: '2', title: 'Python 数据分析实战', price: 299, cover: cover(2) },
+  { id: '3', title: '机器学习入门与实践', price: 499, cover: cover(4) },
+  { id: '4', title: '前端工程化与 React 进阶', price: 399, cover: cover(6) },
+  { id: '5', title: 'Java 后端架构设计', price: 599, cover: cover(9) },
+  { id: '6', title: '日语零基础至 N2', price: 399, cover: cover(14) },
+  { id: '7', title: '算法与数据结构精讲', price: 349, cover: cover(15) },
+  { id: '8', title: 'Docker 与 Kubernetes 实战', price: 449, cover: cover(17) },
 ];
-
-function makeChapters(prefix: string): Chapter[] {
-  const titles = [
-    '课程导论与学习指南', '基础概念精讲', '核心原理剖析',
-    '实战案例（上）', '实战案例（下）', '进阶技巧与最佳实践',
-    '常见问题与避坑指南', '综合项目演练', '课程总结与展望',
-  ];
-  return titles.map((t, i) => ({
-    id: i + 1,
-    title: `${prefix} · ${t}`,
-    duration: `${12 + i * 3}:${String((i * 7) % 60).padStart(2, '0')}`,
-    free: i < 2,
-    completed: i < 3,
-    coursewares: [{
-      id: i + 1,
-      title: t,
-      type: i % 4 === 3 ? 'quiz' : 'video',
-      duration: 12 + i * 3,
-      completed: i < 3,
-    }],
-  }));
-}
-
-const reviewTexts = [
-  '老师讲解非常清晰，深入浅出，重点突出。课程内容编排合理，循序渐进，让我从零开始掌握了核心知识。强烈推荐！',
-  '课程质量很高，实战项目很有价值。老师对知识点的把握很精准，答疑也很及时。物超所值。',
-  '作为一个零基础的学员，这门课让我受益匪浅。视频清晰，课件详实，每个章节都有配套练习。',
-  '内容扎实，老师经验丰富。有些章节难度较大，但反复观看后都能理解。希望能多出进阶课程。',
-  '非常棒的课程！理论与实践结合得很好，案例都是真实场景，学完就能应用到工作中。',
-  '老师讲课风格幽默风趣，不会觉得枯燥。知识点覆盖全面，课后作业设计得很用心。',
-];
-
-const reviewers = ['张伟', '王芳', '李娜', '刘洋', '陈静', '杨帆', '赵磊', '黄敏'];
-
-function makeReviews(seed: number): Review[] {
-  const count = 3 + (seed % 4);
-  return Array.from({ length: count }, (_, i) => ({
-    id: seed * 10 + i,
-    userName: reviewers[(seed + i) % reviewers.length],
-    avatar: avatar(reviewers[(seed + i) % reviewers.length]),
-    rating: 4 + ((seed + i) % 2),
-    content: reviewTexts[(seed + i) % reviewTexts.length],
-    date: dayjs().subtract((seed + i) * 5, 'day').format('YYYY-MM-DD'),
-  }));
-}
-
-function generateCourses(): Course[] {
-  return courseData.map((c, i) => {
-    const enrolled = i < 6;
-    const progress = enrolled ? [100, 75, 45, 30, 60, 20][i] : 0;
-    return {
-      id: i + 1,
-      title: c.title,
-      cover: cover(i + 1),
-      teacherName: c.teacher,
-      teacherAvatar: avatar(c.teacher),
-      teacherTitle: c.teacherTitle,
-      category: c.category,
-      level: c.level,
-      price: c.price,
-      originalPrice: c.originalPrice,
-      description: `本课程由${c.teacherTitle}${c.teacher}老师主讲，系统讲解${c.title}的核心知识与实战技能。课程注重理论与实践结合，通过大量真实案例帮助学员深入理解并灵活运用。无论你是零基础入门还是有经验希望进阶，都能从中获得实质性提升。`,
-      whatYouLearn: [
-        `掌握${c.category}领域的核心概念与理论框架`,
-        '能够独立完成从需求分析到方案落地的全流程',
-        '熟练运用行业主流工具与方法论',
-        '具备解决实际工作中复杂问题的能力',
-        '获得可展示的项目作品集',
-        '建立持续学习和进阶的知识体系',
-      ],
-      requirements: [
-        '具备基本的学习意愿和时间投入',
-        '建议每周投入 5-8 小时学习',
-        '部分进阶章节需要相关基础知识',
-      ],
-      chapters: makeChapters(`第${i + 1}章`),
-      reviews: makeReviews(i + 1),
-      studentCount: 1200 + Math.floor(Math.random() * 8000) + i * 137,
-      rating: Number((4.2 + Math.random() * 0.7).toFixed(1)),
-      reviewCount: 80 + Math.floor(Math.random() * 600) + i * 13,
-      totalDuration: `${8 + i * 2}小时${20 + (i * 7) % 40}分`,
-      lastUpdated: dayjs().subtract(i * 12, 'day').format('YYYY-MM-DD'),
-      enrolled,
-      progress,
-    };
-  });
-}
-
-const courses: Course[] = generateCourses();
-
-export const categories: CategoryShowcase[] = categoryDefinitions.map((category) => ({
-  ...category,
-  courseCount: courses.filter((course) => course.category === category.name).length,
-}));
 
 // ---------- live rooms ----------
 export const liveRooms: LiveRoom[] = [
@@ -308,7 +198,7 @@ function generateOrders(): Order[] {
     'REFUNDED',
     'CANCELLED',
   ];
-  const purchased = courses.filter((c) => c.price > 0).slice(0, 8);
+  const purchased = mockCourseSeeds.filter((c) => c.price > 0).slice(0, 8);
   purchased.forEach((c, i) => {
     const createdAt = dayjs().subtract(i * 12 + 3, 'day');
     const status = statuses[i % statuses.length];
@@ -318,7 +208,7 @@ function generateOrders(): Order[] {
       courseId: c.id,
       courseTitle: c.title,
       courseCover: c.cover,
-      originalAmount: c.originalPrice ?? c.price,
+      originalAmount: c.price,
       payableAmount: c.price,
       currency: 'CNY',
       paymentMethod: methods[i % methods.length],
@@ -344,86 +234,7 @@ export const homeStats: HomeStats = {
 };
 
 // ---------- API ----------
-export const courseApi = {
-  getAll: (): Promise<Course[]> => delay(courses),
-
-  getById: (id: number): Promise<Course | undefined> =>
-    delay(courses.find((c) => c.id === id)),
-
-  getFeatured: (): Promise<Course[]> => delay(courses.slice(0, 8)),
-
-  getPopular: (): Promise<Course[]> =>
-    delay([...courses].sort((a, b) => b.studentCount - a.studentCount).slice(0, 6)),
-
-  getNewReleases: (): Promise<Course[]> =>
-    delay([...courses].sort((a, b) => b.id - a.id).slice(0, 4)),
-
-  getFree: (): Promise<Course[]> => delay(courses.filter((c) => c.price === 0)),
-
-  getEnrolled: (): Promise<Course[]> => delay(courses.filter((c) => c.enrolled)),
-
-  search: (params: {
-    keyword?: string;
-    category?: string;
-    level?: string;
-    price?: string;
-    sort?: string;
-    page?: number;
-    pageSize?: number;
-  }): Promise<PaginatedResponse<Course>> => {
-    let filtered = [...courses];
-    if (params.keyword) {
-      const kw = params.keyword.toLowerCase();
-      filtered = filtered.filter(
-        (c) =>
-          c.title.toLowerCase().includes(kw) ||
-          c.teacherName.toLowerCase().includes(kw) ||
-          c.description.toLowerCase().includes(kw),
-      );
-    }
-    if (params.category && params.category !== 'ALL') {
-      filtered = filtered.filter((c) => c.category === params.category);
-    }
-    if (params.level && params.level !== 'ALL') {
-      filtered = filtered.filter((c) => c.level === params.level);
-    }
-    if (params.price === 'FREE') filtered = filtered.filter((c) => c.price === 0);
-    if (params.price === 'PAID') filtered = filtered.filter((c) => c.price > 0);
-
-    if (params.sort === 'popular') filtered.sort((a, b) => b.studentCount - a.studentCount);
-    if (params.sort === 'rating') filtered.sort((a, b) => b.rating - a.rating);
-    if (params.sort === 'price_asc') filtered.sort((a, b) => a.price - b.price);
-    if (params.sort === 'price_desc') filtered.sort((a, b) => b.price - a.price);
-    if (params.sort === 'newest') filtered.sort((a, b) => b.id - a.id);
-
-    const page = params.page ?? 1;
-    const pageSize = params.pageSize ?? 12;
-    const start = (page - 1) * pageSize;
-    return delay({
-      list: filtered.slice(start, start + pageSize),
-      total: filtered.length,
-      page,
-      pageSize,
-    });
-  },
-
-  enroll: (id: number): Promise<{ success: boolean }> => {
-    const c = courses.find((x) => x.id === id);
-    if (c) { c.enrolled = true; c.progress = 0; }
-    return delay({ success: true });
-  },
-
-  updateProgress: (courseId: number, chapterId: number): Promise<{ success: boolean }> => {
-    const c = courses.find((x) => x.id === courseId);
-    if (c) {
-      const ch = c.chapters.find((x) => x.id === chapterId);
-      if (ch) ch.completed = true;
-      const done = c.chapters.filter((x) => x.completed).length;
-      c.progress = Math.round((done / c.chapters.length) * 100);
-    }
-    return delay({ success: true });
-  },
-};
+export { courseApi };
 
 export const liveApi = {
   getRooms: (): Promise<LiveRoom[]> => delay(liveRooms),
@@ -443,14 +254,22 @@ export const examApi = {
 export const { orderApi, paymentApi } = createMockCheckoutApi({
   seedOrders: orders,
   courses: {
-    getCourse: (courseId) => courses.find((course) => course.id === courseId),
-    grantCourseAccess: (courseId) => {
-      const course = courses.find((item) => item.id === courseId);
-      if (course) {
-        course.enrolled = true;
-        course.progress = 0;
+    getCourse: async (courseId: string) => {
+      const seeded = mockCourseSeeds.find((c) => c.id === courseId);
+      if (seeded) return seeded;
+      try {
+        const course = await courseApi.getById(courseId);
+        return {
+          id: course.id,
+          title: course.title,
+          price: Number(course.price),
+          cover: course.coverUrl ?? cover(0),
+        };
+      } catch {
+        return undefined;
       }
     },
+    grantCourseAccess: () => {},
   },
 });
 

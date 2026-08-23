@@ -6,35 +6,54 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import {
-  Star, Users, Clock, Play, FileText, HelpCircle, ChevronDown,
-  ShoppingCart, Check, Award, BookOpen,
+  Star, Users, Play, ShoppingCart, Check, BookOpen, Send, AlertCircle, Lock,
 } from 'lucide-react';
+import dayjs from 'dayjs';
 import { useCourseStore } from '@/stores/useCourseStore';
 import { useCartStore } from '@/stores/useCartStore';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { courseApi } from '@/services/api';
-import ProgressBar from '@/components/ProgressBar';
+import { courseApi } from '@/services/courseApi';
+import { cover } from '@/services/api';
+import { apiErrorText } from '@/services/http';
 import { cn } from '@/utils/cn';
+import type { CourseDetail as CourseDetailType } from '@/types';
+
+const roleLabel: Record<string, string> = {
+  OWNER: '主讲教师',
+  CO_TEACHER: '助教',
+};
+
+function maskedId(id: string | undefined): string {
+  if (!id) return '讲师';
+  if (id.length <= 6) return id;
+  return `...${id.slice(-6)}`;
+}
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { currentCourse, loading, fetchCourse } = useCourseStore();
+  const { currentCourse, loading, error, fetchCourse } = useCourseStore();
   const { addToCart, isInCart } = useCartStore();
   const token = useAuthStore((state) => state.token);
-  const [openChapter, setOpenChapter] = useState<number | null>(1);
   const [added, setAdded] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [purchaseError, setPurchaseError] = useState('');
 
+  // 评价表单
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewContent, setReviewContent] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const [reviewSuccess, setReviewSuccess] = useState(false);
+
   useEffect(() => {
-    if (id) fetchCourse(id);
+    if (id) void fetchCourse(id);
   }, [id, fetchCourse]);
 
   const enrollFreeCourse = useCallback(async () => {
     const course = currentCourse;
-    if (!course || course.price !== 0 || course.enrolled || enrolling) return;
+    if (!course || Number(course.price) !== 0 || course.enrolled || enrolling) return;
 
     if (!token) {
       const redirect = `/courses/${course.id}?intent=enroll`;
@@ -48,8 +67,8 @@ export default function CourseDetail() {
       await courseApi.enroll(course.id);
       await fetchCourse(String(course.id));
       navigate(`/learn/${course.id}`);
-    } catch {
-      setPurchaseError('免费选课失败，请稍后重试');
+    } catch (e) {
+      setPurchaseError(apiErrorText(e));
     } finally {
       setEnrolling(false);
     }
@@ -59,14 +78,33 @@ export default function CourseDetail() {
     if (
       searchParams.get('intent') === 'enroll' &&
       token &&
-      currentCourse?.price === 0 &&
+      currentCourse &&
+      Number(currentCourse.price) === 0 &&
       !currentCourse.enrolled
     ) {
       void enrollFreeCourse();
     }
   }, [currentCourse, enrollFreeCourse, searchParams, token]);
 
-  if (loading || !currentCourse) {
+  const submitReview = useCallback(async () => {
+    if (!currentCourse || reviewSubmitting) return;
+    setReviewSubmitting(true);
+    setReviewError('');
+    setReviewSuccess(false);
+    try {
+      await courseApi.submitReview(currentCourse.id, reviewRating, reviewContent.trim());
+      setReviewContent('');
+      setReviewSuccess(true);
+      await fetchCourse(currentCourse.id);
+      window.setTimeout(() => setReviewSuccess(false), 2500);
+    } catch (e) {
+      setReviewError(apiErrorText(e));
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }, [currentCourse, fetchCourse, reviewContent, reviewRating, reviewSubmitting]);
+
+  if (loading && !currentCourse) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-indigo-800 border-t-transparent animate-spin" />
@@ -74,33 +112,33 @@ export default function CourseDetail() {
     );
   }
 
-  const course = currentCourse;
+  if (!currentCourse) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-24 text-center">
+        <AlertCircle size={40} className="mx-auto text-red-400 mb-4" />
+        <p className="font-display text-xl text-ink-600 mb-2">课程加载失败</p>
+        <p className="text-sm text-ink-400 mb-6">{error ?? '课程不存在或已下架'}</p>
+        <Link to="/courses" className="btn-primary">返回课程列表</Link>
+      </div>
+    );
+  }
+
+  const course: CourseDetailType = currentCourse;
   const inCart = isInCart(course.id);
-  const totalCoursewares = course.chapters.reduce(
-    (sum, ch) => sum + ch.coursewares.length, 0
-  );
-  const completedCoursewares = course.chapters.reduce(
-    (sum, ch) => sum + ch.coursewares.filter((cw) => cw.completed).length, 0
-  );
+  const isFree = Number(course.price) === 0;
+  const coverSrc = course.coverUrl ?? cover(0);
+  const mainTeacher = course.teachers?.[0];
 
   const handleAddToCart = () => {
     addToCart({
       courseId: course.id,
       title: course.title,
-      price: course.price,
-      cover: course.cover,
-      teacherName: course.teacherName,
+      price: Number(course.price),
+      cover: coverSrc,
+      teacherName: mainTeacher?.teacherId ?? '讲师',
     });
     setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
-  };
-
-  const getCoursewareIcon = (type: string) => {
-    switch (type) {
-      case 'video': return <Play size={14} />;
-      case 'quiz': return <HelpCircle size={14} />;
-      default: return <FileText size={14} />;
-    }
+    window.setTimeout(() => setAdded(false), 2000);
   };
 
   return (
@@ -108,37 +146,36 @@ export default function CourseDetail() {
       {/* Course Hero */}
       <section
         className="bg-gradient-to-br from-indigo-900 via-indigo-800 to-ink-900 py-16"
-        style={{ backgroundImage: `linear-gradient(rgba(30, 27, 75, 0.82), rgba(30, 27, 75, 0.92)), url(${course.cover})` }}
+        style={{ backgroundImage: `linear-gradient(rgba(30, 27, 75, 0.82), rgba(30, 27, 75, 0.92)), url(${coverSrc})` }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-3 gap-10">
             <div className="md:col-span-2 text-white">
               <div className="flex items-center gap-2 mb-4">
-                <span className="badge bg-white/20 text-white backdrop-blur-sm">{course.category}</span>
+                <span className="badge bg-white/20 text-white backdrop-blur-sm">{course.categoryName}</span>
                 <span className="badge bg-amber-500 text-white">{course.level}</span>
               </div>
               <h1 className="font-display text-3xl md:text-5xl font-bold leading-tight mb-4">
                 {course.title}
               </h1>
+              {course.subtitle && (
+                <p className="text-base text-white/70 mb-2">{course.subtitle}</p>
+              )}
               <p className="text-lg text-white/80 mb-6 max-w-2xl">{course.description}</p>
 
               <div className="flex flex-wrap items-center gap-6 text-sm text-white/90">
                 <span className="flex items-center gap-1.5">
                   <Star size={16} className="fill-amber-400 text-amber-400" />
-                  <span className="font-bold">{course.rating}</span>
-                  <span className="text-white/60">({course.reviewCount} 评价)</span>
+                  <span className="font-bold">{course.ratingAvg != null ? Number(course.ratingAvg).toFixed(1) : '暂无'}</span>
+                  <span className="text-white/60">({course.ratingCount} 评价)</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Users size={16} />
-                  {course.studentCount.toLocaleString()} 名学员
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Clock size={16} />
-                  {course.totalDuration}
+                  {course.enrollmentCount.toLocaleString()} 名学员
                 </span>
                 <span className="flex items-center gap-1.5">
                   <BookOpen size={16} />
-                  {course.chapters.length} 章 · {totalCoursewares} 节
+                  {course.lifecycleStatus === 'PUBLISHED' ? '已发布' : course.lifecycleStatus}
                 </span>
               </div>
             </div>
@@ -146,17 +183,11 @@ export default function CourseDetail() {
             {/* Price Card */}
             <div className="bg-white p-6 self-start shadow-2xl">
               <div className="flex items-baseline gap-3 mb-1">
-                <span className="font-display text-4xl font-bold text-indigo-800">¥{course.price}</span>
-                {course.originalPrice !== undefined && (
-                  <span className="text-lg text-ink-300 line-through">¥{course.originalPrice}</span>
-                )}
+                <span className="font-display text-4xl font-bold text-indigo-800">
+                  {isFree ? '免费' : `¥${course.price}`}
+                </span>
               </div>
-              {course.originalPrice !== undefined && (
-                <p className="text-xs text-amber-600 font-medium mb-5">
-                  限时优惠，立省 ¥{course.originalPrice - course.price}
-                </p>
-              )}
-              <div className="space-y-3 mb-5">
+              <div className="space-y-3 mb-5 mt-4">
                 {course.enrolled ? (
                   <Link
                     to={`/learn/${course.id}`}
@@ -165,7 +196,7 @@ export default function CourseDetail() {
                     <Play size={16} />
                     继续学习
                   </Link>
-                ) : course.price === 0 ? (
+                ) : isFree ? (
                   <button
                     type="button"
                     disabled={enrolling}
@@ -228,79 +259,23 @@ export default function CourseDetail() {
                 课程简介
               </h2>
               <p className="text-ink-600 leading-relaxed">{course.description}</p>
-              <div className="flex flex-wrap gap-2 mt-5">
-                {course.whatYouLearn.map((tag) => (
-                  <span key={tag} className="badge-indigo">{tag}</span>
-                ))}
-              </div>
+              <p className="text-xs text-ink-400 mt-4">
+                课程编号：{course.id} · 分类：{course.categoryName} · 币种：{course.currency}
+              </p>
             </section>
 
-            {/* Chapters Accordion */}
+            {/* Chapters Placeholder */}
             <section>
               <h2 className="font-display text-2xl font-bold text-ink-900 mb-5 flex items-center gap-3">
                 <span className="w-1 h-6 bg-amber-600" />
                 课程大纲
               </h2>
-              <div className="border border-ink-100">
-                {course.chapters.map((chapter, idx) => (
-                  <div key={chapter.id} className="border-b border-ink-100 last:border-b-0">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setOpenChapter(openChapter === chapter.id ? null : chapter.id)
-                      }
-                      className="w-full flex items-center justify-between px-5 py-4 hover:bg-ink-50/50 transition-colors text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="font-display text-lg font-bold text-indigo-800/60 w-8">
-                          {String(idx + 1).padStart(2, '0')}
-                        </span>
-                        <div>
-                          <span className="font-medium text-ink-900">{chapter.title}</span>
-                          <span className="text-xs text-ink-400 ml-3">
-                            {chapter.coursewares.length} 节
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronDown
-                        size={18}
-                        className={cn(
-                          'text-ink-400 transition-transform flex-shrink-0',
-                          openChapter === chapter.id && 'rotate-180'
-                        )}
-                      />
-                    </button>
-                    {openChapter === chapter.id && (
-                      <div className="bg-ink-50/30 animate-fade-in">
-                        {chapter.coursewares.map((cw) => (
-                          <div
-                            key={cw.id}
-                            className="flex items-center justify-between px-5 py-3 border-t border-ink-100 hover:bg-white transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className={cn(
-                                'flex items-center justify-center w-7 h-7',
-                                cw.completed ? 'text-green-600' : 'text-ink-400'
-                              )}>
-                                {getCoursewareIcon(cw.type)}
-                              </span>
-                              <span className={cn(
-                                'text-sm',
-                                cw.completed ? 'text-ink-400 line-through' : 'text-ink-700'
-                              )}>
-                                {cw.title}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              {cw.completed && <Check size={14} className="text-green-600" />}
-                              <span className="text-xs text-ink-400">{cw.duration} 分钟</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="border border-ink-100 bg-ink-50/40 px-6 py-14 text-center">
+                <BookOpen size={36} className="mx-auto text-ink-200 mb-3" strokeWidth={1} />
+                <p className="font-display text-lg font-semibold text-ink-500">目录即将上线</p>
+                <p className="text-sm text-ink-400 mt-2">
+                  章节与课件内容将在内容模块接入后展示，请先加入课程开始学习
+                </p>
               </div>
             </section>
 
@@ -310,37 +285,93 @@ export default function CourseDetail() {
                 <span className="w-1 h-6 bg-amber-600" />
                 学员评价
               </h2>
-              <div className="space-y-4">
-                {course.reviews.map((review) => (
-                  <div key={review.id} className="card-editorial p-5">
-                    <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                        <span className="text-sm font-semibold text-indigo-800">
-                          {review.userName.charAt(0)}
-                        </span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-ink-900 text-sm">{review.userName}</span>
-                          <span className="text-xs text-ink-400">{review.date}</span>
+
+              {/* Review Form (enrolled only) */}
+              {course.enrolled && (
+                <div className="card-editorial p-5 mb-6">
+                  <h3 className="font-display text-lg font-bold text-ink-900 mb-3">写下你的评价</h3>
+                  <div className="flex items-center gap-1 mb-3">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        aria-label={`${i + 1} 星`}
+                        onClick={() => setReviewRating(i + 1)}
+                        className="p-0.5"
+                      >
+                        <Star
+                          size={22}
+                          className={i < reviewRating
+                            ? 'fill-amber-500 text-amber-500'
+                            : 'text-ink-200 hover:text-amber-300'}
+                        />
+                      </button>
+                    ))}
+                    <span className="ml-2 text-sm text-ink-500">{reviewRating} 星</span>
+                  </div>
+                  <textarea
+                    value={reviewContent}
+                    onChange={(e) => setReviewContent(e.target.value)}
+                    rows={3}
+                    maxLength={500}
+                    placeholder="分享你的学习体验（选填，最多 500 字）"
+                    className="w-full border border-ink-200 p-3 text-sm text-ink-800 placeholder:text-ink-400 focus:outline-none focus:border-indigo-800 resize-y"
+                  />
+                  <div className="mt-3 flex items-center justify-between">
+                    {reviewError && <p role="alert" className="text-sm text-red-600">{reviewError}</p>}
+                    {reviewSuccess && <p className="text-sm text-green-600">评价已提交，感谢反馈！</p>}
+                    <button
+                      type="button"
+                      disabled={reviewSubmitting || reviewRating < 1}
+                      onClick={submitReview}
+                      className="btn-primary !px-5 !py-2 text-sm ml-auto disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <Send size={14} />
+                      {reviewSubmitting ? '提交中…' : '提交评价'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {course.reviews.length === 0 ? (
+                <div className="card-editorial p-8 text-center text-ink-400">
+                  <p>暂无评价，快来抢沙发～</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {course.reviews.map((review) => (
+                    <div key={review.id} className="card-editorial p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-semibold text-indigo-800">学</span>
                         </div>
-                        <div className="flex items-center gap-0.5 mb-2">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              size={14}
-                              className={i < review.rating
-                                ? 'fill-amber-500 text-amber-500'
-                                : 'text-ink-200'}
-                            />
-                          ))}
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-ink-900 text-sm">
+                              学员 {maskedId(review.studentId)}
+                            </span>
+                            <span className="text-xs text-ink-400">
+                              {dayjs(review.createdAt).format('YYYY-MM-DD')}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-0.5 mb-2">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                size={14}
+                                className={i < review.rating
+                                  ? 'fill-amber-500 text-amber-500'
+                                  : 'text-ink-200'}
+                              />
+                            ))}
+                          </div>
+                          <p className="text-sm text-ink-600 leading-relaxed">{review.content || '（无文字评价）'}</p>
                         </div>
-                        <p className="text-sm text-ink-600 leading-relaxed">{review.content}</p>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
 
@@ -351,36 +382,32 @@ export default function CourseDetail() {
               <h3 className="font-display text-lg font-bold text-ink-900 mb-4">讲师介绍</h3>
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 bg-gradient-to-br from-indigo-700 to-indigo-900 flex items-center justify-center">
-                  <span className="text-xl font-bold text-paper">
-                    {course.teacherName.charAt(0)}
-                  </span>
+                  <span className="text-xl font-bold text-paper">师</span>
                 </div>
                 <div>
-                  <p className="font-semibold text-ink-900">{course.teacherName}</p>
-                  <p className="text-sm text-ink-500">{course.teacherTitle}</p>
+                  <p className="font-semibold text-ink-900">
+                    {mainTeacher ? `讲师 ${maskedId(mainTeacher.teacherId)}` : '讲师信息即将上线'}
+                  </p>
+                  <p className="text-sm text-ink-500">
+                    {mainTeacher ? (roleLabel[mainTeacher.teacherRole] ?? mainTeacher.teacherRole) : '—'}
+                  </p>
                 </div>
               </div>
+              {course.teachers && course.teachers.length > 1 && (
+                <p className="text-xs text-ink-400">
+                  共 {course.teachers.length} 位教师（含助教）
+                </p>
+              )}
             </div>
 
-            {/* Progress Card (if enrolled) */}
+            {/* Enrolled note */}
             {course.enrolled && (
               <div className="card-editorial p-6">
-                <h3 className="font-display text-lg font-bold text-ink-900 mb-4">学习进度</h3>
-                <ProgressBar progress={course.progress} showLabel />
-                <div className="mt-4 grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <p className="font-display text-2xl font-bold text-indigo-800">
-                      {completedCoursewares}/{totalCoursewares}
-                    </p>
-                    <p className="text-xs text-ink-400">已完成课时</p>
-                  </div>
-                  <div>
-                    <p className="font-display text-2xl font-bold text-amber-600">
-                      {course.progress}%
-                    </p>
-                    <p className="text-xs text-ink-400">总进度</p>
-                  </div>
-                </div>
+                <h3 className="font-display text-lg font-bold text-ink-900 mb-3">学习进度</h3>
+                <p className="text-sm text-ink-500 flex items-start gap-2">
+                  <Lock size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                  学习进度将在内容模块（章节/课件）上线后展示
+                </p>
               </div>
             )}
 
@@ -389,16 +416,12 @@ export default function CourseDetail() {
               <h3 className="font-display text-lg font-bold text-ink-900 mb-4">课程特色</h3>
               <ul className="space-y-3 text-sm text-ink-600">
                 <li className="flex items-start gap-3">
-                  <Award size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                  <Check size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
                   完成课程获得认证证书
                 </li>
                 <li className="flex items-start gap-3">
-                  <Play size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
-                  {course.totalDuration} 高清视频
-                </li>
-                <li className="flex items-start gap-3">
-                  <FileText size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
-                  配套源码与学习资料
+                  <BookOpen size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                  {course.enrollmentCount.toLocaleString()} 名学员共同学习
                 </li>
                 <li className="flex items-start gap-3">
                   <Users size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />

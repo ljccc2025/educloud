@@ -11,7 +11,7 @@ import {
   getCheckoutIntentKey,
 } from '@/utils/checkoutSession';
 import { useCartStore } from '@/stores/useCartStore';
-import type { Course, Order, PaymentMethod } from '@/types';
+import type { CourseDetail, Order, PaymentMethod } from '@/types';
 
 type ViewState =
   | 'LOADING'
@@ -24,12 +24,12 @@ export default function Checkout() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
   const removeFromCart = useCartStore((state) => state.removeFromCart);
-  const [course, setCourse] = useState<Course>();
+  const [course, setCourse] = useState<CourseDetail>();
   const [order, setOrder] = useState<Order>();
   const [method, setMethod] = useState<PaymentMethod>('ALIPAY');
   const [viewState, setViewState] = useState<ViewState>('LOADING');
   const [error, setError] = useState('');
-  const numericCourseId = Number(courseId);
+  const courseIdParam = courseId ?? '';
 
   const finishPaidOrder = useCallback(
     (paidOrder: Order) => {
@@ -44,7 +44,7 @@ export default function Checkout() {
     let cancelled = false;
 
     const loadCheckout = async () => {
-      if (!Number.isInteger(numericCourseId)) {
+      if (!courseIdParam) {
         setError('课程参数无效');
         setViewState('READY');
         return;
@@ -52,8 +52,8 @@ export default function Checkout() {
 
       try {
         const [foundCourse, foundOrder] = await Promise.all([
-          courseApi.getById(numericCourseId),
-          orderApi.getPayableByCourse(numericCourseId),
+          courseApi.getById(courseIdParam),
+          orderApi.getPayableByCourse(courseIdParam),
         ]);
         if (cancelled) return;
 
@@ -62,7 +62,7 @@ export default function Checkout() {
           setViewState('READY');
           return;
         }
-        if (foundCourse.price === 0) {
+        if (Number(foundCourse.price) === 0) {
           navigate(`/courses/${foundCourse.id}`, { replace: true });
           return;
         }
@@ -109,7 +109,7 @@ export default function Checkout() {
     return () => {
       cancelled = true;
     };
-  }, [finishPaidOrder, navigate, numericCourseId]);
+  }, [courseIdParam, finishPaidOrder, navigate]);
 
   useEffect(() => {
     if (viewState !== 'CONFIRMING' || !order) return;
@@ -239,7 +239,9 @@ export default function Checkout() {
               >
                 {viewState === 'CONFIRMING'
                   ? '正在确认支付结果…'
-                  : `确认支付 ¥${course.price}`}
+                  : Number(course.price) === 0
+                    ? '确认支付 ¥0'
+                    : `确认支付 ¥${course.price}`}
               </button>
               <Link
                 to={`/courses/${course.id}`}

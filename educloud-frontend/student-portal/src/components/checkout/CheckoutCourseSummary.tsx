@@ -1,8 +1,9 @@
-import type { Course } from '@/types';
+import { cover } from '@/services/api';
+import type { CourseDetail } from '@/types';
 
-export default function CheckoutCourseSummary({ course }: { course: Course }) {
-  const originalAmount = course.originalPrice ?? course.price;
-  const discount = originalAmount - course.price;
+export default function CheckoutCourseSummary({ course }: { course: CourseDetail }) {
+  const price = Number(course.price);
+  const coverSrc = course.coverUrl ?? cover(0);
 
   return (
     <section
@@ -11,13 +12,13 @@ export default function CheckoutCourseSummary({ course }: { course: Course }) {
     >
       <div className="flex flex-col gap-5 sm:flex-row">
         <img
-          src={course.cover}
+          src={coverSrc}
           alt=""
           className="h-32 w-full rounded-2xl object-cover sm:w-52"
         />
         <div className="min-w-0 flex-1">
           <p className="text-sm text-ink-400">
-            {course.teacherName} · 永久访问
+            {course.teachers?.[0]?.teacherId ?? '讲师'} · 永久访问
           </p>
           <h2
             id="checkout-course-title"
@@ -27,17 +28,10 @@ export default function CheckoutCourseSummary({ course }: { course: Course }) {
           </h2>
           <div className="mt-5 flex flex-wrap items-baseline gap-3">
             <strong className="font-display text-3xl text-indigo-800">
-              ¥{course.price}
+              {price === 0 ? '免费' : `¥${course.price}`}
             </strong>
-            {discount > 0 && (
-              <>
-                <span className="text-ink-300 line-through">
-                  ¥{originalAmount}
-                </span>
-                <span className="text-sm text-amber-600">
-                  立省 ¥{discount}
-                </span>
-              </>
+            {price > 0 && (
+              <span className="text-sm text-ink-400">{course.currency ?? 'CNY'}</span>
             )}
           </div>
         </div>
