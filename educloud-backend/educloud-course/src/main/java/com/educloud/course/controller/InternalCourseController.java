@@ -71,7 +71,8 @@ public class InternalCourseController {
                         ? null : String.valueOf(course.getPublishedVersionId()),
                 course.getDraftVersionId() == null
                         ? null : String.valueOf(course.getDraftVersionId()),
-                String.valueOf(course.getOwnerTeacherId()),
+                course.getOwnerTeacherId() == null
+                        ? null : String.valueOf(course.getOwnerTeacherId()),
                 false,
                 teachers);
     }

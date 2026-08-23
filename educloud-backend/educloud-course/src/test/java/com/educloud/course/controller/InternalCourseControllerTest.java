@@ -1,5 +1,8 @@
 package com.educloud.course.controller;
 
+import com.baomidou.mybatisplus.core.conditions.ISqlSegment;
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.educloud.common.api.ApiResponseFactory;
 import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.common.web.RequestIdPolicy;
@@ -10,6 +13,8 @@ import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
+import com.educloud.course.support.MybatisPlusTestSupport;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcBuilderCustomizer;
@@ -18,17 +23,21 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -51,6 +60,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class InternalCourseControllerTest {
 
     private static final long COURSE_ID = 101L;
+
+    @BeforeAll
+    static void initMybatisPlusTableInfo() {
+        // 纯 Mockito 切片单测无 Mapper 注册，LambdaWrapper 渲染列名依赖 TableInfo（与
+        // 服务层测试同一共享支持类）。
+        MybatisPlusTestSupport.registerTableInfo(CourseTeacherEntity.class);
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -114,6 +130,17 @@ class InternalCourseControllerTest {
                 .andExpect(jsonPath("$.teachers[0].teacherRole").value("OWNER"))
                 .andExpect(jsonPath("$.teachers[1].teacherId").value("1002"))
                 .andExpect(jsonPath("$.teachers[1].teacherRole").value("CO_TEACHER"));
+
+        // 归属查询 wrapper：按课程过滤且按 joined_at 升序（负责人优先于共同授课的稳定次序）。
+        ArgumentCaptor<Wrapper<CourseTeacherEntity>> captor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(courseTeacherMapper).selectList(captor.capture());
+        LambdaQueryWrapper<CourseTeacherEntity> wrapper =
+                (LambdaQueryWrapper<CourseTeacherEntity>) captor.getValue();
+        assertThat(wrapper.getSqlSegment()).contains("course_id");
+        assertThat(wrapper.getParamNameValuePairs().values()).contains(COURSE_ID);
+        assertThat(wrapper.getExpression().getOrderBy())
+                .extracting(ISqlSegment::getSqlSegment)
+                .containsExactly("joined_at ASC");
     }
 
     @Test
@@ -143,6 +170,7 @@ class InternalCourseControllerTest {
         teacher.setCourseId(COURSE_ID);
         teacher.setTeacherId(1001L);
         teacher.setTeacherRole("OWNER");
+        teacher.setJoinedAt(LocalDateTime.of(2026, 8, 20, 10, 0));
         return teacher;
     }
 
@@ -151,6 +179,7 @@ class InternalCourseControllerTest {
         teacher.setCourseId(COURSE_ID);
         teacher.setTeacherId(1002L);
         teacher.setTeacherRole("CO_TEACHER");
+        teacher.setJoinedAt(LocalDateTime.of(2026, 8, 21, 10, 0));
         return teacher;
     }
 
