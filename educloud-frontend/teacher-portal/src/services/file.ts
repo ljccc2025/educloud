@@ -22,3 +22,8 @@ export async function uploadAvatar(file: File): Promise<string> {
   await uploadToPresigned(session.uploadUrl, file);
   return completeUpload(session.sessionId);
 }
+
+/** 课程封面上传（M05 任务 22）：复用上传会话三段式，返回 fileId（Snowflake string）。 */
+export async function uploadCover(file: File): Promise<string> {
+  return uploadAvatar(file);
+}

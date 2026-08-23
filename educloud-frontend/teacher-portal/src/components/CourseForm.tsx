@@ -1,53 +1,112 @@
-import { useState } from 'react';
-import { Upload, Save, Eye, EyeOff } from 'lucide-react';
-import type { Course, CourseCategory, CourseStatus } from '../types';
+import { useRef, useState } from 'react';
+import { Upload, Save, Loader2, Trash2 } from 'lucide-react';
+import type { Category, CourseDraft, CourseDraftInput, CourseLevel } from '../types';
 import { cn } from '../utils/cn';
+import { apiErrorText } from '../services/http';
+import { teacherCourseApi } from '../services/teacherCourseApi';
 
 interface CourseFormProps {
-  initialCourse?: Course | null;
-  onSubmit: (data: Partial<Course>) => void | Promise<void>;
+  initialDraft?: CourseDraft | null;
+  categories: Category[];
+  onSubmit: (data: CourseDraftInput) => void | Promise<void>;
   onCancel?: () => void;
   loading?: boolean;
   variant?: 'page' | 'modal';
   errorMessage?: string | null;
+  /** 提交按钮文案（默认“保存草稿”）。 */
+  submitLabel?: string;
 }
 
-const categories: { value: CourseCategory; label: string }[] = [
-  { value: 'backend', label: '后端开发' },
-  { value: 'frontend', label: '前端开发' },
-  { value: 'data', label: '数据分析' },
-  { value: 'ai', label: '人工智能' },
-  { value: 'devops', label: '运维部署' },
-  { value: 'mobile', label: '移动开发' },
+const levels: { value: CourseLevel; label: string }[] = [
+  { value: 'BEGINNER', label: '入门' },
+  { value: 'INTERMEDIATE', label: '进阶' },
+  { value: 'ADVANCED', label: '高级' },
 ];
 
+function flattenCategories(categories: Category[]): Category[] {
+  return categories.flatMap((c) => [c, ...flattenCategories(c.children)]);
+}
+
+/**
+ * 课程基本信息表单（M05 任务 22 真实联调）：字段对齐 CourseCreateRequest/
+ * CourseDraftUpdateRequest —— title/categoryId/level/price/currency 必填，
+ * subtitle/description/coverFileId 可空；封面上传复用 file.ts 三段式返回 fileId。
+ * 发布状态不在此选择（真实流程：DRAFT → 提交审核，见 CourseEdit）。
+ */
 export default function CourseForm({
-  initialCourse,
+  initialDraft,
+  categories,
   onSubmit,
   onCancel,
   loading,
   variant = 'page',
   errorMessage,
+  submitLabel = '保存草稿',
 }: CourseFormProps) {
   const isModal = variant === 'modal';
-  const [title, setTitle] = useState(initialCourse?.title ?? '');
-  const [description, setDescription] = useState(initialCourse?.description ?? '');
-  const [category, setCategory] = useState<CourseCategory>(initialCourse?.category ?? 'backend');
-  const [price, setPrice] = useState(initialCourse?.price?.toString() ?? '0');
-  const [cover, setCover] = useState(initialCourse?.cover ?? '');
-  const [status, setStatus] = useState<CourseStatus>(initialCourse?.status ?? 'DRAFT');
+  const flatCategories = flattenCategories(categories);
+  const [title, setTitle] = useState(initialDraft?.title ?? '');
+  const [subtitle, setSubtitle] = useState(initialDraft?.subtitle ?? '');
+  const [description, setDescription] = useState(initialDraft?.description ?? '');
+  const [categoryId, setCategoryId] = useState(initialDraft?.categoryId ?? '');
+  const [level, setLevel] = useState<CourseLevel>(initialDraft?.level ?? 'BEGINNER');
+  const [price, setPrice] = useState(initialDraft?.price ?? '0');
+  const [coverFileId, setCoverFileId] = useState<string | null>(initialDraft?.coverFileId ?? null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setCoverError('仅支持图片文件（JPG/PNG/WebP 等）');
+      return;
+    }
+    setCoverUploading(true);
+    setCoverError(null);
+    try {
+      const fileId = await teacherCourseApi.uploadCover(file);
+      setCoverFileId(fileId);
+      setCoverPreview(URL.createObjectURL(file));
+    } catch (e) {
+      setCoverError(apiErrorText(e));
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  const removeCover = () => {
+    setCoverFileId(null);
+    setCoverPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
-      title,
-      description,
-      category,
-      price: Number(price) || 0,
-      cover: cover || 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=600&h=400&fit=crop',
-      status,
+    if (!title.trim()) {
+      setFormError('请输入课程标题');
+      return;
+    }
+    if (!categoryId) {
+      setFormError('请选择课程分类');
+      return;
+    }
+    setFormError(null);
+    void onSubmit({
+      title: title.trim(),
+      subtitle: subtitle.trim() ? subtitle.trim() : null,
+      description: description.trim() ? description.trim() : null,
+      coverFileId,
+      level,
+      price: price || '0',
+      currency: 'CNY',
+      categoryId,
     });
   };
+
+  const shownError = formError ?? errorMessage;
 
   return (
     <form
@@ -72,6 +131,18 @@ export default function CourseForm({
         />
       </div>
 
+      {/* Subtitle */}
+      <div>
+        <label className="block text-sm font-medium text-ink-700 mb-2">课程副标题</label>
+        <input
+          type="text"
+          value={subtitle}
+          onChange={(e) => setSubtitle(e.target.value)}
+          placeholder="一句话概括课程亮点（可选）"
+          className="input-field"
+        />
+      </div>
+
       {/* Description */}
       <div>
         <label className="block text-sm font-medium text-ink-700 mb-2">课程简介</label>
@@ -84,19 +155,33 @@ export default function CourseForm({
         />
       </div>
 
-      {/* Category & Price */}
-      <div className={cn('grid grid-cols-1 md:grid-cols-2', isModal ? 'gap-4' : 'gap-6')}>
+      {/* Category / Level / Price */}
+      <div className={cn('grid grid-cols-1 md:grid-cols-3', isModal ? 'gap-4' : 'gap-6')}>
         <div>
-          <label className="block text-sm font-medium text-ink-700 mb-2">课程分类</label>
+          <label className="block text-sm font-medium text-ink-700 mb-2">
+            课程分类 <span className="text-amber-600">*</span>
+          </label>
           <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as CourseCategory)}
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="input-field appearance-none cursor-pointer"
+            required
+          >
+            <option value="" disabled>请选择分类</option>
+            {flatCategories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-ink-700 mb-2">课程难度</label>
+          <select
+            value={level}
+            onChange={(e) => setLevel(e.target.value as CourseLevel)}
             className="input-field appearance-none cursor-pointer"
           >
-            {categories.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
+            {levels.map((l) => (
+              <option key={l.value} value={l.value}>{l.label}</option>
             ))}
           </select>
         </div>
@@ -109,6 +194,7 @@ export default function CourseForm({
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               min="0"
+              step="0.01"
               className="input-field pl-8"
               placeholder="0 表示免费课程"
             />
@@ -125,80 +211,73 @@ export default function CourseForm({
             isModal ? 'p-5' : 'p-8'
           )}
         >
-          {cover ? (
+          {coverPreview || coverFileId ? (
             <div className="space-y-3">
-              <img
-                src={cover}
-                alt="封面预览"
-                className={cn(
-                  'w-full max-w-md mx-auto object-cover border border-ink-100 rounded-xl',
-                  isModal ? 'h-32' : 'h-48'
-                )}
-              />
-              <button
-                type="button"
-                onClick={() => setCover('')}
-                className="btn-ghost text-red-600 hover:text-red-700"
-              >
-                移除封面
-              </button>
+              {coverPreview ? (
+                <img
+                  src={coverPreview}
+                  alt="封面预览"
+                  className={cn(
+                    'w-full max-w-md mx-auto object-cover border border-ink-100 rounded-xl',
+                    isModal ? 'h-32' : 'h-48'
+                  )}
+                />
+              ) : (
+                <p className="text-sm text-ink-500 py-4">已上传封面（fileId: {coverFileId}）</p>
+              )}
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={coverUploading}
+                  className="btn-outline"
+                >
+                  {coverUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {coverUploading ? '上传中…' : '更换封面'}
+                </button>
+                <button
+                  type="button"
+                  onClick={removeCover}
+                  className="btn-ghost text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  移除封面
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
               <Upload className="w-10 h-10 mx-auto text-ink-300" strokeWidth={1.5} />
               <p className="text-sm text-ink-500">点击或拖拽图片到此处上传</p>
               <p className="text-xs text-ink-400">推荐尺寸 1200 × 800，支持 JPG / PNG</p>
-              <input
-                type="text"
-                value={cover}
-                onChange={(e) => setCover(e.target.value)}
-                placeholder="或输入图片 URL"
-                className="input-field mt-4 max-w-sm mx-auto"
-              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={coverUploading}
+                className="btn-outline mt-2"
+              >
+                {coverUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {coverUploading ? '上传中…' : '选择图片上传'}
+              </button>
             </div>
           )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => void handleCoverFile(e.target.files?.[0])}
+          />
+          {coverError && <p role="alert" className="text-sm text-red-600 mt-3">{coverError}</p>}
         </div>
       </div>
 
-      {/* Status Toggle */}
-      <div>
-        <label className="block text-sm font-medium text-ink-700 mb-3">发布状态</label>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => setStatus('DRAFT')}
-            className={cn(
-              'flex items-center gap-2 px-5 py-2.5 border text-sm font-medium transition-all rounded-xl',
-              status === 'DRAFT'
-                ? 'border-ink-800 bg-ink-800 text-white'
-                : 'border-ink-200 text-ink-600 hover:border-ink-400'
-            )}
-          >
-            <EyeOff className="w-4 h-4" />
-            草稿
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatus('PUBLISHED')}
-            className={cn(
-              'flex items-center gap-2 px-5 py-2.5 border text-sm font-medium transition-all rounded-xl',
-              status === 'PUBLISHED'
-                ? 'border-green-600 bg-green-600 text-white'
-                : 'border-ink-200 text-ink-600 hover:border-ink-400'
-            )}
-          >
-            <Eye className="w-4 h-4" />
-            立即发布
-          </button>
-        </div>
-      </div>
-
-      {errorMessage && (
+      {shownError && (
         <div
           role="alert"
           className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700"
         >
-          {errorMessage}
+          {shownError}
         </div>
       )}
 
@@ -210,16 +289,18 @@ export default function CourseForm({
           className={cn('btn-primary', isModal && 'flex-1')}
         >
           <Save className="w-4 h-4" />
-          {loading ? '保存中…' : '保存课程'}
+          {loading ? '保存中…' : submitLabel}
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className={cn('btn-outline', isModal && 'flex-1')}
-        >
-          取消
-        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className={cn('btn-outline', isModal && 'flex-1')}
+          >
+            取消
+          </button>
+        )}
       </div>
     </form>
   );

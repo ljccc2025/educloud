@@ -217,6 +217,7 @@ class NacosGatewayRoutingIT {
         routes.put("/api/v1/courses/c1/chapters/one", "educloud-content");
         routes.put("/api/v1/chapters/one", "educloud-content");
         routes.put("/api/v1/teacher/courses/c1/content-draft", "educloud-content");
+        routes.put("/api/v1/teacher/courses", "educloud-course");
         routes.put("/api/v1/courses/c1", "educloud-course");
         routes.put("/api/v1/orders/one", "educloud-order");
         routes.put("/api/v1/payments/one", "educloud-payment");

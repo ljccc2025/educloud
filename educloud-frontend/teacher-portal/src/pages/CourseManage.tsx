@@ -1,55 +1,93 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, FolderTree, Trash2, Search, Users } from 'lucide-react';
-import { useCourseStore } from '../stores/useCourseStore';
-import type { Course, CourseStatus } from '../types';
+import { Plus, Pencil, FolderTree, Search, Users, RefreshCw, AlertCircle } from 'lucide-react';
+import { teacherCourseApi } from '../services/teacherCourseApi';
+import { apiErrorText } from '../services/http';
+import type { Category, CourseDraftInput, TeacherCourse } from '../types';
 import { cn } from '../utils/cn';
 import CourseCreateModal from '../components/CourseCreateModal';
 
-const statusConfig: Record<CourseStatus, { label: string; cls: string }> = {
+const statusConfig: Record<string, { label: string; cls: string }> = {
   DRAFT: { label: '草稿', cls: 'badge-amber' },
+  PENDING_REVIEW: { label: '待审核', cls: 'badge-indigo' },
+  REJECTED: { label: '已驳回', cls: 'badge-red' },
   PUBLISHED: { label: '已发布', cls: 'badge-green' },
+  OFFLINE: { label: '已下架', cls: 'badge-amber' },
   ARCHIVED: { label: '已归档', cls: 'badge-indigo' },
 };
 
-const categoryLabels: Record<string, string> = {
-  backend: '后端开发',
-  frontend: '前端开发',
-  data: '数据分析',
-  ai: '人工智能',
-  devops: '运维部署',
-  mobile: '移动开发',
-};
+const statusFilters = ['ALL', 'DRAFT', 'PENDING_REVIEW', 'REJECTED', 'PUBLISHED', 'OFFLINE', 'ARCHIVED'] as const;
+type StatusFilter = (typeof statusFilters)[number];
+
+function displayStatus(course: TeacherCourse): string {
+  if (course.versionStatus === 'DRAFT' || course.versionStatus === 'PENDING_REVIEW' || course.versionStatus === 'REJECTED') {
+    return course.versionStatus;
+  }
+  return course.lifecycleStatus;
+}
+
+function formatPrice(price: string | null | undefined): string {
+  if (price == null || price === '' || Number(price) === 0) return '免费';
+  return '¥' + price;
+}
+
+function flattenCategories(categories: Category[]): Category[] {
+  return categories.flatMap((c) => [c, ...flattenCategories(c.children)]);
+}
 
 export default function CourseManage() {
   const navigate = useNavigate();
   const createButtonRef = useRef<HTMLButtonElement>(null);
-  const { courses, loading, fetchCourses, createCourse, deleteCourse } = useCourseStore();
+  const [courses, setCourses] = useState<TeacherCourse[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<CourseStatus | 'ALL'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>('ALL');
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
-    fetchCourses();
-  }, [fetchCourses]);
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    Promise.all([teacherCourseApi.getTeacherCourses({ size: 100 }), teacherCourseApi.getCategories()])
+      .then(([page, cats]) => {
+        if (!alive) return;
+        setCourses(page.items);
+        setCategories(cats);
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setError(apiErrorText(e));
+        setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [retryTick]);
+
+  const categoryNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of flattenCategories(categories)) map[c.id] = c.name;
+    return map;
+  }, [categories]);
 
   const filtered = courses.filter((c) => {
     const matchSearch = c.title.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === 'ALL' || c.status === filterStatus;
+    const matchStatus = filterStatus === 'ALL' || displayStatus(c) === filterStatus;
     return matchSearch && matchStatus;
   });
 
-  const handleDelete = async (course: Course) => {
-    if (window.confirm(`确定删除课程「${course.title}」吗？此操作不可撤销。`)) {
-      await deleteCourse(course.id);
-    }
-  };
-
-  const handleCreate = async (data: Partial<Course>) => {
-    const created = await createCourse(data);
-    setShowCreate(false);
-    navigate(`/courses/edit/${created.id}`);
-  };
+  const handleCreate = useCallback(
+    async (data: CourseDraftInput) => {
+      const created = await teacherCourseApi.createCourse(data);
+      setShowCreate(false);
+      navigate('/courses/edit/' + created.courseId);
+    },
+    [navigate],
+  );
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -82,8 +120,8 @@ export default function CourseManage() {
             className="input-field pl-11"
           />
         </div>
-        <div className="flex gap-2">
-          {(['ALL', 'PUBLISHED', 'DRAFT', 'ARCHIVED'] as const).map((s) => (
+        <div className="flex flex-wrap gap-2">
+          {statusFilters.map((s) => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
@@ -119,51 +157,72 @@ export default function CourseManage() {
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-ink-400">加载中…</td>
                 </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-3">
+                      <AlertCircle className="w-8 h-8 text-red-400" />
+                      <p className="text-ink-500">加载失败：{error}</p>
+                      <button
+                        type="button"
+                        onClick={() => setRetryTick((tick) => tick + 1)}
+                        className="btn-outline"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        重新加载
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-ink-400">暂无课程数据</td>
+                  <td colSpan={6} className="text-center py-12 text-ink-400">
+                    {courses.length === 0 ? '暂无课程数据，点击右上角「新建课程」开始' : '未找到匹配的课程'}
+                  </td>
                 </tr>
               ) : (
                 filtered.map((course) => (
-                  <tr key={course.id}>
+                  <tr key={course.courseId}>
                     <td>
                       <div className="flex items-center gap-3">
-                        <img
-                          src={course.cover}
-                          alt={course.title}
-                          className="w-16 h-12 object-cover flex-shrink-0 bg-ink-100 rounded-md"
-                        />
+                        {course.coverUrl ? (
+                          <img
+                            src={course.coverUrl}
+                            alt={course.title}
+                            className="w-16 h-12 object-cover flex-shrink-0 bg-ink-100 rounded-md"
+                          />
+                        ) : (
+                          <div className="w-16 h-12 flex-shrink-0 bg-ink-100 rounded-md flex items-center justify-center text-ink-300 text-xs">
+                            无封面
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <p className="font-medium text-ink-800 line-clamp-1">{course.title}</p>
-                          <p className="text-xs text-ink-400 mt-0.5">
-                            {course.chapters.length} 章节 · {course.chapters.reduce((acc, ch) => acc + ch.coursewares.length, 0)} 课件
-                          </p>
+                          <p className="text-xs text-ink-400 mt-0.5">版本 v{course.versionId ? course.versionId.slice(-4) : '--'}</p>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <span className="text-ink-600">{categoryLabels[course.category]}</span>
+                      <span className="text-ink-600">{course.categoryId ? (categoryNameById[course.categoryId] ?? '—') : '—'}</span>
                     </td>
                     <td>
                       <span className="flex items-center gap-1 text-ink-700">
                         <Users className="w-3.5 h-3.5 text-ink-400" />
-                        {course.studentCount.toLocaleString()}
+                        {(course.enrollmentCount ?? 0).toLocaleString()}
                       </span>
                     </td>
                     <td>
-                      <span className="font-medium text-ink-800">
-                        {course.price === 0 ? '免费' : `¥${course.price}`}
-                      </span>
+                      <span className="font-medium text-ink-800">{formatPrice(course.price)}</span>
                     </td>
                     <td>
-                      <span className={statusConfig[course.status].cls}>
-                        {statusConfig[course.status].label}
+                      <span className={statusConfig[displayStatus(course)]?.cls ?? 'badge-amber'}>
+                        {statusConfig[displayStatus(course)]?.label ?? course.versionStatus}
                       </span>
                     </td>
                     <td>
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => navigate(`/courses/edit/${course.id}`)}
+                          onClick={() => navigate('/courses/edit/' + course.courseId)}
                           className="btn-ghost"
                           title="编辑"
                         >
@@ -172,16 +231,9 @@ export default function CourseManage() {
                         <button
                           onClick={() => navigate('/content')}
                           className="btn-ghost"
-                          title="管理内容"
+                          title="管理内容（M06 接入）"
                         >
                           <FolderTree className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(course)}
-                          className="btn-ghost text-red-500 hover:text-red-700"
-                          title="删除"
-                        >
-                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>

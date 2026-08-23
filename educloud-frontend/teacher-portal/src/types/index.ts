@@ -159,3 +159,82 @@ export interface EngagementData {
   label: string;
   value: number;
 }
+
+// ---------- 课程真实 API 类型（M05 任务 22：教师课程管理与封面上传） ----------
+// 契约见后端 CourseDraftResponse/TeacherCourseResponse：Snowflake ID 一律 string，
+// 前端禁止 Number() 处理 id；price 为十进制金额字符串。
+export type CourseLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+
+export type CourseVersionStatus = 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED';
+
+export type CourseLifecycleStatus = 'DRAFT' | 'PUBLISHED' | 'OFFLINE' | 'ARCHIVED';
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+  children: Category[];
+}
+
+export interface CourseDraftInput {
+  title: string;
+  subtitle?: string | null;
+  description?: string | null;
+  coverFileId?: string | null;
+  level: CourseLevel;
+  /** 十进制金额字符串（如 "199.00"，"0" 表示免费）。 */
+  price: string;
+  currency: string;
+  categoryId: string;
+}
+
+export interface CourseDraftTeacher {
+  teacherId: string;
+  role: string;
+}
+
+export interface CourseDraft {
+  courseId: string;
+  versionId: string;
+  versionNo: number;
+  title: string;
+  subtitle: string | null;
+  description: string | null;
+  coverFileId: string | null;
+  level: CourseLevel;
+  price: string | null;
+  currency: string | null;
+  categoryId: string | null;
+  versionStatus: CourseVersionStatus;
+  lifecycleStatus: CourseLifecycleStatus;
+  teachers: CourseDraftTeacher[];
+}
+
+export interface TeacherCourse {
+  courseId: string;
+  versionId: string;
+  title: string;
+  coverUrl: string | null;
+  level: string | null;
+  price: string | null;
+  currency: string | null;
+  categoryId: string | null;
+  versionStatus: string;
+  lifecycleStatus: string;
+  enrollmentCount: number;
+}
+
+export interface CourseStudent {
+  studentId: string;
+  displayName: string | null;
+  enrolledAt: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}

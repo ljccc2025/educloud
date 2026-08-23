@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import type { Course } from '../types';
+import type { Category, CourseDraftInput } from '../types';
 import CourseForm from './CourseForm';
+import { teacherCourseApi } from '../services/teacherCourseApi';
+import { apiErrorText } from '../services/http';
 
 interface CourseCreateModalProps {
   onClose: () => void;
-  onSubmit: (data: Partial<Course>) => Promise<void>;
+  onSubmit: (data: CourseDraftInput) => Promise<void>;
   returnFocusRef: RefObject<HTMLButtonElement>;
 }
 
@@ -27,6 +29,23 @@ export default function CourseCreateModal({
   const mountedRef = useRef(true);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    teacherCourseApi
+      .getCategories()
+      .then((data) => {
+        if (alive) setCategories(data);
+      })
+      .catch((e) => {
+        if (alive) setCategoriesError(apiErrorText(e));
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -59,7 +78,7 @@ export default function CourseCreateModal({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [onClose, saving]);
 
-  const handleSubmit = async (data: Partial<Course>) => {
+  const handleSubmit = async (data: CourseDraftInput) => {
     if (saving) return;
 
     setSaving(true);
@@ -69,7 +88,7 @@ export default function CourseCreateModal({
       await onSubmit(data);
     } catch (error) {
       if (mountedRef.current) {
-        setErrorMessage(error instanceof Error ? error.message : '课程创建失败，请稍后重试');
+        setErrorMessage(apiErrorText(error));
       }
     } finally {
       if (mountedRef.current) {
@@ -138,13 +157,23 @@ export default function CourseCreateModal({
             </button>
           </div>
 
-          <CourseForm
-            variant="modal"
-            onSubmit={handleSubmit}
-            onCancel={onClose}
-            loading={saving}
-            errorMessage={errorMessage}
-          />
+          {categoriesError ? (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700">
+              分类加载失败：{categoriesError}
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="text-center py-12 text-ink-400 text-sm">正在加载课程分类…</div>
+          ) : (
+            <CourseForm
+              variant="modal"
+              categories={categories}
+              onSubmit={handleSubmit}
+              onCancel={onClose}
+              loading={saving}
+              errorMessage={errorMessage}
+              submitLabel="创建课程"
+            />
+          )}
         </div>
       </div>
     </div>,

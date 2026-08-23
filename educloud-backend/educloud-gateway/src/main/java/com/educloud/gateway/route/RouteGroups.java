@@ -40,7 +40,7 @@ public final class RouteGroups {
             rule(COURSE,
                     "/api/v1/me/enrollments", "/api/v1/categories/**", "/api/v1/course-drafts/**",
                     "/api/v1/course-audits/**", "/api/v1/courses/**", "/api/v1/course-reviews/**",
-                    "/api/v1/teacher/courses/*/draft"),
+                    "/api/v1/teacher/courses", "/api/v1/teacher/courses/*/draft"),
             rule(USER,
                     "/api/v1/users/**", "/api/v1/roles/**", "/api/v1/permissions/**",
                     "/api/v1/platform-config/**", "/api/v1/security/**",

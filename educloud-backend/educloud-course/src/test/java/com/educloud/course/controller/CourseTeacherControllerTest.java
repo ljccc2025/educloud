@@ -1,6 +1,7 @@
 package com.educloud.course.controller;
 
 import com.educloud.common.api.ApiResponseFactory;
+import com.educloud.common.api.PageResponse;
 import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.common.web.RequestIdPolicy;
 import com.educloud.common.web.ServletRequestContextAccessor;
@@ -9,6 +10,7 @@ import com.educloud.course.config.SecurityConfig;
 import com.educloud.course.dto.request.CourseCreateRequest;
 import com.educloud.course.dto.request.CourseDraftUpdateRequest;
 import com.educloud.course.dto.response.CourseDraftResponse;
+import com.educloud.course.dto.response.TeacherCourseResponse;
 import com.educloud.course.service.CourseService;
 import com.educloud.course.service.CourseVersionService;
 import org.junit.jupiter.api.Test;
@@ -47,10 +49,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * M05 任务 8：教师课程控制器（CourseTeacherController）端点映射与权限测试。
+ * M05 任务 8/22：教师课程控制器（CourseTeacherController）端点映射与权限测试。
  *
  * <p>依据：任务 8 —— POST /courses 需 course:create；GET /teacher/courses/{id}/draft、
- * POST /courses/{id}/drafts、PUT /course-drafts/{versionId} 需 course:update。
+ * POST /courses/{id}/drafts、PUT /course-drafts/{versionId} 需 course:update；
+ * 任务 22 补齐 —— GET /teacher/courses 需 course:update（教师课程管理列表）。
  * @WebMvcTest + mock service 与 JwtDecoder（参照 CategoryControllerTest 模式），
  * JwtDecoder 直接返回带 permissions claim 的 Jwt 对象，验证 @PreAuthorize 方法安全
  * 在安全链中的行为（无 course:create → 403 COURSE_ACCESS_DENIED）。</p>
@@ -83,6 +86,38 @@ class CourseTeacherControllerTest {
 
     @MockBean
     private CourseProperties courseProperties;
+
+    @Test
+    void listCoursesRequiresCourseUpdatePermission() throws Exception {
+        when(jwtDecoder.decode(any())).thenReturn(token("1001", List.of("course:create")));
+
+        mockMvc.perform(get("/api/v1/teacher/courses")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("COURSE_ACCESS_DENIED"));
+    }
+
+    @Test
+    void listCoursesReturnsTeacherCoursesPage() throws Exception {
+        when(jwtDecoder.decode(any())).thenReturn(token("1001", List.of("course:update")));
+        when(courseService.listTeacherCourses(1001L, 1, 20))
+                .thenReturn(PageResponse.of(List.of(new TeacherCourseResponse(
+                        "101", "301", "Spring Boot 实战", null, "BEGINNER",
+                        "199.00", "CNY", "5", "DRAFT", "DRAFT", 12)), 1, 20, 1));
+
+        mockMvc.perform(get("/api/v1/teacher/courses")
+                        .header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.items[0].courseId").value("101"))
+                .andExpect(jsonPath("$.data.items[0].versionId").value("301"))
+                .andExpect(jsonPath("$.data.items[0].versionStatus").value("DRAFT"))
+                .andExpect(jsonPath("$.data.items[0].lifecycleStatus").value("DRAFT"))
+                .andExpect(jsonPath("$.data.items[0].price").value("199.00"))
+                .andExpect(jsonPath("$.data.total").value(1));
+
+        verify(courseService).listTeacherCourses(1001L, 1, 20);
+    }
 
     @Test
     void createCourseRequiresCourseCreatePermission() throws Exception {
@@ -228,6 +263,7 @@ class CourseTeacherControllerTest {
 
     static Stream<Arguments> courseUpdateEndpoints() {
         return Stream.of(
+                Arguments.of("GET", "/api/v1/teacher/courses", null),
                 Arguments.of("GET", "/api/v1/teacher/courses/101/draft", null),
                 Arguments.of("POST", "/api/v1/courses/101/drafts", null),
                 Arguments.of("PUT", "/api/v1/course-drafts/301", UPDATE_BODY));

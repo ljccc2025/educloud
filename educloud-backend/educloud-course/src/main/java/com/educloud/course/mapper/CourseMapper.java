@@ -108,4 +108,35 @@ public interface CourseMapper extends BaseMapper<CourseEntity> {
             @Param("level") String level,
             @Param("priceRange") String priceRange,
             @Param("sort") String sort);
+
+    /**
+     * 教师课程管理列表分页（GET /api/v1/teacher/courses，M05 任务 22）：course_teacher
+     * JOIN course JOIN course_version（COALESCE(draft_version_id, published_version_id)，
+     * 草稿优先——有草稿显示草稿状态，无草稿回落发布版本）一次取回列表项；仅当前教师
+     * 归属（OWNER/CO_TEACHER）的课程。按 updated_at 倒序（附 id 稳定次序）。
+     * SQL 分页由 PaginationInnerInterceptor 处理。
+     */
+    @Select("""
+            <script>
+            SELECT c.id AS course_id,
+                   COALESCE(c.draft_version_id, c.published_version_id) AS version_id,
+                   c.lifecycle_status AS lifecycle_status,
+                   c.enrollment_count AS enrollment_count,
+                   v.title AS title,
+                   v.cover_file_id AS cover_file_id,
+                   v.level AS level,
+                   v.price AS price,
+                   v.currency AS currency,
+                   v.category_id AS category_id,
+                   v.version_status AS version_status
+            FROM course_teacher t
+            JOIN course c ON c.id = t.course_id
+            JOIN course_version v ON v.id = COALESCE(c.draft_version_id, c.published_version_id)
+            WHERE t.teacher_id = #{teacherId}
+            ORDER BY c.updated_at DESC, c.id DESC
+            </script>
+            """)
+    IPage<CourseTeacherRow> selectTeacherCoursesPage(
+            Page<CourseTeacherRow> page,
+            @Param("teacherId") Long teacherId);
 }

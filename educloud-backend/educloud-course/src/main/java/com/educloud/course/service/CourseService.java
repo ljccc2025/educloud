@@ -1,15 +1,20 @@
 package com.educloud.course.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.educloud.common.api.PageResponse;
 import com.educloud.common.error.BusinessException;
 import com.educloud.common.error.CommonErrorCode;
 import com.educloud.course.dto.request.CourseCreateRequest;
 import com.educloud.course.dto.response.CourseDraftResponse;
+import com.educloud.course.dto.response.TeacherCourseResponse;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
 import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.exception.CourseErrorCode;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
+import com.educloud.course.mapper.CourseTeacherRow;
 import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.observability.AuditWriter;
@@ -19,7 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -42,6 +49,10 @@ public class CourseService {
     public static final String LIFECYCLE_OFFLINE = "OFFLINE";
     public static final String LIFECYCLE_ARCHIVED = "ARCHIVED";
     public static final String TEACHER_ROLE_OWNER = "OWNER";
+
+    public static final int DEFAULT_PAGE = 1;
+    public static final int DEFAULT_SIZE = 20;
+    public static final int MAX_SIZE = 100;
 
     private final CourseMapper courseMapper;
     private final CourseTeacherMapper courseTeacherMapper;
@@ -124,6 +135,47 @@ public class CourseService {
 
         return CourseDraftResponse.from(course, draft,
                 List.of(new CourseDraftResponse.Teacher(String.valueOf(teacherId), TEACHER_ROLE_OWNER)));
+    }
+
+    /**
+     * 教师课程管理列表（GET /api/v1/teacher/courses，course:update，M05 任务 22）：
+     * 返回归属当前教师（course_teacher OWNER/CO_TEACHER）的全部课程（含草稿/待审/驳回/
+     * 下架等非公开状态）分页。版本状态由当前工作版本驱动（草稿优先，无草稿回落发布版本）；
+     * 封面按页一次 File 批量 grant（subject=USER 教师本人，不签匿名公开 URL）。
+     */
+    public PageResponse<TeacherCourseResponse> listTeacherCourses(
+            Long teacherId, Integer page, Integer pageSize) {
+        int pageNum = page == null ? DEFAULT_PAGE : Math.max(page, 1);
+        int sizeNum = pageSize == null ? DEFAULT_SIZE : Math.min(Math.max(pageSize, 1), MAX_SIZE);
+        Page<CourseTeacherRow> request = new Page<>(pageNum, sizeNum);
+        IPage<CourseTeacherRow> result = courseMapper.selectTeacherCoursesPage(request, teacherId);
+        List<CourseTeacherRow> rows = result.getRecords();
+
+        Map<Long, Long> courseIdByFileId = new HashMap<>();
+        for (CourseTeacherRow row : rows) {
+            if (row.getCoverFileId() != null) {
+                courseIdByFileId.put(row.getCoverFileId(), row.getCourseId());
+            }
+        }
+        Map<Long, String> coverUrls = courseIdByFileId.isEmpty()
+                ? Map.of()
+                : fileClient.grantCatalogUrls(courseIdByFileId, teacherId);
+
+        List<TeacherCourseResponse> items = rows.stream()
+                .map(row -> new TeacherCourseResponse(
+                        String.valueOf(row.getCourseId()),
+                        row.getVersionId() == null ? null : String.valueOf(row.getVersionId()),
+                        row.getTitle(),
+                        row.getCoverFileId() == null ? null : coverUrls.get(row.getCoverFileId()),
+                        row.getLevel(),
+                        row.getPrice() == null ? null : row.getPrice().toPlainString(),
+                        row.getCurrency(),
+                        row.getCategoryId() == null ? null : String.valueOf(row.getCategoryId()),
+                        row.getVersionStatus(),
+                        row.getLifecycleStatus(),
+                        row.getEnrollmentCount()))
+                .toList();
+        return PageResponse.of(items, pageNum, sizeNum, result.getTotal());
     }
 
     /**
