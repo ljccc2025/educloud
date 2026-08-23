@@ -62,14 +62,14 @@ educloud-frontend/{student,teacher,admin}-portal/src/…  # 任务 16 修改
 - 创建：`educloud-backend/educloud-file/src/main/java/com/educloud/file/config/FileProperties.java`（`@ConfigurationProperties("educloud.file")` record，字段与规格第 10 节一一对应）
 - 测试：`educloud-backend/educloud-file/src/test/java/com/educloud/file/FileApplicationContextTest.java`（复制 `UserApplicationContextTest` 模式：排除 DataSource/Redis/Rabbit/Nacos 自动配置，mock `StringRedisTemplate`/`ConnectionFactory`/`MinioClient`/`OutboxEventMapper`/`OutboxSequenceMapper`，`--educloud.file.storage.endpoint=http://127.0.0.1:9000` 等测试参数）
 
-- [ ] **步骤 1：写上下文测试**（复制 user 的 `UserApplicationContextTest`，替换为 File 的 mapper 与 `MinioClient` mock；断言 `context.isActive()`）
-- [ ] **步骤 2：创建 pom/骨架/application.yml/FileProperties**（此步后 `mvn -pl educloud-file -am test-compile` 可编译）
-- [ ] **步骤 3：运行上下文测试确认失败**
+- [x] **步骤 1：写上下文测试**（复制 user 的 `UserApplicationContextTest`，替换为 File 的 mapper 与 `MinioClient` mock；断言 `context.isActive()`）
+- [x] **步骤 2：创建 pom/骨架/application.yml/FileProperties**（此步后 `mvn -pl educloud-file -am test-compile` 可编译）
+- [x] **步骤 3：运行上下文测试确认失败**
 运行：`cd educloud-backend && mvn -pl educloud-file -am test -Dtest=FileApplicationContextTest -Dsurefire.failIfNoSpecifiedTests=false`
 预期：FAIL——缺 bean（MinioStorageGateway 未实现/配置属性缺失）
-- [ ] **步骤 4：实现让上下文可启动的最小配置**：注册 `MinioClient` bean（`FileStorageConfiguration`，用 FileProperties 构建，懒连接）；`FileDependenciesHealthIndicator` 临时返回 mock（任务 14 替换）。
-- [ ] **步骤 5：运行测试确认通过**（预期 PASS）
-- [ ] **步骤 6：Commit**
+- [x] **步骤 4：实现让上下文可启动的最小配置**：注册 `MinioClient` bean（`FileStorageConfiguration`，用 FileProperties 构建，懒连接）；`FileDependenciesHealthIndicator` 临时返回 mock（任务 14 替换）。
+- [x] **步骤 5：运行测试确认通过**（预期 PASS）
+- [x] **步骤 6：Commit**
 ```bash
 git add educloud-backend/pom.xml educloud-backend/educloud-file
 git commit -m "feat(file): 模块骨架与最小上下文启动"
@@ -82,11 +82,11 @@ git commit -m "feat(file): 模块骨架与最小上下文启动"
 - 创建：`deploy/sql/file/V001__file.sql`（规格第 5 节 4 张表 + 索引 + `file_app` 表级 GRANT：SELECT/INSERT/UPDATE/DELETE；`file_access_audit` 只授 SELECT/INSERT）
 - 测试：`educloud-file/src/test/java/com/educloud/file/mapper/FileSchemaIT.java`（复制 user 的 `SessionSchemaIT` 模式：Testcontainer MySQL，以 file_migration 执行 V000+V001，断言表存在、唯一键、列类型、file_app 可 SELECT/INSERT）
 
-- [ ] **步骤 1：写失败测试**（FileSchemaIT 断言 `file_object` 存在且 `uk_file_object_key` 唯一、`file_binding` 唯一键、`file_upload_session` 状态列）
-- [ ] **步骤 2：运行确认失败**（`mvn -pl educloud-file -am verify -Pintegration -Dtest=FileSchemaIT` 预期 FAIL：表不存在）
-- [ ] **步骤 3：编写 V000/V001 SQL**（对照规格第 5 节 DDL；注意 `file_binding.owner_id VARCHAR(128)`、`file_access_audit.request_id VARCHAR(36)`）
-- [ ] **步骤 4：运行 IT 确认通过**
-- [ ] **步骤 5：Commit**
+- [x] **步骤 1：写失败测试**（FileSchemaIT 断言 `file_object` 存在且 `uk_file_object_key` 唯一、`file_binding` 唯一键、`file_upload_session` 状态列）
+- [x] **步骤 2：运行确认失败**（`mvn -pl educloud-file -am verify -Pintegration -Dtest=FileSchemaIT` 预期 FAIL：表不存在）
+- [x] **步骤 3：编写 V000/V001 SQL**（对照规格第 5 节 DDL；注意 `file_binding.owner_id VARCHAR(128)`、`file_access_audit.request_id VARCHAR(36)`）
+- [x] **步骤 4：运行 IT 确认通过**
+- [x] **步骤 5：Commit**
 ```bash
 git add deploy/sql/file educloud-backend/educloud-file/src/test
 git commit -m "feat(file): educloud_file 库迁移与 Schema 集成测试"
@@ -100,10 +100,10 @@ git commit -m "feat(file): educloud_file 库迁移与 Schema 集成测试"
 - 创建：`config/MybatisPlusConfig.java`（复制 user 模块同文件：PaginationInnerInterceptor + OptimisticLockerInnerInterceptor）
 - 测试：`mapper/FileMapperContractTest.java`（Mockito：`selectOne`/`insert` 冒烟——验证 Mapper 可被 mock 使用）；真实 CRUD 由任务 1 的 FileSchemaIT 覆盖
 
-- [ ] **步骤 1：写失败测试**：`FileMapperContractTest` 断言 4 个 Mapper 接口存在且继承 BaseMapper（编译期契约）
-- [ ] **步骤 2：运行确认失败**（类不存在编译失败）
-- [ ] **步骤 3：实现实体/Mapper/MybatisPlusConfig**
-- [ ] **步骤 4：运行确认通过**；**步骤 5：Commit**（`feat(file): 领域实体与数据访问层`）
+- [x] **步骤 1：写失败测试**：`FileMapperContractTest` 断言 4 个 Mapper 接口存在且继承 BaseMapper（编译期契约）
+- [x] **步骤 2：运行确认失败**（类不存在编译失败）
+- [x] **步骤 3：实现实体/Mapper/MybatisPlusConfig**
+- [x] **步骤 4：运行确认通过**；**步骤 5：Commit**（`feat(file): 领域实体与数据访问层`）
 
 ## 任务 3：StorageGateway 抽象与 MinIO 实现
 
@@ -123,11 +123,11 @@ public interface StorageGateway {
 - 创建：`storage/FileStorageConfiguration.java`（`MinioClient` bean，endpoint/accessKey/secretKey 来自 FileProperties）
 - 测试：`storage/MinioStorageGatewayTest.java`（mock MinioClient：断言 presigned 参数 bucket/key/method=PUT、stat 映射、download 超限抛异常）；`storage/MinioStorageGatewayIT.java`（Testcontainer minio/minio：真实 presigned PUT→stat→sha256 与上传内容一致→delete）
 
-- [ ] **步骤 1：写失败测试**（单测断言接口签名与 mock 行为）
-- [ ] **步骤 2：运行确认失败**
-- [ ] **步骤 3：实现 MinioStorageGateway**（注意：sha256 用 `DigestInputStream` 流式计算，maxBytes 超限抛异常并 abort）
-- [ ] **步骤 4：单测通过；步骤 5：IT 通过**（`-Pintegration`）
-- [ ] **步骤 6：Commit**（`feat(file): MinIO 存储网关（presigned/校验/探测）`）
+- [x] **步骤 1：写失败测试**（单测断言接口签名与 mock 行为）
+- [x] **步骤 2：运行确认失败**
+- [x] **步骤 3：实现 MinioStorageGateway**（注意：sha256 用 `DigestInputStream` 流式计算，maxBytes 超限抛异常并 abort）
+- [x] **步骤 4：单测通过；步骤 5：IT 通过**（`-Pintegration`）
+- [x] **步骤 6：Commit**（`feat(file): MinIO 存储网关（presigned/校验/探测）`）
 
 ## 任务 4：上传会话服务（状态机）
 
@@ -144,10 +144,10 @@ public void expireOverdue(Duration maxAge);  // 供清理任务调用
 ```
 - 测试：`service/UploadSessionServiceTest.java`（mock gateway/mapper：create 生成对象键+presigned URL+落库 PENDING；类型/大小拒绝；complete 时 stat 缺失→`UPLOAD_NOT_VERIFIED`、会话过期→`UPLOAD_SESSION_EXPIRED`、sha256 落对象）
 
-- [ ] **步骤 1：写失败测试**（create 成功路径 + 3 个拒绝路径 + complete 状态机）
-- [ ] **步骤 2：运行确认失败**
-- [ ] **步骤 3：实现**（create：校验→对象键→`file_upload_session(PENDING)`→presigned PUT；complete：锁会话行→校验状态/过期→gateway.stat→下载 sha256→`file_object(AVAILABLE)`+会话 COMPLETED）
-- [ ] **步骤 4：运行通过；步骤 5：Commit**（`feat(file): 上传会话状态机`）
+- [x] **步骤 1：写失败测试**（create 成功路径 + 3 个拒绝路径 + complete 状态机）
+- [x] **步骤 2：运行确认失败**
+- [x] **步骤 3：实现**（create：校验→对象键→`file_upload_session(PENDING)`→presigned PUT；complete：锁会话行→校验状态/过期→gateway.stat→下载 sha256→`file_object(AVAILABLE)`+会话 COMPLETED）
+- [x] **步骤 4：运行通过；步骤 5：Commit**（`feat(file): 上传会话状态机`）
 
 ## 任务 5：文件对象服务（complete 落对象 + 删除）
 
@@ -156,10 +156,10 @@ public void expireOverdue(Duration maxAge);  // 供清理任务调用
 - 创建：`service/FileBindingService.java`：`bind(fileId, ownerService, ownerType, ownerId)`、`unbind(...)`（幂等；`SELECT ... FOR UPDATE` 锁 file_object 根→写 binding→`version+1`；发 FileBound/FileUnbound）
 - 测试：`service/FileObjectServiceTest.java`、`service/FileBindingServiceTest.java`（绑定幂等、重复 bind 同 owner 幂等、unbind 未绑定幂等、delete 有活跃绑定拒绝、delete 成功发事件、版本递增断言）
 
-- [ ] **步骤 1：写失败测试**
-- [ ] **步骤 2：运行确认失败**
-- [ ] **步骤 3：实现**（锁根用 `fileObjectMapper.selectByIdForUpdate(fileId)`，mapper 加 `@Select("SELECT * FROM file_object WHERE id=#{id} FOR UPDATE")`）
-- [ ] **步骤 4：运行通过；步骤 5：Commit**（`feat(file): 文件对象与绑定服务（锁根+事件）`）
+- [x] **步骤 1：写失败测试**
+- [x] **步骤 2：运行确认失败**
+- [x] **步骤 3：实现**（锁根用 `fileObjectMapper.selectByIdForUpdate(fileId)`，mapper 加 `@Select("SELECT * FROM file_object WHERE id=#{id} FOR UPDATE")`）
+- [x] **步骤 4：运行通过；步骤 5：Commit**（`feat(file): 文件对象与绑定服务（锁根+事件）`）
 
 ## 任务 6：下载授权（单文件 + 有界批量）
 
@@ -173,10 +173,10 @@ public BatchGrantResult grantBatch(String ownerService, GrantBatchRequest req); 
 - 创建：`support/FileAccessAuditWriter.java`（写 file_access_audit：GRANT_SINGLE/GRANT_BATCH_DENIED/DELETE/DELETE_FORCE/STORAGE_TEST）
 - 测试：`service/DownloadGrantServiceTest.java`：精确绑定才 GRANTED；未绑定/文件不可用→UNAVAILABLE；owner 错配→整批 403+审计；purpose 越权拒绝；TTL 超过 max-ttl 被钳制；items>100 拒绝；ANONYMOUS 仅限 PUBLIC_CATALOG
 
-- [ ] **步骤 1：写失败测试**（7 个用例）
-- [ ] **步骤 2：运行确认失败**
-- [ ] **步骤 3：实现**（逐项校验 `file_binding` 活跃行 `(ownerService,ownerType,ownerId)` + `file_object.status=AVAILABLE`；任一伪造→抛 `FILE_ACCESS_DENIED` 整批失败；合法不可用项→UNAVAILABLE；presigned GET TTL=min(requested, max)）
-- [ ] **步骤 4：运行通过；步骤 5：Commit**（`feat(file): 内部下载授权（单文件+批量）`）
+- [x] **步骤 1：写失败测试**（7 个用例）
+- [x] **步骤 2：运行确认失败**
+- [x] **步骤 3：实现**（逐项校验 `file_binding` 活跃行 `(ownerService,ownerType,ownerId)` + `file_object.status=AVAILABLE`；任一伪造→抛 `FILE_ACCESS_DENIED` 整批失败；合法不可用项→UNAVAILABLE；presigned GET TTL=min(requested, max)）
+- [x] **步骤 4：运行通过；步骤 5：Commit**（`feat(file): 内部下载授权（单文件+批量）`）
 
 ## 任务 7：错误码与异常处理
 
@@ -185,7 +185,7 @@ public BatchGrantResult grantBatch(String ownerService, GrantBatchRequest req); 
 - 创建：`exception/FileExceptionHandler.java`（@RestControllerAdvice：BusinessException→统一信封；AccessDeniedException→403；Exception→500 不泄漏细节）
 - 测试：`exception/FileExceptionHandlerTest.java`（MockMvc 断言各错误码状态与响应体）
 
-- [ ] **步骤 1-4**：失败测试→实现→通过；**步骤 5：Commit**（`feat(file): 错误码与全局异常处理`）
+- [x] **步骤 1-4**：失败测试→实现→通过；**步骤 5：Commit**（`feat(file): 错误码与全局异常处理`）
 
 ## 任务 8：安全配置（Resource Server + 内部过滤器）
 
@@ -196,10 +196,10 @@ public BatchGrantResult grantBatch(String ownerService, GrantBatchRequest req); 
 - 创建：`security/StorageTestRateLimitFilter.java`（POST /api/v1/files/storage-tests 按用户 Redis 计数：默认 1 次/分钟，超限 429 STORAGE_TEST_RATE_LIMITED）
 - 测试：`security/InternalApiFilterTest.java`（复制 user 版：aud=educloud-file 放行、白名单外 403、缺 token 401）；`security/SecurityConfigurationTest.java`（无 token 401、带权限码 token 放行）
 
-- [ ] **步骤 1：写失败测试**
-- [ ] **步骤 2：运行确认失败**
-- [ ] **步骤 3：实现**（注意：内部接口不经过 @PreAuthorize，控制器方法级鉴权由 InternalApiFilter 完成）
-- [ ] **步骤 4：通过；步骤 5：Commit**（`feat(file): 资源服务器与内部服务令牌过滤器`）
+- [x] **步骤 1：写失败测试**
+- [x] **步骤 2：运行确认失败**
+- [x] **步骤 3：实现**（注意：内部接口不经过 @PreAuthorize，控制器方法级鉴权由 InternalApiFilter 完成）
+- [x] **步骤 4：通过；步骤 5：Commit**（`feat(file): 资源服务器与内部服务令牌过滤器`）
 
 ## 任务 9：对外 API 控制器
 
@@ -218,7 +218,7 @@ public class FileUploadSessionController {
 - 创建：`controller/FileStorageController.java`（`GET /api/v1/files/storage-status` 需 `file:storage:status:read`；`POST /api/v1/files/storage-tests` 需 `file:storage:test` + 限频过滤器 + 审计 STORAGE_TEST）
 - 测试：`controller/FileUploadSessionControllerTest.java`（MockMvc + @WithMockJwt：无权限 403、成功路径、complete 调用服务）；`controller/FileStorageControllerTest.java`（status 脱敏、test 限频 429）
 
-- [ ] **步骤 1-4**：TDD 循环；**步骤 5：Commit**（`feat(file): 对外上传会话与存储状态 API`）
+- [x] **步骤 1-4**：TDD 循环；**步骤 5：Commit**（`feat(file): 对外上传会话与存储状态 API`）
 
 ## 任务 10：内部 API 控制器
 
@@ -239,7 +239,7 @@ public class InternalFileController {
 - 创建：`support/OwnerServiceRegistry.java`（clientId→ownerService 映射，未知 clientId 拒绝）
 - 测试：`controller/InternalFileControllerTest.java`（模拟已认证 clientId attribute：bind 幂等、grant 精确绑定、batch 整批拒绝、delete 前置绑定检查、未知 clientId 403）
 
-- [ ] **步骤 1-4**：TDD 循环；**步骤 5：Commit**（`feat(file): 内部文件接口（绑定/授权/删除）`）
+- [x] **步骤 1-4**：TDD 循环；**步骤 5：Commit**（`feat(file): 内部文件接口（绑定/授权/删除）`）
 
 ## 任务 11：Outbox 事件发布
 
@@ -248,7 +248,7 @@ public class InternalFileController {
 - 创建：`messaging/FileEventPublisher.java`（包装 OutboxWriter：FileUploaded/FileBound/FileUnbound/FileDeleted，aggregateType=FileObject、aggregateId=file_object.id、版本递增）
 - 测试：`messaging/FileEventPublisherTest.java`（mock OutboxWriter 断言事件名/聚合/版本/载荷字段）；`messaging/OutboxEventDispatcherIT.java` 复用 user 版（真实 RabbitMQ Testcontainer：PENDING→PUBLISHED）
 
-- [ ] **步骤 1-4**：TDD；**步骤 5：Commit**（`feat(file): Outbox 事件发布（FileUploaded/FileBound/FileUnbound/FileDeleted）`）
+- [x] **步骤 1-4**：TDD；**步骤 5：Commit**（`feat(file): Outbox 事件发布（FileUploaded/FileBound/FileUnbound/FileDeleted）`）
 
 ## 任务 12：清理任务
 
@@ -264,7 +264,7 @@ public void cleanup() {
 ```
 - 测试：`service/FileCleanupServiceTest.java`（保留期内不删、超期且二次确认无绑定才删、有绑定不删、会话过期清理）
 
-- [ ] **步骤 1-4**：TDD；**步骤 5：Commit**（`feat(file): 未绑定文件与过期会话清理任务`）
+- [x] **步骤 1-4**：TDD；**步骤 5：Commit**（`feat(file): 未绑定文件与过期会话清理任务`）
 
 ## 任务 13：可观测性
 
@@ -273,7 +273,7 @@ public void cleanup() {
 - 创建：`observability/FileMetrics.java`（Counter/Histogram：upload_sessions_created/completed/failed、object_bytes、grants_granted/denied、storage_tests_total、minio_operation_duration）
 - 测试：`observability/FileDependenciesHealthIndicatorTest.java`（各依赖 UP/DOWN 聚合、MinIO 异常降级）；`observability/FileMetricsTest.java`（计数行为）
 
-- [ ] **步骤 1-4**：TDD；**步骤 5：Commit**（`feat(file): 依赖健康与业务指标`）
+- [x] **步骤 1-4**：TDD；**步骤 5：Commit**（`feat(file): 依赖健康与业务指标`）
 
 ## 任务 14：User 侧接线（bind + avatarUrl + FileDeleted 消费者）
 
@@ -297,11 +297,11 @@ public class FileClient {
 - 修改：`educloud-user/src/main/resources/application.yml`（`educloud.user.file.*` 配置段）
 - 测试：`FileClientTest`（mock ServiceTokenService/RestClient：bind 失败传播、grant 响应解析）；`ProfileServiceTest` 增补（avatar 绑定顺序、失败回滚）；`FileDeletedInboxConsumerTest`（匹配置空/不匹配跳过/失败重试）；`UserAdminServiceTest` 增补（avatarUrl 批量组装一次调用）
 
-- [ ] **步骤 1：写失败测试**（ProfileService：avatarFileId 变更先 bind 后落库；bind 失败抛依赖异常）
-- [ ] **步骤 2：运行确认失败**
-- [ ] **步骤 3：实现 FileClient + ProfileService/UserAdminService 改造**
-- [ ] **步骤 4：实现 FileDeleted 消费者**（先测试：匹配置空幂等）
-- [ ] **步骤 5：全量 user 单测通过；步骤 6：Commit**（`feat(user): 头像绑定与展示（File 联调）+ FileDeleted 引用清理`）
+- [x] **步骤 1：写失败测试**（ProfileService：avatarFileId 变更先 bind 后落库；bind 失败抛依赖异常）
+- [x] **步骤 2：运行确认失败**
+- [x] **步骤 3：实现 FileClient + ProfileService/UserAdminService 改造**
+- [x] **步骤 4：实现 FileDeleted 消费者**（先测试：匹配置空幂等）
+- [x] **步骤 5：全量 user 单测通过；步骤 6：Commit**（`feat(user): 头像绑定与展示（File 联调）+ FileDeleted 引用清理`）
 
 ## 任务 15：前端头像上传与展示
 
@@ -320,9 +320,9 @@ export async function uploadAvatar(file: File): Promise<number> {
 - 修改：`student-portal/src/services/api.ts` 的 `AuthUser`/`mapAuthUser` 与 `useAuthStore` 传递 avatarUrl
 - 验证：三门户 `npx tsc --noEmit && npx vite build`
 
-- [ ] **步骤 1：实现 file.ts + student Profile 头像上传**（先手工验证 401/类型拒绝路径，再 tsc）
-- [ ] **步骤 2：三门户展示 avatarUrl**（store 类型+布局）
-- [ ] **步骤 3：tsc+build 通过**；**步骤 4：Commit**（`feat(frontend): 三门户头像上传与真实头像展示`）
+- [x] **步骤 1：实现 file.ts + student Profile 头像上传**（先手工验证 401/类型拒绝路径，再 tsc）
+- [x] **步骤 2：三门户展示 avatarUrl**（store 类型+布局）
+- [x] **步骤 3：tsc+build 通过**；**步骤 4：Commit**（`feat(frontend): 三门户头像上传与真实头像展示`）
 
 ## 任务 16：部署脚本与 VM 环境
 
@@ -334,34 +334,34 @@ export async function uploadAvatar(file: File): Promise<number> {
 - MinIO bucket 初始化：`MinioStorageGateway` 启动时 `bucketExists` 不存在则 `makeBucket`（实现放网关初始化）
 - 修改：`educloud-user/src/main/resources/application.yml` 增加 `educloud.user.file.*`（任务 14 已含）
 
-- [ ] **步骤 1：本地验证**：`mvn -pl educloud-file -am package -DskipTests` 成功
-- [ ] **步骤 2：Commit**（`chore(deploy): educloud-file 部署脚本与环境变量`）
+- [x] **步骤 1：本地验证**：`mvn -pl educloud-file -am package -DskipTests` 成功
+- [x] **步骤 2：Commit**（`chore(deploy): educloud-file 部署脚本与环境变量`）
 
 ## 任务 17：VM 端到端验证
 
 **文件：** 无（执行验证）
 
-- [ ] **步骤 1：同步**：tar（排除 .git/target/node_modules/dist/secrets/.env）→ ssh_upload → 解压覆盖
-- [ ] **步骤 2：迁移**：`MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 EDUCLOUD_FILE_MIGRATION_PASSWORD=… bash deploy/scripts/run-migrations.sh --service file`
-- [ ] **步骤 3：Nacos provision**：`bash deploy/scripts/provision-file-nacos.sh --env-file deploy/docker-compose/.env`
-- [ ] **步骤 4：bootstrap user-service 客户端**：`CLIENT_ID=user-service AUDIENCES='["educloud-file"]' SCOPES='["file:internal"]' BOOTSTRAP_KEY=… printf '%s' "$SECRET" | bash deploy/scripts/bootstrap-service-clients.sh`
-- [ ] **步骤 5：构建**：`/opt/maven/bin/mvn -pl educloud-file -am package -DskipTests` + 三门户 `tsc && vite build`
-- [ ] **步骤 6：启动**：`bash deploy/scripts/start-dev.sh`（file 8087/8088 监听；gateway 日志确认 file-core 路由可达）
-- [ ] **步骤 7：链路验证**（curl 走网关）：
+- [x] **步骤 1：同步**：tar（排除 .git/target/node_modules/dist/secrets/.env）→ ssh_upload → 解压覆盖
+- [x] **步骤 2：迁移**：`MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 EDUCLOUD_FILE_MIGRATION_PASSWORD=… bash deploy/scripts/run-migrations.sh --service file`
+- [x] **步骤 3：Nacos provision**：`bash deploy/scripts/provision-file-nacos.sh --env-file deploy/docker-compose/.env`
+- [x] **步骤 4：bootstrap user-service 客户端**：`CLIENT_ID=user-service AUDIENCES='["educloud-file"]' SCOPES='["file:internal"]' BOOTSTRAP_KEY=… printf '%s' "$SECRET" | bash deploy/scripts/bootstrap-service-clients.sh`
+- [x] **步骤 5：构建**：`/opt/maven/bin/mvn -pl educloud-file -am package -DskipTests` + 三门户 `tsc && vite build`
+- [x] **步骤 6：启动**：`bash deploy/scripts/start-dev.sh`（file 8087/8088 监听；gateway 日志确认 file-core 路由可达）
+- [x] **步骤 7：链路验证**（curl 走网关）：
 ```bash
 # 登录拿 token（demo_teacher）→ 创建会话 → 用 presigned URL PUT 一个小图 → complete →
 # PUT /api/v1/me/profile {avatarFileId} → GET /api/v1/me 断言 avatarUrl 存在且为 5 分钟 URL
 # 越权：他人 fileId grant → 403；未绑定文件 grant → UNAVAILABLE
 ```
-- [ ] **步骤 8：浏览器验证**：三门户登录 → 学生端资料页换头像 → 三门户导航栏头像同步更新
-- [ ] **步骤 9：向用户汇报并等待确认**（契约门禁 9）
+- [x] **步骤 8：浏览器验证**：三门户登录 → 学生端资料页换头像 → 三门户导航栏头像同步更新
+- [x] **步骤 9：向用户汇报并等待确认**（契约门禁 9）
 
 ## 任务 18：全量门禁与独立代码审查
 
-- [ ] **步骤 1：全量**：`mvn -pl educloud-common,educloud-gateway,educloud-user,educloud-file -am verify`（-Pintegration 跑 IT）
-- [ ] **步骤 2：规格审查**：对照 2026-08-22-educloud-file-design.md 逐节核对实现与测试覆盖
-- [ ] **步骤 3：独立代码审查**：按 chinese-code-review 覆盖六维度；重点：越权（伪造 owner/批量探测）、类型伪造、超限、未绑定访问、presigned URL 泄露、清理竞态、事件版本一致性；自动修复可确定项，其余列待确认
-- [ ] **步骤 4：修复验证 + 汇报**（含 BUG 风险表）→ 等待用户确认后进入 M05
+- [x] **步骤 1：全量**：`mvn -pl educloud-common,educloud-gateway,educloud-user,educloud-file -am verify`（-Pintegration 跑 IT）
+- [x] **步骤 2：规格审查**：对照 2026-08-22-educloud-file-design.md 逐节核对实现与测试覆盖
+- [x] **步骤 3：独立代码审查**：按 chinese-code-review 覆盖六维度；重点：越权（伪造 owner/批量探测）、类型伪造、超限、未绑定访问、presigned URL 泄露、清理竞态、事件版本一致性；自动修复可确定项，其余列待确认
+- [x] **步骤 4：修复验证 + 汇报**（含 BUG 风险表）→ 等待用户确认后进入 M05
 
 ---
 
