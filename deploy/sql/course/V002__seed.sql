@@ -161,7 +161,7 @@ ON DUPLICATE KEY UPDATE
   submitted_at = new.submitted_at;
 
 -- 选课：fe_demo_10 免费选 2 门已发布课程（我的课程演示）+ demo_student_2 选 110
---（为 110 课程第二条评价提供 ACTIVE 选课依据，与服务层 NOT_ENROLLED 校验一致）。
+-- 为 110 课程第二条评价提供 ACTIVE 选课依据，与服务层 NOT_ENROLLED 校验一致。
 INSERT INTO course_enrollment
   (id, course_id, student_id, source, status, enrolled_at, version)
 VALUES
