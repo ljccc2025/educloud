@@ -2,6 +2,7 @@ package com.educloud.file.service;
 
 import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
+import com.educloud.file.exception.FileAccessDeniedException;
 import com.educloud.file.exception.FileNotAvailableException;
 import com.educloud.file.exception.FileNotFoundException;
 import com.educloud.file.exception.VersionConflictException;
@@ -134,6 +135,41 @@ class FileBindingServiceTest {
         verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
         verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
         verify(eventPublisher, never()).fileBound(anyLong(), anyString(), anyString(), anyString(), anyLong());
+    }
+
+    @Test
+    void bindRejectsWhenOwnerIsNotTheUploader() {
+        // 越权防护：他人上传的文件不允许绑定到非上传者属主（M04 验收：他人 fileId 不可访问）。
+        FileObjectEntity root = availableFile();
+        root.setUploaderId(7L); // 上传者 7，属主 u-42 非上传者
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+
+        assertThatThrownBy(() -> service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, OWNER_ID))
+                .isInstanceOf(FileAccessDeniedException.class);
+
+        verify(bindingMapper, never()).insert(any(FileBindingEntity.class));
+        verify(objectMapper, never()).updateById(any(FileObjectEntity.class));
+        verify(eventPublisher, never()).fileBound(anyLong(), anyString(), anyString(), anyString(), anyLong());
+    }
+
+    @Test
+    void bindAllowsOwnerWhenOwnerMatchesUploader() {
+        // 属主即上传者（数字 userId 匹配 uploaderId）：正常绑定。
+        FileObjectEntity root = availableFile();
+        root.setUploaderId(42L);
+        when(objectMapper.selectByIdForUpdate(FILE_ID)).thenReturn(root);
+        when(bindingMapper.findActiveByOwner(FILE_ID, OWNER_SERVICE, OWNER_TYPE, "42"))
+                .thenReturn(null);
+        when(objectMapper.updateById(any(FileObjectEntity.class))).thenReturn(1);
+
+        service.bind(FILE_ID, OWNER_SERVICE, OWNER_TYPE, "42");
+
+        ArgumentCaptor<FileBindingEntity> insertCaptor =
+                ArgumentCaptor.forClass(FileBindingEntity.class);
+        verify(bindingMapper).insert(insertCaptor.capture());
+        assertThat(insertCaptor.getValue().getOwnerId()).isEqualTo("42");
+        verify(eventPublisher).fileBound(
+                eq(FILE_ID), eq(OWNER_SERVICE), eq(OWNER_TYPE), eq("42"), eq(2L));
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.educloud.file.entity.FileBindingEntity;
 import com.educloud.file.entity.FileObjectEntity;
+import com.educloud.file.exception.FileAccessDeniedException;
 import com.educloud.file.exception.FileNotAvailableException;
 import com.educloud.file.exception.FileNotFoundException;
 import com.educloud.file.exception.VersionConflictException;
@@ -59,6 +60,15 @@ public class FileBindingService {
         if (!FileObjectService.STATUS_AVAILABLE.equals(root.getStatus())) {
             throw new FileNotAvailableException(
                     "文件对象不可绑定: fileId=" + fileId + ", status=" + root.getStatus());
+        }
+
+        // 越权防护（M04 验收：他人 fileId 不可访问）：用户类属主绑定时，属主必须是文件上传者；
+        // uploaderId 为空（历史/系统导入文件）不阻断，避免误伤非用户上传场景。
+        if (isUserOwnerType(ownerType) && root.getUploaderId() != null
+                && !String.valueOf(root.getUploaderId()).equals(ownerId)) {
+            throw new FileAccessDeniedException(
+                    "文件非该属主上传，拒绝绑定: fileId=" + fileId
+                            + ", ownerType=" + ownerType + ", ownerId=" + ownerId);
         }
 
         FileBindingEntity active = bindingMapper.findActiveByOwner(
@@ -155,5 +165,10 @@ public class FileBindingService {
         }
         return active.stream()
                 .anyMatch(binding -> ownerService.equals(binding.getOwnerService()));
+    }
+
+    /** 用户类属主类型（绑定到用户档案）。未来新增用户类属主类型时在此登记。 */
+    private boolean isUserOwnerType(String ownerType) {
+        return "USER_PROFILE".equals(ownerType) || "USER".equals(ownerType);
     }
 }
