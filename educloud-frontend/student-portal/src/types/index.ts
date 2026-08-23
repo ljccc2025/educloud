@@ -212,6 +212,8 @@ export interface StudentUser {
   phone: string;
   avatar: string;
   avatarUrl?: string;
+  /** 头像 fileId（M04：PATCH /me/profile 全量更新需携带，否则后端会解绑清空头像）。 */
+  avatarFileId?: string;
   bio: string;
   joinDate: string;
   learnedCourses: number;

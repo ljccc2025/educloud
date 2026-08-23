@@ -7,7 +7,7 @@ import {
 import { useAuthStore } from '@/stores/useAuthStore';
 import { currentUser } from '@/services/api';
 import { uploadAvatar } from '@/services/file';
-import { http, apiErrorText } from '@/services/http';
+import { http, apiErrorText, type ApiEnvelope } from '@/services/http';
 
 // M04 审查修复：presigned 头像 URL 5 分钟过期后破图，onError 兜底回退占位头像。
 const FALLBACK_AVATAR =
@@ -27,6 +27,7 @@ export default function Profile() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [avatarUploaded, setAvatarUploaded] = useState(false);
   const [avatarRefreshPending, setAvatarRefreshPending] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,12 +45,18 @@ export default function Profile() {
     try {
       const fileId = await uploadAvatar(file);
       // PATCH 为全量更新：displayName 必填（后端 @NotBlank），带上当前档案字段。
-      await http.patch('/me/profile', {
+      const patched = await http.patch<ApiEnvelope<{ avatarFileId: string | null }>>('/me/profile', {
         displayName: displayUser.realName || displayUser.username || '学员',
         bio: displayUser.bio ?? '',
         locale: 'zh-CN',
         avatarFileId: fileId,
       });
+      // 记录当前 avatarFileId：后续资料保存（全量 PATCH）需携带，否则后端会解绑清空头像。
+      useAuthStore.setState((state) => ({
+        user: state.user
+          ? { ...state.user, avatarFileId: patched.data.data.avatarFileId ?? undefined }
+          : state.user,
+      }));
       // 上传与 PATCH 已成功：refresh 只刷新本地状态，失败不应误报头像上传错误。
       setAvatarUploaded(true);
       try {
@@ -65,10 +72,28 @@ export default function Profile() {
     }
   };
 
-  const handleSave = () => {
-    setEditing(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setSaveError(null);
+    try {
+      // 真实保存：PATCH /me/profile 全量更新（displayName 必填；avatarFileId 携带当前值防止头像被清空）。
+      await http.patch('/me/profile', {
+        displayName: form.name.trim() || displayUser.username || '学员',
+        bio: form.bio ?? '',
+        locale: 'zh-CN',
+        avatarFileId: displayUser.avatarFileId ?? null,
+      });
+      await refresh();
+      setEditing(false);
+      setSaved(true);
+      setForm({
+        name: displayUser.realName,
+        email: displayUser.email,
+        bio: displayUser.bio,
+      });
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setSaveError(apiErrorText(err));
+    }
   };
 
   const stats = [
@@ -219,7 +244,8 @@ export default function Profile() {
                   <input
                     type="email"
                     value={form.email}
-                    disabled={!editing}
+                    disabled
+                    title="邮箱为登录标识，暂不支持修改"
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     className="input-field pl-10 disabled:bg-ink-50 disabled:text-ink-500"
                   />
@@ -256,6 +282,9 @@ export default function Profile() {
                     取消
                   </button>
                 </div>
+              )}
+              {saveError && (
+                <p className="text-sm text-red-600">{saveError}</p>
               )}
               {saved && (
                 <p className="text-sm text-green-600 flex items-center gap-1.5">
