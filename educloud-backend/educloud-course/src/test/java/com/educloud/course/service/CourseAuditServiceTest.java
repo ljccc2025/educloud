@@ -195,11 +195,13 @@ class CourseAuditServiceTest {
         when(courseVersionMapper.selectById(302L)).thenReturn(pending);
         when(courseVersionMapper.update(isNull(), any())).thenReturn(1);
         when(submissionMapper.updateById(any(CourseAuditSubmissionEntity.class))).thenReturn(1);
+        // 模拟 OptimisticLockerInnerInterceptor 对 update(entity, wrapper) 的回写行为：
+        // entity 携带旧 version 进入，拦截器自动递增并回写（服务内禁止手动 +1）。
         doAnswer(invocation -> {
             CourseEntity entity = invocation.getArgument(0);
             entity.setVersion(entity.getVersion() + 1);
             return 1;
-        }).when(courseMapper).updateById(any(CourseEntity.class));
+        }).when(courseMapper).update(any(CourseEntity.class), any());
 
         CourseAuditResponse response = auditService().approve(401L, 3001L);
 
@@ -232,13 +234,20 @@ class CourseAuditServiceTest {
         assertThat(submissionCaptor.getValue().getReviewedBy()).isEqualTo(3001L);
         assertThat(submissionCaptor.getValue().getReviewedAt()).isNotNull();
 
+        // 根更新走 update(entity, wrapper)：wrapper 显式 SET draft_version_id=null（
+        // NOT_NULL 策略下 updateById 无法清空），entity 携带 version 由拦截器回写 +1。
         ArgumentCaptor<CourseEntity> courseCaptor = ArgumentCaptor.forClass(CourseEntity.class);
-        verify(courseMapper).updateById(courseCaptor.capture());
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaUpdateWrapper> rootWrapperCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(courseMapper).update(courseCaptor.capture(), rootWrapperCaptor.capture());
         CourseEntity updated = courseCaptor.getValue();
         assertThat(updated.getPublishedVersionId()).isEqualTo(302L);
         assertThat(updated.getLifecycleStatus()).isEqualTo("PUBLISHED");
         assertThat(updated.getPublishedAt()).isNotNull();
         assertThat(updated.getDraftVersionId()).isNull();
+        assertThat(updated.getVersion()).isEqualTo(8L);
+        assertThat(rootWrapperCaptor.getValue().getSqlSet()).contains("draft_version_id=");
+        assertThat(rootWrapperCaptor.getValue().getSqlSegment()).contains("id =");
 
         verify(eventPublisher).coursePublished(101L, 302L, 8L, updated.getPublishedAt());
 
@@ -300,7 +309,7 @@ class CourseAuditServiceTest {
         when(courseVersionMapper.selectById(302L)).thenReturn(pending);
         when(courseVersionMapper.update(isNull(), any())).thenReturn(1);
         when(submissionMapper.updateById(any(CourseAuditSubmissionEntity.class))).thenReturn(1);
-        when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(0);
+        when(courseMapper.update(any(CourseEntity.class), any())).thenReturn(0);
 
         assertThatThrownBy(() -> auditService().approve(401L, 3001L))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->

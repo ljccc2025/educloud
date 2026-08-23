@@ -179,7 +179,14 @@ public class CourseAuditService {
         course.setLifecycleStatus(LIFECYCLE_PUBLISHED);
         course.setPublishedAt(now);
         course.setDraftVersionId(null);
-        int rootUpdated = courseMapper.updateById(course);
+        // 清空草稿指针必须用 wrapper 显式 set(null)：MyBatis-Plus 默认 updateStrategy=NOT_NULL，
+        // updateById(entity) 会把 null 字段排除在 SET 之外，draft_version_id 永远清不掉。
+        // 根乐观锁：entity 携带 selectByIdForUpdate 加载的 version，OptimisticLockerInnerInterceptor
+        // 对 update(entity, wrapper) 自动追加 version 条件并回写新 version（禁止手动 +1）。
+        LambdaUpdateWrapper<CourseEntity> rootUpdate = new LambdaUpdateWrapper<CourseEntity>()
+                .eq(CourseEntity::getId, course.getId())
+                .set(CourseEntity::getDraftVersionId, null);
+        int rootUpdated = courseMapper.update(course, rootUpdate);
         if (rootUpdated == 0) {
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
                     "Course root changed concurrently: " + course.getId());

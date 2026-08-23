@@ -26,6 +26,7 @@ import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.messaging.OutboxWriter;
 import com.educloud.course.support.TeacherAccessGuard;
 import com.educloud.course.testcontainers.TestContainerImages;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.junit.jupiter.api.BeforeAll;
@@ -157,7 +158,7 @@ class CourseAuditPublishIT {
     }
 
     @Test
-    void submitThenApprovePublishesVersionSupersedesOldAndWritesOutboxInOneTransaction() {
+    void submitThenApprovePublishesVersionSupersedesOldAndWritesOutboxInOneTransaction() throws Exception {
         Long auditId = transactionTemplate.execute(status -> {
             seedPublishedCourseAndNewDraft();
             CourseAuditResponse submitted = auditService.submitForReview(DRAFT_VERSION_ID, TEACHER_ID);
@@ -173,7 +174,8 @@ class CourseAuditPublishIT {
         assertThat(course.getLifecycleStatus()).isEqualTo("PUBLISHED");
         assertThat(course.getPublishedAt()).isNotNull();
         assertThat(course.getDraftVersionId()).isNull();
-        assertThat(course.getVersion()).isEqualTo(1L);
+        // 根乐观锁自动递增：seed version=0 → submit 0→1 → approve 1→2（M04 坑 4：禁止手动 +1）。
+        assertThat(course.getVersion()).isEqualTo(2L);
 
         CourseVersionMapper versionMapper = sqlSessionTemplate.getMapper(CourseVersionMapper.class);
         assertThat(versionMapper.selectById(PUBLISHED_VERSION_ID).getVersionStatus()).isEqualTo("SUPERSEDED");
@@ -195,21 +197,27 @@ class CourseAuditPublishIT {
         assertThat(event.getAggregateId()).isEqualTo(String.valueOf(COURSE_ID));
         assertThat(event.getEventType()).isEqualTo("CoursePublished");
         assertThat(event.getEventVersion()).isEqualTo(1);
-        assertThat(event.getAggregateVersion()).isEqualTo(1L);
+        // aggregateVersion 取 approve 回写后的根版本（=2，见上 course.version 断言）。
+        assertThat(event.getAggregateVersion()).isEqualTo(2L);
         assertThat(event.getPublishStatus()).isEqualTo("PENDING");
         assertThat(event.getSourceSequence()).isEqualTo(1L);
         assertThat(event.getAggregateType() + "." + event.getAggregateId()).isEqualTo("Course.10001");
-        assertThat(event.getPayloadJson())
-                .contains("\"courseId\":10001")
-                .contains("\"versionId\":90002");
+        // payload_json 是 MySQL JSON 列：MySQL 8 写入时会把 JSON 规范化（冒号/逗号后带空格），
+        // 字符串 contains 断言依赖空白格式，改为解析 JSON 后按字段断言（对规范化输出稳定）。
+        JsonNode payload = new ObjectMapper().readTree(event.getPayloadJson());
+        assertThat(payload.get("courseId").asLong()).isEqualTo(COURSE_ID);
+        assertThat(payload.get("versionId").asLong()).isEqualTo(DRAFT_VERSION_ID);
+        assertThat(payload.get("publishedAt").asText()).isNotBlank();
         assertThat(event.getRequestId()).isEqualTo("it-request");
         assertThat(event.getTraceId()).isEqualTo("it-trace");
     }
 
     @Test
     void failedApproveRollsBackSubmitAndOutboxWriteInSameTransaction() {
+        // seed 在事务之外先落库提交：回滚只作用于事务内的 submit+approve，
+        // 否则 seed 行随自审异常一起回滚，事务外 selectById 拿到 null 导致 NPE。
+        seedPublishedCourseAndNewDraft();
         assertThatThrownBy(() -> transactionTemplate.execute(status -> {
-            seedPublishedCourseAndNewDraft();
             CourseAuditResponse submitted = auditService.submitForReview(DRAFT_VERSION_ID, TEACHER_ID);
             // 自审拒绝 403：提交教师同时作为审核人 → 异常回滚整个提交+发布事务。
             auditService.approve(Long.parseLong(submitted.auditId()), TEACHER_ID);
