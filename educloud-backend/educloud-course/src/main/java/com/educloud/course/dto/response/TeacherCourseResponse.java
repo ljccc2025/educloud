@@ -12,6 +12,7 @@ package com.educloud.course.dto.response;
 public record TeacherCourseResponse(
         String courseId,
         String versionId,
+        Integer versionNo,
         String title,
         String coverUrl,
         String level,

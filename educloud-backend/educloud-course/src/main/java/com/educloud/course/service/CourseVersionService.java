@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -41,6 +42,7 @@ public class CourseVersionService {
     public static final String STATUS_DRAFT = "DRAFT";
     public static final String STATUS_PENDING_REVIEW = "PENDING_REVIEW";
     public static final String STATUS_REJECTED = "REJECTED";
+    public static final String STATUS_WITHDRAWN = "WITHDRAWN";
     public static final String STATUS_PUBLISHED = "PUBLISHED";
 
     private final CourseMapper courseMapper;
@@ -75,13 +77,15 @@ public class CourseVersionService {
             throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND,
                     "Course has no draft version: " + courseId);
         }
-        return response(course, draft);
+        return response(course, draft, teacherId);
     }
 
     /**
-     * 从 PUBLISHED/REJECTED 版本复制新草稿（POST /courses/{id}/drafts）：version_no+1，
-     * 内容字段与 cover_file_id 继承；course.draft_version_id 切换到新草稿。
+     * 从 PUBLISHED/REJECTED/WITHDRAWN 版本复制新草稿（POST /courses/{id}/drafts）：
+     * version_no+1，内容字段与 cover_file_id 继承；course.draft_version_id 切换到新草稿。
      * 已有 DRAFT 时幂等返回现有草稿；当前版本 PENDING_REVIEW 时不可复制（VERSION_NOT_DRAFT 409）。
+     * WITHDRAWN 纳入复制源（任务 22 规格审查）：撤回时 draft 指针清空，首次提交即撤回的
+     * 课程无发布/驳回版本，必须能从已撤回版本重建草稿，否则编辑页 404 卡死。
      *
      * <p>并发兜底：两请求同时复制同一源版本会撞 uk_course_version_no —— 显式捕获
      * DuplicateKeyException → VERSION_NOT_DRAFT 409（“版本已被并发创建”，语义最贴近）；
@@ -96,7 +100,7 @@ public class CourseVersionService {
                 ? null
                 : versionMapper.selectById(course.getDraftVersionId());
         if (current != null && STATUS_DRAFT.equals(current.getVersionStatus())) {
-            return response(course, current);
+            return response(course, current, teacherId);
         }
         if (current != null && STATUS_PENDING_REVIEW.equals(current.getVersionStatus())) {
             throw new BusinessException(CourseErrorCode.VERSION_NOT_DRAFT,
@@ -105,12 +109,12 @@ public class CourseVersionService {
 
         CourseVersionEntity source = versionMapper.selectOne(new LambdaQueryWrapper<CourseVersionEntity>()
                 .eq(CourseVersionEntity::getCourseId, courseId)
-                .in(CourseVersionEntity::getVersionStatus, STATUS_PUBLISHED, STATUS_REJECTED)
+                .in(CourseVersionEntity::getVersionStatus, STATUS_PUBLISHED, STATUS_REJECTED, STATUS_WITHDRAWN)
                 .orderByDesc(CourseVersionEntity::getVersionNo)
                 .last("LIMIT 1"));
         if (source == null) {
             throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND,
-                    "No published or rejected version to copy: " + courseId);
+                    "No published, rejected or withdrawn version to copy: " + courseId);
         }
 
         CourseVersionEntity draft = new CourseVersionEntity();
@@ -135,7 +139,7 @@ public class CourseVersionService {
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
                     "Course root changed concurrently: " + courseId);
         }
-        return response(course, draft);
+        return response(course, draft, teacherId);
     }
 
     /**
@@ -205,7 +209,7 @@ public class CourseVersionService {
         version.setPrice(request.price());
         version.setCurrency(request.currency());
         version.setCategoryId(categoryId);
-        return response(course, version);
+        return response(course, version, teacherId);
     }
 
     private CourseEntity requireCourse(Long courseId) {
@@ -216,7 +220,7 @@ public class CourseVersionService {
         return course;
     }
 
-    private CourseDraftResponse response(CourseEntity course, CourseVersionEntity version) {
+    private CourseDraftResponse response(CourseEntity course, CourseVersionEntity version, Long teacherId) {
         List<CourseDraftResponse.Teacher> teachers = teacherMapper.selectList(
                         new LambdaQueryWrapper<CourseTeacherEntity>()
                                 .eq(CourseTeacherEntity::getCourseId, course.getId())
@@ -225,7 +229,14 @@ public class CourseVersionService {
                 .map(teacher -> new CourseDraftResponse.Teacher(
                         String.valueOf(teacher.getTeacherId()), teacher.getTeacherRole()))
                 .toList();
-        return CourseDraftResponse.from(course, version, teachers);
+        // 封面回显（任务 22 规格审查②）：教师视角 USER grant，无封面/不可达时 null。
+        String coverUrl = null;
+        if (version.getCoverFileId() != null) {
+            coverUrl = fileClient.grantCatalogUrls(
+                            Map.of(version.getCoverFileId(), course.getId()), teacherId)
+                    .get(version.getCoverFileId());
+        }
+        return CourseDraftResponse.from(course, version, teachers, coverUrl);
     }
 
     private static void copyContent(CourseVersionEntity source, CourseVersionEntity target) {

@@ -271,6 +271,11 @@ public class CourseAuditService {
      * 撤回（POST /course-audits/{id}/withdraw）：仅提交教师本人（submitted_by == 当前
      * userId，非本人 COURSE_ACCESS_DENIED 403）；PENDING→WITHDRAWN（含 withdrawn_at），
      * 版本 WITHDRAWN 不可再审批；lifecycle 回到 DRAFT。
+     *
+     * <p>任务 22 规格审查：撤回同时清空 course.draft_version_id（WITHDRAWN 不可编辑），
+     * 编辑页经 GET draft 404 落入「从最近版本创建草稿」恢复路径；重建草稿的复制源包含
+     * WITHDRAWN（见 CourseVersionService.createDraftFromPublishedOrRejected），首次提交
+     * 即撤回的课程不会 404 卡死。</p>
      */
     @Transactional
     public CourseAuditResponse withdraw(Long auditId, Long teacherId, Set<String> roles) {
@@ -305,6 +310,9 @@ public class CourseAuditService {
         }
 
         course.setLifecycleStatus(LIFECYCLE_DRAFT);
+        // 任务 22 规格审查：撤回后草稿指针清空（WITHDRAWN 版本不可编辑），编辑页走
+        // 「从最近版本创建草稿」恢复路径（复制源含 WITHDRAWN，见 CourseVersionService）。
+        course.setDraftVersionId(null);
         int rootUpdated = courseMapper.updateById(course);
         if (rootUpdated == 0) {
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,

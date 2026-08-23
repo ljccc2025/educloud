@@ -11,6 +11,7 @@ export default function StudentList() {
   const [coursesError, setCoursesError] = useState<string | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [students, setStudents] = useState<CourseStudent[]>([]);
+  const [total, setTotal] = useState(0);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsError, setStudentsError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -42,6 +43,7 @@ export default function StudentList() {
   const loadStudents = useCallback(async (courseId: string) => {
     if (!courseId) {
       setStudents([]);
+      setTotal(0);
       return;
     }
     setStudentsLoading(true);
@@ -49,6 +51,7 @@ export default function StudentList() {
     try {
       const page = await teacherCourseApi.getStudents(courseId, 1, 100);
       setStudents(page.items);
+      setTotal(page.total);
     } catch (e) {
       setStudentsError(apiErrorText(e));
     } finally {
@@ -191,7 +194,7 @@ export default function StudentList() {
       {selectedCourse && !studentsLoading && !studentsError && (
         <p className="text-sm text-ink-400 flex items-center gap-1.5">
           <BookOpen className="w-4 h-4" />
-          课程「{selectedCourse.title}」共 {students.length} 名学员
+          课程「{selectedCourse.title}」共 {total} 名学员（分页控件 M06 规模化再补）
         </p>
       )}
     </div>

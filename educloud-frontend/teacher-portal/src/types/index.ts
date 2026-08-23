@@ -165,7 +165,7 @@ export interface EngagementData {
 // 前端禁止 Number() 处理 id；price 为十进制金额字符串。
 export type CourseLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
-export type CourseVersionStatus = 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED';
+export type CourseVersionStatus = 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'WITHDRAWN' | 'PUBLISHED';
 
 export type CourseLifecycleStatus = 'DRAFT' | 'PUBLISHED' | 'OFFLINE' | 'ARCHIVED';
 
@@ -202,6 +202,8 @@ export interface CourseDraft {
   subtitle: string | null;
   description: string | null;
   coverFileId: string | null;
+  /** 教师视角封面 URL（后端 USER grant）；null 时前端占位。 */
+  coverUrl: string | null;
   level: CourseLevel;
   price: string | null;
   currency: string | null;
@@ -213,7 +215,9 @@ export interface CourseDraft {
 
 export interface TeacherCourse {
   courseId: string;
-  versionId: string;
+  /** 当前工作版本 id（撤回后草稿指针清空时可能为 null）。 */
+  versionId: string | null;
+  versionNo: number | null;
   title: string;
   coverUrl: string | null;
   level: string | null;

@@ -133,8 +133,16 @@ public class CourseService {
         auditWriter.write("COURSE_CREATED", "course", String.valueOf(course.getId()),
                 teacherId, roles, "SUCCESS", null);
 
+        // 封面回显（任务 22 规格审查②）：建课响应同样携带教师视角 coverUrl（USER grant）。
+        String coverUrl = null;
+        if (draft.getCoverFileId() != null) {
+            coverUrl = fileClient.grantCatalogUrls(
+                            Map.of(draft.getCoverFileId(), course.getId()), teacherId)
+                    .get(draft.getCoverFileId());
+        }
         return CourseDraftResponse.from(course, draft,
-                List.of(new CourseDraftResponse.Teacher(String.valueOf(teacherId), TEACHER_ROLE_OWNER)));
+                List.of(new CourseDraftResponse.Teacher(String.valueOf(teacherId), TEACHER_ROLE_OWNER)),
+                coverUrl);
     }
 
     /**
@@ -165,6 +173,7 @@ public class CourseService {
                 .map(row -> new TeacherCourseResponse(
                         String.valueOf(row.getCourseId()),
                         row.getVersionId() == null ? null : String.valueOf(row.getVersionId()),
+                        row.getVersionNo(),
                         row.getTitle(),
                         row.getCoverFileId() == null ? null : coverUrls.get(row.getCoverFileId()),
                         row.getLevel(),

@@ -120,6 +120,7 @@ public interface CourseMapper extends BaseMapper<CourseEntity> {
             <script>
             SELECT c.id AS course_id,
                    COALESCE(c.draft_version_id, c.published_version_id) AS version_id,
+                   v.version_no AS version_no,
                    c.lifecycle_status AS lifecycle_status,
                    c.enrollment_count AS enrollment_count,
                    v.title AS title,
@@ -131,7 +132,11 @@ public interface CourseMapper extends BaseMapper<CourseEntity> {
                    v.version_status AS version_status
             FROM course_teacher t
             JOIN course c ON c.id = t.course_id
-            JOIN course_version v ON v.id = COALESCE(c.draft_version_id, c.published_version_id)
+            LEFT JOIN course_version v ON v.id = COALESCE(
+                   c.draft_version_id,
+                   c.published_version_id,
+                   (SELECT cv.id FROM course_version cv
+                    WHERE cv.course_id = c.id ORDER BY cv.version_no DESC, cv.id DESC LIMIT 1))
             WHERE t.teacher_id = #{teacherId}
             ORDER BY c.updated_at DESC, c.id DESC
             </script>

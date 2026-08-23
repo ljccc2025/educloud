@@ -387,6 +387,42 @@ class CourseDraftServiceTest {
     }
 
     @Test
+    void createDraftCopiesWithdrawnVersionWithIncrementedVersionNo() {
+        // 任务 22 规格审查：首次提交即撤回的课程 draft 指针已清空（无发布/驳回版本），
+        // 复制源须含 WITHDRAWN，否则编辑页重建草稿 404 卡死。
+        CourseEntity course = course(101L, 1001L, null, null);
+        CourseVersionEntity withdrawn = version(301L, 101L, 1, "WITHDRAWN", "已撤回标题");
+        withdrawn.setCoverFileId(55L);
+        withdrawn.setPrice(new BigDecimal("66.00"));
+        withdrawn.setCategoryId(7L);
+        withdrawn.setLevel("BEGINNER");
+        withdrawn.setCurrency("CNY");
+        when(courseMapper.selectById(101L)).thenReturn(course);
+        when(courseTeacherMapper.selectCount(any())).thenReturn(1L);
+        when(courseVersionMapper.selectOne(any())).thenReturn(withdrawn);
+        assignIdOnVersionInsert(303L);
+        when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
+        when(courseTeacherMapper.selectList(any())).thenReturn(List.of());
+
+        CourseDraftResponse response = versionService().createDraftFromPublishedOrRejected(101L, 1001L);
+
+        assertThat(response.versionId()).isEqualTo("303");
+        assertThat(response.versionNo()).isEqualTo(2);
+        assertThat(response.versionStatus()).isEqualTo("DRAFT");
+        assertThat(response.title()).isEqualTo("已撤回标题");
+        assertThat(response.coverFileId()).isEqualTo("55");
+
+        ArgumentCaptor<CourseVersionEntity> captor = ArgumentCaptor.forClass(CourseVersionEntity.class);
+        verify(courseVersionMapper).insert(captor.capture());
+        assertThat(captor.getValue().getVersionNo()).isEqualTo(2);
+        assertThat(captor.getValue().getVersionStatus()).isEqualTo("DRAFT");
+
+        ArgumentCaptor<CourseEntity> courseCaptor = ArgumentCaptor.forClass(CourseEntity.class);
+        verify(courseMapper).updateById(courseCaptor.capture());
+        assertThat(courseCaptor.getValue().getDraftVersionId()).isEqualTo(303L);
+    }
+
+    @Test
     void createDraftReturnsExistingDraftWhenAlreadyDraft() {
         CourseEntity course = course(101L, 1001L, 301L, 5L);
         CourseVersionEntity draft = version(301L, 101L, 2, "DRAFT", "现有草稿");

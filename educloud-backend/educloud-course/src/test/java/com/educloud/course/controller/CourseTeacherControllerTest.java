@@ -102,7 +102,7 @@ class CourseTeacherControllerTest {
         when(jwtDecoder.decode(any())).thenReturn(token("1001", List.of("course:update")));
         when(courseService.listTeacherCourses(1001L, 1, 20))
                 .thenReturn(PageResponse.of(List.of(new TeacherCourseResponse(
-                        "101", "301", "Spring Boot 实战", null, "BEGINNER",
+                        "101", "301", 1, "Spring Boot 实战", null, "BEGINNER",
                         "199.00", "CNY", "5", "DRAFT", "DRAFT", 12)), 1, 20, 1));
 
         mockMvc.perform(get("/api/v1/teacher/courses")
@@ -281,7 +281,7 @@ class CourseTeacherControllerTest {
     private static CourseDraftResponse draftResponse(
             String courseId, String versionId, int versionNo, String title, String price) {
         return new CourseDraftResponse(
-                courseId, versionId, versionNo, title, "副标题", "描述", "77",
+                courseId, versionId, versionNo, title, "副标题", "描述", "77", null,
                 "BEGINNER", price, "CNY", "5", "DRAFT", "DRAFT",
                 List.of(new CourseDraftResponse.Teacher("1001", "OWNER")));
     }

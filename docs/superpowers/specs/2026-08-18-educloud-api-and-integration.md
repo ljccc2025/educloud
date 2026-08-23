@@ -40,7 +40,7 @@ Gateway 必须移除浏览器传入的 `X-User-Id`、`X-Role` 等可伪造内部
 | 50 | `/api/v1/courses/*/chapters/**`、`/api/v1/courses/*/assignments/**`、`/api/v1/courses/*/exams/**` | Content |
 | 60 | `/api/v1/chapters/**`、`/api/v1/coursewares/**`、`/api/v1/content-revisions/**`、`/api/v1/assignments/**`、`/api/v1/submissions/**`、`/api/v1/exams/**`、`/api/v1/exam-attempts/**`、`/api/v1/community/**`、`/api/v1/content-audits/**` | Content |
 | 65 | `/api/v1/teacher/courses/*/content-draft`、`/api/v1/courses/*/content-drafts` | Content |
-| 70 | `/api/v1/categories/**`、`/api/v1/course-drafts/**`、`/api/v1/course-audits/**`、`/api/v1/courses/**`、`/api/v1/teacher/courses/*/draft` | Course |
+| 70 | `/api/v1/categories/**`、`/api/v1/course-drafts/**`、`/api/v1/course-audits/**`、`/api/v1/courses/**`、`/api/v1/course-reviews/**`、`/api/v1/teacher/courses`、`/api/v1/teacher/courses/*/draft` | Course |
 | 80 | `/api/v1/cart/**`、`/api/v1/orders/**`、`/api/v1/refund-requests/**` | Order |
 | 90 | `/api/v1/payments/**`、`/api/v1/payment-callbacks/**`、`/api/v1/payment-refunds/**`、`/api/v1/reconciliations/**` | Payment |
 | 100 | `/api/v1/live-rooms/**`、`/ws/v1/live/**` | Live |

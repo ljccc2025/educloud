@@ -452,6 +452,35 @@ class CourseAuditServiceTest {
         ArgumentCaptor<LambdaUpdateWrapper> versionCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
         verify(courseVersionMapper).update(isNull(), versionCaptor.capture());
         assertThat(versionCaptor.getValue().getParamNameValuePairs()).containsValue("WITHDRAWN");
+
+        // 任务 22 规格审查：撤回后 draft 指针清空 → 编辑页 GET draft 404，走重建草稿恢复路径。
+        ArgumentCaptor<CourseEntity> courseCaptor = ArgumentCaptor.forClass(CourseEntity.class);
+        verify(courseMapper).updateById(courseCaptor.capture());
+        assertThat(courseCaptor.getValue().getDraftVersionId()).isNull();
+        assertThat(courseCaptor.getValue().getLifecycleStatus()).isEqualTo("DRAFT");
+    }
+
+    @Test
+    void withdrawClearsDraftPointerForFirstTimeSubmission() {
+        // 首次提交即撤回：无发布版本（publishedVersionId=null），撤回后指针清空，
+        // 编辑页可经 POST /courses/{id}/drafts 从 WITHDRAWN 版本重建草稿（见 Draft 服务测试）。
+        CourseEntity course = course(101L, 1001L, 302L, null, "PENDING_REVIEW", 4L);
+        CourseVersionEntity pending = version(302L, 101L, 1, "PENDING_REVIEW", "首次提交");
+        CourseAuditSubmissionEntity submission = submission(401L, 101L, 302L, "PENDING", 1001L);
+        when(submissionMapper.selectById(401L)).thenReturn(submission);
+        when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
+        when(courseVersionMapper.selectById(302L)).thenReturn(pending);
+        when(submissionMapper.updateById(any(CourseAuditSubmissionEntity.class))).thenReturn(1);
+        when(courseVersionMapper.update(isNull(), any())).thenReturn(1);
+        when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
+
+        auditService().withdraw(401L, 1001L, Set.of("TEACHER"));
+
+        ArgumentCaptor<CourseEntity> courseCaptor = ArgumentCaptor.forClass(CourseEntity.class);
+        verify(courseMapper).updateById(courseCaptor.capture());
+        assertThat(courseCaptor.getValue().getDraftVersionId()).isNull();
+        assertThat(courseCaptor.getValue().getPublishedVersionId()).isNull();
+        assertThat(courseCaptor.getValue().getLifecycleStatus()).isEqualTo("DRAFT");
     }
 
     @Test

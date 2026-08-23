@@ -15,7 +15,7 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 前置条件（均已满足）：
 
 - M01 `educloud-common`：统一响应、错误基类、requestId/traceId、EventEnvelope、Outbox 基础设施（`OutboxWriter`/`OutboxEventDispatcher` 复用 M03/M04 模式）。
-- M02 `educloud-gateway`：`RouteGroups.COURSE` 组已预留（`/api/v1/me/enrollments`、`/api/v1/categories/**`、`/api/v1/course-drafts/**`、`/api/v1/course-audits/**`、`/api/v1/courses/**`、`/api/v1/teacher/courses/*/draft`）；路由 `course-core`（order 70）与 `course-enrollments`（order 40）已指向 `lb://educloud-course`；`AccessPolicy.PUBLIC_READ` 已放行 `GET /api/v1/categories`、`GET /api/v1/courses`、`GET /api/v1/courses/{courseId}`。
+- M02 `educloud-gateway`：`RouteGroups.COURSE` 组已预留（`/api/v1/me/enrollments`、`/api/v1/categories/**`、`/api/v1/course-drafts/**`、`/api/v1/course-audits/**`、`/api/v1/courses/**`、`/api/v1/course-reviews/**`、`/api/v1/teacher/courses`、`/api/v1/teacher/courses/*/draft`）；路由 `course-core`（order 70）与 `course-enrollments`（order 40）已指向 `lb://educloud-course`；`AccessPolicy.PUBLIC_READ` 已放行 `GET /api/v1/categories`、`GET /api/v1/courses`、`GET /api/v1/courses/{courseId}`。
 - M03 `educloud-user`：JWT RS256 + JWKS、服务令牌签发（`client_credentials`）、RBAC（角色/权限/角色权限关联表）、`audit_event.actor_type` 已扩到 VARCHAR(32)。
 - M04 `educloud-file`：上传会话、受控绑定（ownerService 由 clientId 推导）、批量下载授权已支持 `PUBLIC_CATALOG` purpose + `ANONYMOUS` subject（课程封面直接复用）；`GrantPurposePolicy` 白名单可配置。
 
@@ -108,15 +108,16 @@ M05 交付课程权威数据与学习关系：课程分类、课程根与不可�
 | GET | `/courses` | 匿名（管理查询用权限参数） | 已发布分页列表 |
 | GET | `/courses/{id}` | 按可见性 | 课程详情（已发布公开；教师本人可见自己的草稿/待审） |
 | POST | `/courses` | `course:create` | 教师创建草稿 |
-| GET | `/teacher/courses/{id}/draft` | `course:update` + 归属 | 返回当前可编辑草稿，不影响公开版本 |
-| POST | `/courses/{id}/drafts` | `course:update` + 归属 | 从发布/驳回版本复制新草稿 |
+| GET | `/teacher/courses` | `course:update` + 归属 | 教师课程管理列表（任务 22 计划外补齐）：归属教师的全部课程含生命周期/版本状态分页；当前工作版本 COALESCE(draft_version_id, published_version_id, 最新版本) 驱动（撤回后指针清空仍可列出），封面按页 USER grant |
+| GET | `/teacher/courses/{id}/draft` | `course:update` + 归属 | 返回当前可编辑草稿，不影响公开版本；无活动草稿（含撤回后指针清空）404 |
+| POST | `/courses/{id}/drafts` | `course:update` + 归属 | 从发布/驳回/已撤回版本复制新草稿（WITHDRAWN 纳入复制源，撤回恢复路径） |
 | PUT | `/course-drafts/{versionId}` | `course:update` + 归属 | 只更新 DRAFT 版本（全量字段） |
 | POST | `/course-drafts/{versionId}/submit-review` | `course:submit` + 归属 | 提交不可变版本审核 → PENDING_REVIEW |
 | GET | `/course-audits` | `course:audit` | 管理端待审核课程分页 |
 | GET | `/course-audits/{id}` | `course:audit` | 审核快照和历史 |
 | POST | `/course-audits/{id}/approve` | `course:audit` | 审批通过（同事务发布） |
 | POST | `/course-audits/{id}/reject` | `course:audit` | 驳回，原因必填 |
-| POST | `/course-audits/{id}/withdraw` | 提交教师 | 审核前撤回并使版本不可再审批 |
+| POST | `/course-audits/{id}/withdraw` | 提交教师 | 审核前撤回并使版本不可再审批；同时清空 course.draft_version_id（编辑页经 GET draft 404 落入重建草稿恢复路径） |
 | POST | `/courses/{id}/offline` | `course:offline` | 下架（PUBLISHED → OFFLINE） |
 | POST | `/courses/{id}/republish` | `course:republish` | 仅 OFFLINE 且有有效发布版本；M05 就绪 gate 恒放行 |
 | POST | `/courses/{id}/archive` | `course:archive` | 归档且不可重新销售；已发布课程必须先下架 |

@@ -129,7 +129,9 @@ class CourseCoverBindTest {
 
         versionService().updateDraft(301L, 1001L, updateRequest("新标题", "77"));
 
-        verifyNoInteractions(fileClient);
+        // 封面未变化时不应触发写侧 bind/unbind；响应回显的只读 grant（coverUrl）允许调用。
+        verify(fileClient, never()).bindCover(any(), any(), any());
+        verify(fileClient, never()).unbindCover(any(), any());
     }
 
     @Test

@@ -20,6 +20,8 @@ public class CourseTeacherRow {
 
     private Long versionId;
 
+    private Integer versionNo;
+
     private String lifecycleStatus;
 
     private String versionStatus;

@@ -11,16 +11,23 @@ const statusConfig: Record<string, { label: string; cls: string }> = {
   DRAFT: { label: '草稿', cls: 'badge-amber' },
   PENDING_REVIEW: { label: '待审核', cls: 'badge-indigo' },
   REJECTED: { label: '已驳回', cls: 'badge-red' },
+  WITHDRAWN: { label: '已撤回', cls: 'badge-red' },
   PUBLISHED: { label: '已发布', cls: 'badge-green' },
   OFFLINE: { label: '已下架', cls: 'badge-amber' },
   ARCHIVED: { label: '已归档', cls: 'badge-indigo' },
 };
 
-const statusFilters = ['ALL', 'DRAFT', 'PENDING_REVIEW', 'REJECTED', 'PUBLISHED', 'OFFLINE', 'ARCHIVED'] as const;
+const statusFilters = ['ALL', 'DRAFT', 'PENDING_REVIEW', 'REJECTED', 'WITHDRAWN', 'PUBLISHED', 'OFFLINE', 'ARCHIVED'] as const;
 type StatusFilter = (typeof statusFilters)[number];
 
 function displayStatus(course: TeacherCourse): string {
-  if (course.versionStatus === 'DRAFT' || course.versionStatus === 'PENDING_REVIEW' || course.versionStatus === 'REJECTED') {
+  // 工作态（草稿/待审/驳回/已撤回）优先展示版本状态；其余回落到生命周期状态。
+  if (
+    course.versionStatus === 'DRAFT' ||
+    course.versionStatus === 'PENDING_REVIEW' ||
+    course.versionStatus === 'REJECTED' ||
+    course.versionStatus === 'WITHDRAWN'
+  ) {
     return course.versionStatus;
   }
   return course.lifecycleStatus;
@@ -198,7 +205,7 @@ export default function CourseManage() {
                         )}
                         <div className="min-w-0">
                           <p className="font-medium text-ink-800 line-clamp-1">{course.title}</p>
-                          <p className="text-xs text-ink-400 mt-0.5">版本 v{course.versionId ? course.versionId.slice(-4) : '--'}</p>
+                          <p className="text-xs text-ink-400 mt-0.5">版本 v{course.versionNo ?? '--'}</p>
                         </div>
                       </div>
                     </td>

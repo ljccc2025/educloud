@@ -36,6 +36,7 @@ const versionBanner: Record<
   DRAFT: { text: '可编辑草稿', cls: 'badge-amber' },
   PENDING_REVIEW: { text: '已提交审核（只读）', cls: 'badge-indigo' },
   REJECTED: { text: '审核未通过，可复制为新草稿', cls: 'badge-red' },
+  WITHDRAWN: { text: '已撤回（只读），可复制为新草稿', cls: 'badge-red' },
 };
 
 export default function CourseEdit() {
@@ -44,6 +45,7 @@ export default function CourseEdit() {
   const isNew = id === 'new';
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [draft, setDraft] = useState<CourseDraft | null>(null);
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
@@ -76,16 +78,23 @@ export default function CourseEdit() {
     }
   }, [id, isNew]);
 
+  const loadCategories = useCallback(async () => {
+    setCategoriesError(null);
+    try {
+      const cats = await teacherCourseApi.getCategories();
+      setCategories(cats);
+    } catch (e) {
+      setCategoriesError(apiErrorText(e));
+    }
+  }, []);
+
   useEffect(() => {
     if (isNew) {
-      teacherCourseApi
-        .getCategories()
-        .then(setCategories)
-        .catch((e) => setError(apiErrorText(e)));
+      void loadCategories();
     } else {
       void loadDraft();
     }
-  }, [isNew, loadDraft, retryTick]);
+  }, [isNew, loadDraft, loadCategories, retryTick]);
 
   const editable = draft?.versionStatus === 'DRAFT';
 
@@ -179,11 +188,16 @@ export default function CourseEdit() {
     }
     setCoverUploading(true);
     setError(null);
+    const previousPreview = coverPreview;
+    const objectUrl = URL.createObjectURL(file);
     try {
       const fileId = await teacherCourseApi.uploadCover(file);
-      setCoverPreview(URL.createObjectURL(file));
+      setCoverPreview(objectUrl);
       await saveCoverFileId(fileId);
     } catch (e) {
+      // 保存失败回滚预览（任务 22 规格审查②）：释放本次对象 URL、恢复旧预览。
+      URL.revokeObjectURL(objectUrl);
+      setCoverPreview(previousPreview);
       setError(apiErrorText(e));
     } finally {
       setCoverUploading(false);
@@ -230,7 +244,7 @@ export default function CourseEdit() {
               className="btn-primary"
             >
               <CopyPlus className="w-4 h-4" />
-              {copying ? '创建中…' : '从已发布/驳回版本创建草稿'}
+              {copying ? '创建中…' : '从最近版本创建草稿（已发布/驳回/已撤回）'}
             </button>
           )}
         </div>
@@ -271,7 +285,7 @@ export default function CourseEdit() {
             {submitting ? '提交中…' : '提交审核'}
           </button>
         )}
-        {draft?.versionStatus === 'REJECTED' && activeTab === 'basic' && (
+        {(draft?.versionStatus === 'REJECTED' || draft?.versionStatus === 'WITHDRAWN') && activeTab === 'basic' && (
           <button
             type="button"
             onClick={() => void handleCopyDraft()}
@@ -331,7 +345,19 @@ export default function CourseEdit() {
       {/* Tab content */}
       <div className="max-w-3xl">
         {activeTab === 'basic' && (
-          draft && !editable ? (
+          isNew && categoriesError ? (
+            <div className="card-editorial p-8 text-center space-y-4">
+              <AlertCircle className="w-10 h-10 mx-auto text-red-300" />
+              <p className="text-ink-600">课程分类加载失败</p>
+              <p className="text-sm text-ink-400">{categoriesError}</p>
+              <button type="button" onClick={() => void loadCategories()} className="btn-outline">
+                <RefreshCw className="w-4 h-4" />
+                重新加载分类
+              </button>
+            </div>
+          ) : isNew && categories.length === 0 ? (
+            <div className="card-editorial p-12 text-center text-ink-400 text-sm">正在加载课程分类…</div>
+          ) : draft && !editable ? (
             <div className="card-editorial p-8 space-y-4">
               <div className="space-y-1">
                 <p className="section-label mb-2">课程信息</p>
@@ -345,8 +371,11 @@ export default function CourseEdit() {
                 <div><dt className="text-ink-400">分类 ID</dt><dd className="text-ink-800">{draft.categoryId ?? '—'}</dd></div>
                 <div><dt className="text-ink-400">版本</dt><dd className="text-ink-800">v{draft.versionNo}</dd></div>
               </dl>
-              {draft.versionStatus === 'REJECTED' && (
-                <p className="text-sm text-red-600">审核未通过，点击右上角「复制为新草稿」修改后重新提交。</p>
+              {(draft.versionStatus === 'REJECTED' || draft.versionStatus === 'WITHDRAWN') && (
+                <p className="text-sm text-red-600">
+                  {draft.versionStatus === 'REJECTED' ? '审核未通过' : '已撤回'}，
+                  点击右上角「复制为新草稿」修改后重新提交。
+                </p>
               )}
             </div>
           ) : (

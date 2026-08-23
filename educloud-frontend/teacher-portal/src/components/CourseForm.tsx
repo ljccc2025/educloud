@@ -52,7 +52,8 @@ export default function CourseForm({
   const [level, setLevel] = useState<CourseLevel>(initialDraft?.level ?? 'BEGINNER');
   const [price, setPrice] = useState(initialDraft?.price ?? '0');
   const [coverFileId, setCoverFileId] = useState<string | null>(initialDraft?.coverFileId ?? null);
-  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  // 编辑回显（任务 22 规格审查②）：draft 响应含 coverUrl（后端 USER grant）；新上传则用本地对象 URL。
+  const [coverPreview, setCoverPreview] = useState<string | null>(initialDraft?.coverUrl ?? null);
   const [coverUploading, setCoverUploading] = useState(false);
   const [coverError, setCoverError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);

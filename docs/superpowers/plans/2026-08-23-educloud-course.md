@@ -368,11 +368,13 @@ educloud-frontend/admin-portal/...             # 阶段 3 联调
 - 修改：\`educloud-frontend/teacher-portal/src/services/api.ts\`（或新增 courseTeacherApi.ts：课程列表/草稿/保存/提交审核/学生列表/封面上传）、\`src/pages/CourseManage.tsx\`（状态列表）、\`src/pages/CourseEdit.tsx\`（表单真实保存 + uploadCover 复用 file.ts 模式 + 提交审核）、\`src/pages/StudentList.tsx\`、types 对齐
 - 测试：\`tsc --noEmit\` + \`vite build\` + 浏览器冒烟
 
-- [ ] **步骤 1：typecheck 基线**
-- [ ] **步骤 2：实现 teacher 课程 API 层**
-- [ ] **步骤 3：替换 CourseManage/CourseEdit/StudentList**
-- [ ] **步骤 4：浏览器冒烟**（建课→填表→封面上传→保存草稿→提交审核；学生列表）
-- [ ] **步骤 5：Commit**（\`feat(teacher): 课程管理与封面上传真实联调\`）
+> **执行记录（任务 22 已完成，commit 4dd54c4）：计划外后端补充 —— 规格 §6 原无教师课程列表端点，`GET /api/v1/courses` 仅公开已发布列表；本任务按需补齐 `GET /api/v1/teacher/courses`（`course:update` + 归属，COALESCE(draft,published,最新版本) 驱动，封面 USER grant），并同步网关路由（course-core Path + RouteGroups）。前端以新增 `services/teacherCourseApi.ts` 接入（无 mock 回退），保留其余模块 mock 不动。
+
+- [x] **步骤 1：typecheck 基线**
+- [x] **步骤 2：实现 teacher 课程 API 层**
+- [x] **步骤 3：替换 CourseManage/CourseEdit/StudentList**
+- [ ] **步骤 4：浏览器冒烟**（建课→填表→封面上传→保存草稿→提交审核；学生列表；留待最终 Playwright 统一执行）
+- [x] **步骤 5：Commit**（\`feat(teacher): 课程管理与封面上传真实联调\`）
 
 ## 任务 23：前端 admin 联调
 
