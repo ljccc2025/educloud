@@ -69,8 +69,9 @@ public class OutboxEventDispatcher {
                         event.getRequestId(),
                         event.getTraceId(),
                         data);
+                // Topic 交换机按点分隔段匹配：FileObject.123 可被 FileObject.# 绑定命中（冒号不是分隔符）。
                 rabbitTemplate.convertAndSend(
-                        event.getAggregateType() + ":" + event.getAggregateId(), envelope);
+                        event.getAggregateType() + "." + event.getAggregateId(), envelope);
                 outboxEventMapper.update(null, new UpdateWrapper<OutboxEventEntity>()
                         .eq("id", event.getId())
                         .set("publish_status", "PUBLISHED")

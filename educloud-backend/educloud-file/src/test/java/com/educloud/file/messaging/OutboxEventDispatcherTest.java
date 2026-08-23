@@ -69,7 +69,7 @@ class OutboxEventDispatcherTest {
         dispatcher.dispatchPending();
 
         ArgumentCaptor<EventEnvelope> envelopeCaptor = ArgumentCaptor.forClass(EventEnvelope.class);
-        verify(rabbitTemplate).convertAndSend(eq("FileObject:1001"), (Object) envelopeCaptor.capture());
+        verify(rabbitTemplate).convertAndSend(eq("FileObject.1001"), (Object) envelopeCaptor.capture());
         EventEnvelope envelope = envelopeCaptor.getValue();
         assertThat(envelope.eventId()).isEqualTo("event-1");
         assertThat(envelope.sourceService()).isEqualTo("educloud-file");
