@@ -1,10 +1,12 @@
 package com.educloud.course.security;
 
 import com.educloud.course.CourseApplication;
+import com.educloud.course.mapper.CourseCategoryMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -30,7 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 401 信封；course:audit 权限放行受保护端点；无该权限 403 COURSE_ACCESS_DENIED；
  * 错误 aud 401；非信任密钥（验签失败）401；过期 token 401。（actuator 按
  * application-test.yml 运行在独立 management 端口，不在主 SecurityFilterChain 作用域内，
- * 故不在此断言匿名可达。）</p>
+ * 故不在此断言匿名可达。任务 7 起 CategoryService 依赖 CourseCategoryMapper，test profile
+ * 无 DataSource 不注册 Mapper，以 @MockBean 满足——与 CourseContextTest 同法。）</p>
  */
 @SpringBootTest(classes = CourseApplication.class)
 @AutoConfigureMockMvc
@@ -42,6 +45,9 @@ class SecurityConfigTest {
 
     @Autowired
     MockMvc mockMvc;
+
+    @MockBean
+    private CourseCategoryMapper courseCategoryMapper;
 
     @DynamicPropertySource
     static void jwksLocation(DynamicPropertyRegistry registry) throws Exception {

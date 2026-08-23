@@ -24,11 +24,13 @@ import org.springframework.security.web.SecurityFilterChain;
  * Course 服务安全配置：Resource Server（User 公钥 JWKS 验签）+ 方法安全。
  *
  * <p>依据：M05 设计规格第 9 节（对外 API 经 Gateway，Bearer + course:* 权限码；Course
- * 再次验签）。全部请求 authenticated，permitAll 仅 /actuator/health/**；/internal/v1/**
- * 由 {@link InternalApiFilter} 在 Security 链之前处理，服务令牌同样能通过 Resource Server
- * 解码（CourseJwtValidator 宽松分支），故无需单独放行。权限码（permissions claim）无前缀
- * 映射为 authority（course:create 等 9 个，见 CoursePermissions），驱动控制器 @PreAuthorize。
- * 401 统一返回 ApiResponse 信封。</p>
+ * 再次验签）。全部请求 authenticated，permitAll 仅 /actuator/health/** 与公开分类
+ * /api/v1/categories（M05 任务 7：Gateway AccessPolicy.PUBLIC_READ 匿名放行后转发不带
+ * Authorization 头，服务内必须同步放行，参照 user /api/v1/platform-config/public 处理）；
+ * /internal/v1/** 由 {@link InternalApiFilter} 在 Security 链之前处理，服务令牌同样能通过
+ * Resource Server 解码（CourseJwtValidator 宽松分支），故无需单独放行。权限码
+ * （permissions claim）无前缀映射为 authority（course:create 等 9 个，见 CoursePermissions），
+ * 驱动控制器 @PreAuthorize。401 统一返回 ApiResponse 信封。</p>
  */
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
@@ -44,7 +46,7 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/health/**", "/api/v1/categories").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt

@@ -1,9 +1,11 @@
 package com.educloud.course;
 
+import com.educloud.course.mapper.CourseCategoryMapper;
 import com.educloud.course.security.TestJwtKeys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -26,6 +28,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * RSA 密钥对，JWKS 文件经 @DynamicPropertySource 注入 educloud.course.jwt.jwks-location
  * （与 educloud-file FileApplicationContextTest 同法），保证安全配置引入后上下文仍可
  * 无外部连接启动。</p>
+ *
+ * <p>任务 7 起 CategoryService 依赖 CourseCategoryMapper：test profile 排除 DataSource
+ * 自动配置，MyBatis-Plus Mapper 不注册，故以 @MockBean 满足（与 educloud-file
+ * FileApplicationContextTest / educloud-user UserApplicationContextTest 同法）。</p>
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -35,6 +41,9 @@ class CourseContextTest {
 
     @Autowired
     ConfigurableApplicationContext context;
+
+    @MockBean
+    private CourseCategoryMapper courseCategoryMapper;
 
     @DynamicPropertySource
     static void jwksLocation(DynamicPropertyRegistry registry) throws Exception {
