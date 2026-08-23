@@ -2,7 +2,7 @@
 
 # EduCloud 开发环境一键启动（在 VM/Rocky 上执行）。幂等：已占用端口跳过启动。
 # 用法：bash deploy/scripts/start-dev.sh
-# 启动：基础设施容器(compose) + educloud-user + educloud-file + educloud-gateway + 三门户 Vite Dev Server。
+# 启动：基础设施容器(compose) + educloud-user + educloud-gateway + educloud-course + educloud-file + 三门户 Vite Dev Server。
 
 set -euo pipefail
 
@@ -30,17 +30,17 @@ set -a
 . deploy/docker-compose/.env
 set +a
 
-printf "[1/5] Ensuring infrastructure containers...\n"
+printf "[1/6] Ensuring infrastructure containers...\n"
 docker compose -f deploy/docker-compose/compose.yml up -d >/dev/null 2>&1 || true
 
-printf "[2/5] Ensuring JWT key material...\n"
+printf "[2/6] Ensuring JWT key material...\n"
 mkdir -p /tmp/educloud-live
 if [[ ! -f /tmp/educloud-live/private.pem ]]; then
   bash deploy/scripts/generate-user-jwt-keys.sh \
     --private-key /tmp/educloud-live/private.pem --jwks /tmp/educloud-live/jwks.json >/dev/null
 fi
 
-printf "[3/5] Starting educloud-user and educloud-gateway...\n"
+printf "[3/6] Starting educloud-user and educloud-gateway...\n"
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-17.0.20.1.1-1.1.el8_10.x86_64
 export PATH="$JAVA_HOME/bin:$PATH"
 
@@ -94,7 +94,35 @@ fi
 
 wait_ready "http://127.0.0.1:8081/actuator/health/readiness" "educloud-gateway"
 
-printf "[4/5] Starting educloud-file...\n"
+printf "[4/6] Starting educloud-course...\n"
+if port_free 8089; then
+  SERVER_PORT=8089 COURSE_MANAGEMENT_PORT=8090 \
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_COURSE_DB_PASSWORD="$EDUCLOUD_COURSE_DB_PASSWORD" \
+  REDIS_HOST=127.0.0.1 REDIS_PORT="${REDIS_PORT:-6379}" REDIS_PASSWORD="$REDIS_PASSWORD" \
+  RABBITMQ_HOST=127.0.0.1 RABBITMQ_PORT="${RABBITMQ_AMQP_PORT:-5672}" \
+  RABBITMQ_DEFAULT_USER="$RABBITMQ_DEFAULT_USER" RABBITMQ_DEFAULT_PASS="$RABBITMQ_DEFAULT_PASS" \
+  RABBITMQ_DEFAULT_VHOST="${RABBITMQ_DEFAULT_VHOST:-educloud}" \
+  NACOS_SERVER_ADDR=127.0.0.1:"$NACOS_HTTP_PORT" \
+  EDUCLOUD_COURSE_NACOS_USERNAME=educloud_course EDUCLOUD_COURSE_NACOS_PASSWORD="$NACOS_COURSE_PASSWORD" \
+  COURSE_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json \
+  EDUCLOUD_COURSE_JWT_ISSUER="${EDUCLOUD_COURSE_JWT_ISSUER:-https://issuer.educloud.local}" \
+  EDUCLOUD_COURSE_JWT_AUDIENCE="${EDUCLOUD_COURSE_JWT_AUDIENCE:-educloud-api}" \
+  EDUCLOUD_COURSE_FILE_ENDPOINT="${EDUCLOUD_COURSE_FILE_ENDPOINT:-http://127.0.0.1:8087}" \
+  EDUCLOUD_COURSE_FILE_CLIENT_ID="${EDUCLOUD_COURSE_FILE_CLIENT_ID:-educloud-course}" \
+  EDUCLOUD_COURSE_FILE_CLIENT_SECRET="$EDUCLOUD_COURSE_FILE_CLIENT_SECRET" \
+  EDUCLOUD_COURSE_FILE_ENABLED="${EDUCLOUD_COURSE_FILE_ENABLED:-true}" \
+  EDUCLOUD_COURSE_USER_TOKEN_ENDPOINT="${EDUCLOUD_COURSE_USER_TOKEN_ENDPOINT:-http://127.0.0.1:8082}" \
+  EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
+  setsid nohup java -jar educloud-backend/educloud-course/target/educloud-course-1.0.0-SNAPSHOT.jar \
+    > /tmp/educloud-live/course.log 2>&1 < /dev/null &
+  printf "  educloud-course started (8089/8090)\n"
+else
+  printf "  educloud-course already running\n"
+fi
+
+wait_ready "http://127.0.0.1:8090/actuator/health/readiness" "educloud-course"
+
+printf "[5/6] Starting educloud-file...\n"
 if port_free 8087; then
   SERVER_PORT=8087 FILE_MANAGEMENT_PORT=8088 \
   MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_FILE_DB_PASSWORD="$EDUCLOUD_FILE_DB_PASSWORD" \
@@ -111,7 +139,7 @@ if port_free 8087; then
   EDUCLOUD_FILE_JWT_ISSUER="${EDUCLOUD_FILE_JWT_ISSUER:-https://issuer.educloud.local}" \
   EDUCLOUD_FILE_JWT_AUDIENCE="${EDUCLOUD_FILE_JWT_AUDIENCE:-educloud-api}" \
   EDUCLOUD_FILE_INTERNAL_BOOTSTRAP_KEY="${EDUCLOUD_FILE_INTERNAL_BOOTSTRAP_KEY:-}" \
-  EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS="${EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS:-user-service}" \
+  EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS="${EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS:-user-service,educloud-course}" \
   EDUCLOUD_FILE_INTERNAL_AUDIENCE="${EDUCLOUD_FILE_INTERNAL_AUDIENCE:-educloud-file}" \
   EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
   setsid nohup java -jar educloud-backend/educloud-file/target/educloud-file-1.0.0-SNAPSHOT.jar \
@@ -123,7 +151,7 @@ fi
 
 wait_ready "http://127.0.0.1:8088/actuator/health/readiness" "educloud-file"
 
-printf "[5/5] Starting frontend dev servers...\n"
+printf "[6/6] Starting frontend dev servers...\n"
 start_portal() {
   local dir="$1" port="$2"
   if port_free "$port"; then
@@ -145,4 +173,5 @@ printf "  Student: http://192.168.100.136:5173\n"
 printf "  Teacher: http://192.168.100.136:5174  (demo_teacher / EduCloud@2026)\n"
 printf "  Admin:   http://192.168.100.136:5175  (demo_admin / EduCloud@2026)\n"
 printf "  File:    http://192.168.100.136:8087  (management 8088)\n"
-printf "\nLogs: /tmp/educloud-live/{user,gateway,file}.log, /tmp/vm-vite-*.log\n"
+printf "  Course:  http://192.168.100.136:8089  (management 8090)\n"
+printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file}.log, /tmp/vm-vite-*.log\n"

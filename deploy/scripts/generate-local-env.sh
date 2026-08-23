@@ -94,12 +94,20 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         # M04: File 服务 Nacos 密码（provision-file-nacos.sh 用它创建身份，File 服务用它登录 Nacos）。
         printf '%s=%s\n' "$variable_name" "$(random_hex)" >>"$temporary_file"
         ;;
+      NACOS_COURSE_PASSWORD)
+        # M05: Course 服务 Nacos 密码（provision-course-nacos.sh 用它创建身份，Course 服务用它登录 Nacos）。
+        printf '%s=%s\n' "$variable_name" "$(random_hex)" >>"$temporary_file"
+        ;;
       EDUCLOUD_FILE_INTERNAL_BOOTSTRAP_KEY)
         # M04: File 内部 bootstrap 密钥；生成后从 .env 读取作为 bootstrap-service-clients.sh 的 BOOTSTRAP_KEY。
         printf '%s=%s\n' "$variable_name" "$(random_hex)" >>"$temporary_file"
         ;;
       EDUCLOUD_USER_FILE_CLIENT_SECRET)
         # M04: User 服务调用 File 内部接口的客户端 secret；须与 bootstrap-service-clients.sh 注册到 File 的 user-service 客户端 secret 一致。
+        printf '%s=%s\n' "$variable_name" "$(random_hex)" >>"$temporary_file"
+        ;;
+      EDUCLOUD_COURSE_FILE_CLIENT_SECRET)
+        # M05: Course 服务调用 File 内部接口的客户端 secret；须与 bootstrap-service-clients.sh 注册到 File 的 educloud-course 客户端 secret 一致。
         printf '%s=%s\n' "$variable_name" "$(random_hex)" >>"$temporary_file"
         ;;
       NACOS_AUTH_TOKEN)
