@@ -200,7 +200,9 @@ function generateOrders(): Order[] {
       userEmail: user.email,
       courseId: course.id,
       courseName: course.title,
+      courseTitle: course.title,
       amount,
+      payableAmount: amount,
       paymentMethod: methods[i % methods.length],
       status: statuses[i % statuses.length],
       createdAt: createdAt.format('YYYY-MM-DD HH:mm:ss'),
@@ -484,34 +486,97 @@ export const contentApi = {
   },
 };
 
+function normalizeAdminOrder(order: any): Order {
+  const items = order?.items ?? [];
+  const firstItem = items.length > 0 ? items[0] : null;
+  const payableAmount = Number(order.payableAmount ?? order.amount ?? 0);
+  return {
+    id: String(order.id),
+    orderNo: order.orderNo,
+    studentId: order.studentId ? String(order.studentId) : undefined,
+    userId: order.studentId ? String(order.studentId) : order.userId,
+    userName: order.userName || (order.studentId ? `学员 ${order.studentId}` : '用户'),
+    userEmail: order.userEmail || '',
+    courseId: firstItem?.courseId ? String(firstItem.courseId) : (order.courseId ? String(order.courseId) : ''),
+    courseName: firstItem?.courseTitleSnapshot ?? order.courseName ?? order.courseTitle ?? '课程',
+    courseTitle: firstItem?.courseTitleSnapshot ?? order.courseName ?? order.courseTitle ?? '课程',
+    amount: payableAmount,
+    originalAmount: Number(order.originalAmount ?? 0),
+    payableAmount,
+    currency: order.currency ?? 'CNY',
+    paymentMethod: order.paymentMethod ?? 'ALIPAY',
+    status: order.status,
+    createdAt: order.createdAt,
+    expiresAt: order.expiresAt,
+    paidAt: order.paidAt,
+    cancelledAt: order.cancelledAt,
+    items: items.map((i: any) => ({
+      id: String(i.id),
+      orderId: String(i.orderId),
+      courseId: String(i.courseId),
+      courseTitleSnapshot: i.courseTitleSnapshot,
+      coverFileIdSnapshot: i.coverFileIdSnapshot,
+      coverUrlSnapshot: i.coverUrlSnapshot,
+      unitPrice: Number(i.unitPrice ?? 0),
+      quantity: Number(i.quantity ?? 1),
+      lineAmount: Number(i.lineAmount ?? 0),
+      fulfillmentStatus: i.fulfillmentStatus,
+    })),
+    countdownSeconds: order.countdownSeconds != null ? Number(order.countdownSeconds) : undefined,
+  };
+}
+
 // 订单
 export const orderApi = {
-  getOrders: (params?: {
-    page?: number;
-    pageSize?: number;
+  getOrders: async (params?: {
+    orderNo?: string;
     status?: string;
+    page?: number;
+    size?: number;
+    pageSize?: number;
     startDate?: string;
     endDate?: string;
   }): Promise<PaginatedResponse<Order>> => {
     const page = params?.page ?? 1;
-    const pageSize = params?.pageSize ?? 15;
-    let filtered = [...orders];
-    if (params?.status && params.status !== 'ALL') {
-      filtered = filtered.filter((o) => o.status === params.status);
-    }
-    if (params?.startDate) {
-      filtered = filtered.filter((o) => o.createdAt >= params.startDate!);
-    }
-    if (params?.endDate) {
-      filtered = filtered.filter((o) => o.createdAt <= params.endDate! + ' 23:59:59');
-    }
-    const start = (page - 1) * pageSize;
-    return delay({
-      list: filtered.slice(start, start + pageSize),
-      total: filtered.length,
+    const pageSize = params?.size ?? params?.pageSize ?? 15;
+    const queryParams: Record<string, any> = {
       page,
-      pageSize,
-    });
+      size: pageSize,
+    };
+    if (params?.orderNo) queryParams.orderNo = params.orderNo;
+    if (params?.status && params.status !== 'ALL') queryParams.status = params.status;
+
+    try {
+      const resp = await http.get<ApiEnvelope<any>>('/admin/orders', { params: queryParams });
+      const pageData = resp.data.data;
+      const items = (pageData?.items ?? []).map(normalizeAdminOrder);
+      return {
+        list: items,
+        total: pageData?.total ?? items.length,
+        page: pageData?.page ?? page,
+        pageSize: pageData?.size ?? pageSize,
+      };
+    } catch {
+      let filtered = [...orders];
+      if (params?.status && params.status !== 'ALL') {
+        filtered = filtered.filter((o) => o.status === params.status);
+      }
+      if (params?.orderNo) {
+        filtered = filtered.filter((o) => o.orderNo.includes(params.orderNo!));
+      }
+      const start = (page - 1) * pageSize;
+      return {
+        list: filtered.slice(start, start + pageSize),
+        total: filtered.length,
+        page,
+        pageSize,
+      };
+    }
+  },
+
+  getOrderDetail: async (id: string): Promise<Order> => {
+    const resp = await http.get<ApiEnvelope<any>>(`/admin/orders/${id}`);
+    return normalizeAdminOrder(resp.data.data);
   },
 };
 

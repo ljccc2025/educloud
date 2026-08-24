@@ -50,24 +50,56 @@ export interface ContentItem {
 }
 
 // 订单状态
-export type OrderStatus = 'PAID' | 'PENDING' | 'REFUNDED' | 'CANCELLED';
+export type OrderStatus =
+  | 'PENDING_PAYMENT'
+  | 'PAID'
+  | 'CANCELLED'
+  | 'CLOSED'
+  | 'REFUNDING'
+  | 'PARTIALLY_REFUNDED'
+  | 'REFUNDED'
+  | 'PENDING';
 
 // 支付方式
 export type PaymentMethod = 'ALIPAY' | 'WECHAT';
+
+// 订单项
+export interface OrderItem {
+  id: string;
+  orderId: string;
+  courseId: string;
+  courseTitleSnapshot: string;
+  coverFileIdSnapshot: string | null;
+  coverUrlSnapshot?: string | null;
+  unitPrice: number;
+  quantity: number;
+  lineAmount: number;
+  fulfillmentStatus: string;
+}
 
 // 订单
 export interface Order {
   id: string;
   orderNo: string;
-  userId: number;
-  userName: string;
-  userEmail: string;
-  courseId: number;
-  courseName: string;
+  studentId?: string;
+  userId?: string | number;
+  userName?: string;
+  userEmail?: string;
+  courseId?: string | number;
+  courseName?: string;
+  courseTitle?: string;
   amount: number;
-  paymentMethod: PaymentMethod;
+  originalAmount?: number;
+  payableAmount: number;
+  currency?: string;
+  paymentMethod?: PaymentMethod;
   status: OrderStatus;
   createdAt: string;
+  expiresAt?: string;
+  paidAt?: string;
+  cancelledAt?: string;
+  items?: OrderItem[];
+  countdownSeconds?: number;
 }
 
 // 系统配置
