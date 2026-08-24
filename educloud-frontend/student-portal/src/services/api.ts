@@ -3,10 +3,9 @@ import { http, TOKEN_KEY, apiErrorText, type ApiEnvelope } from './http';
 import type {
   LiveRoom, ChatMessage,
   Assignment, Exam, Order, StudentUser, HomeStats,
-  CategoryShowcase,
+  CategoryShowcase, CartResponse, PaginatedResponse,
 } from '../types';
 import { courseApi } from './courseApi';
-import { createMockCheckoutApi } from './mockCheckoutApi';
 
 // ---------- helpers ----------
 const delay = <T>(data: T, ms = 300): Promise<T> =>
@@ -252,27 +251,146 @@ export const examApi = {
   getAll: (): Promise<Exam[]> => delay(exams),
 };
 
-export const { orderApi, paymentApi } = createMockCheckoutApi({
-  seedOrders: orders,
-  courses: {
-    getCourse: async (courseId: string) => {
-      const seeded = mockCourseSeeds.find((c) => c.id === courseId);
-      if (seeded) return seeded;
-      try {
-        const course = await courseApi.getById(courseId);
-        return {
-          id: course.id,
-          title: course.title,
-          price: Number(course.price),
-          cover: course.coverUrl ?? cover(0),
-        };
-      } catch {
-        return undefined;
-      }
-    },
-    grantCourseAccess: () => {},
+function normalizeOrder(order: any): Order {
+  const items = order?.items ?? [];
+  const firstItem = items.length > 0 ? items[0] : null;
+  return {
+    id: String(order.id),
+    orderNo: order.orderNo,
+    studentId: order.studentId ? String(order.studentId) : undefined,
+    courseId: firstItem?.courseId ? String(firstItem.courseId) : (order.courseId ? String(order.courseId) : ''),
+    courseTitle: firstItem?.courseTitleSnapshot ?? order.courseTitle ?? '课程',
+    courseCover: firstItem?.coverUrlSnapshot ?? order.courseCover ?? cover(0),
+    originalAmount: Number(order.originalAmount ?? 0),
+    payableAmount: Number(order.payableAmount ?? 0),
+    currency: order.currency ?? 'CNY',
+    paymentMethod: order.paymentMethod ?? 'ALIPAY',
+    status: order.status,
+    createdAt: order.createdAt,
+    expiresAt: order.expiresAt,
+    paidAt: order.paidAt,
+    cancelledAt: order.cancelledAt,
+    items: items.map((i: any) => ({
+      id: String(i.id),
+      orderId: String(i.orderId),
+      courseId: String(i.courseId),
+      courseTitleSnapshot: i.courseTitleSnapshot,
+      coverFileIdSnapshot: i.coverFileIdSnapshot,
+      coverUrlSnapshot: i.coverUrlSnapshot,
+      unitPrice: Number(i.unitPrice ?? 0),
+      quantity: Number(i.quantity ?? 1),
+      lineAmount: Number(i.lineAmount ?? 0),
+      fulfillmentStatus: i.fulfillmentStatus,
+    })),
+    countdownSeconds: order.countdownSeconds != null ? Number(order.countdownSeconds) : undefined,
+  };
+}
+
+export const cartApi = {
+  getCart: async (): Promise<CartResponse> => {
+    const resp = await http.get<ApiEnvelope<CartResponse>>('/cart');
+    return resp.data.data;
   },
-});
+  addToCart: async (courseId: string): Promise<void> => {
+    await http.post<ApiEnvelope<void>>('/cart/items', { courseId });
+  },
+  updateCartSelection: async (courseId: string, selected: boolean): Promise<void> => {
+    await http.put<ApiEnvelope<void>>(`/cart/items/${courseId}/selection`, { selected });
+  },
+  removeCartItem: async (courseId: string): Promise<void> => {
+    await http.delete<ApiEnvelope<void>>(`/cart/items/${courseId}`);
+  },
+  clearCart: async (selectedOnly = false): Promise<void> => {
+    await http.delete<ApiEnvelope<void>>('/cart', { params: { selectedOnly } });
+  },
+};
+
+export const orderApi = {
+  getIdempotencyToken: async (): Promise<string> => {
+    const resp = await http.get<ApiEnvelope<{ token: string }>>('/orders/idempotency-token');
+    return resp.data.data.token;
+  },
+  createOrder: async (data: { courseId?: string; idempotencyToken?: string }): Promise<Order> => {
+    const token = data.idempotencyToken ?? (await orderApi.getIdempotencyToken());
+    const resp = await http.post<ApiEnvelope<any>>('/orders', {
+      courseId: data.courseId,
+      idempotencyToken: token,
+    }, {
+      headers: {
+        'X-Idempotency-Key': token,
+      },
+    });
+    return normalizeOrder(resp.data.data);
+  },
+  getMyOrders: async (params?: { status?: string; page?: number; size?: number }): Promise<PaginatedResponse<Order>> => {
+    const resp = await http.get<ApiEnvelope<PaginatedResponse<any>>>('/orders', { params });
+    return {
+      ...resp.data.data,
+      items: (resp.data.data.items ?? []).map(normalizeOrder),
+    };
+  },
+  getOrderDetail: async (id: string): Promise<Order> => {
+    const resp = await http.get<ApiEnvelope<any>>(`/orders/${id}`);
+    return normalizeOrder(resp.data.data);
+  },
+  cancelOrder: async (id: string): Promise<void> => {
+    await http.post<ApiEnvelope<void>>(`/orders/${id}/cancel`);
+  },
+  mockPayOrder: async (id: string): Promise<Order> => {
+    const resp = await http.post<ApiEnvelope<any>>(`/orders/${id}/mock-pay`);
+    return normalizeOrder(resp.data.data);
+  },
+
+  // Helper methods for UI compatibility
+  getAll: async (params?: { status?: string; page?: number; size?: number }): Promise<Order[]> => {
+    const res = await orderApi.getMyOrders(params);
+    return res.items;
+  },
+  getById: async (id: string): Promise<Order | undefined> => {
+    try {
+      return await orderApi.getOrderDetail(id);
+    } catch {
+      return undefined;
+    }
+  },
+  create: async (courseId: string, idempotencyKey?: string): Promise<Order> => {
+    return orderApi.createOrder({ courseId, idempotencyToken: idempotencyKey });
+  },
+  cancel: async (orderId: string): Promise<Order> => {
+    await orderApi.cancelOrder(orderId);
+    return orderApi.getOrderDetail(orderId);
+  },
+  mockPay: async (orderId: string): Promise<Order> => {
+    return orderApi.mockPayOrder(orderId);
+  },
+  getPayableByCourse: async (courseId: string): Promise<Order | undefined> => {
+    try {
+      const res = await orderApi.getMyOrders({ status: 'PENDING_PAYMENT', page: 1, size: 20 });
+      return res.items.find((o) => o.courseId === courseId || o.items?.some((i) => i.courseId === courseId));
+    } catch {
+      return undefined;
+    }
+  },
+};
+
+export const paymentApi = {
+  create: async (orderId: string, _channel: any) => {
+    return orderApi.mockPayOrder(orderId);
+  },
+  getByOrderId: async (orderId: string) => {
+    const order = await orderApi.getById(orderId);
+    if (!order) return undefined;
+    return {
+      paymentId: `mock-pay-${order.id}`,
+      attemptId: `mock-att-${order.id}`,
+      orderId: order.id,
+      channel: order.paymentMethod ?? 'ALIPAY',
+      status: (order.status === 'PAID' ? 'SUCCESS' : (order.status === 'CANCELLED' ? 'CANCELLED' : 'ACTIVE')) as any,
+      providerCreatedAt: order.createdAt ?? new Date().toISOString(),
+      updatedAt: order.paidAt ?? new Date().toISOString(),
+    };
+  },
+};
 
 export const userApi = {
   getProfile: (): Promise<StudentUser> => delay(currentUser),

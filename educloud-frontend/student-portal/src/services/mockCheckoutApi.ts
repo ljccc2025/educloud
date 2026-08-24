@@ -106,7 +106,9 @@ export function createMockCheckoutApi({
 
   state.orders
     .filter((order) => order.status === 'PAID')
-    .forEach((order) => courses.grantCourseAccess(order.courseId));
+    .forEach((order) => {
+      if (order.courseId) courses.grantCourseAccess(order.courseId);
+    });
 
   const settleActivePayment = async (payment: PersistedPayment) => {
     if (payment.status !== 'ACTIVE') return payment;
@@ -138,7 +140,7 @@ export function createMockCheckoutApi({
       order.status = 'PAID';
       order.paymentMethod = payment.channel;
       order.paidAt = payment.updatedAt;
-      courses.grantCourseAccess(order.courseId);
+      if (order.courseId) courses.grantCourseAccess(order.courseId);
     }
 
     saveState(state);

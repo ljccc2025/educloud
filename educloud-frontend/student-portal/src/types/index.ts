@@ -135,10 +135,24 @@ export interface ChatMessage {
 // 购物车条目（courseId 为 Snowflake string，禁止 Number()）
 export interface CartItem {
   courseId: string;
-  title: string;
+  courseTitle?: string;
+  title?: string;
+  coverFileId?: string | null;
+  coverUrl?: string | null;
+  cover?: string;
   price: number;
-  cover: string;
-  teacherName: string;
+  selected?: boolean;
+  valid?: boolean;
+  invalidReason?: string | null;
+  createdAt?: string;
+  teacherName?: string;
+}
+
+export interface CartResponse {
+  items: CartItem[];
+  selectedCount: number;
+  totalAmount: number;
+  selectedAmount: number;
 }
 
 // 作业状态
@@ -179,6 +193,20 @@ export interface Exam {
   passScore: number;
 }
 
+// 订单项
+export interface OrderItem {
+  id: string;
+  orderId: string;
+  courseId: string;
+  courseTitleSnapshot: string;
+  coverFileIdSnapshot: string | null;
+  coverUrlSnapshot?: string | null;
+  unitPrice: number;
+  quantity: number;
+  lineAmount: number;
+  fulfillmentStatus: string;
+}
+
 // 订单状态：与后端业务订单状态保持一致，支付处理状态不混入订单状态。
 export type OrderStatus =
   | 'PENDING_PAYMENT'
@@ -207,17 +235,21 @@ export interface Order {
   id: string;
   orderNo: string;
   userId?: string;
-  courseId: string;
-  courseTitle: string;
-  courseCover: string;
+  studentId?: string;
+  courseId?: string;
+  courseTitle?: string;
+  courseCover?: string;
   originalAmount: number;
   payableAmount: number;
-  currency: 'CNY';
+  currency: string;
   paymentMethod?: PaymentMethod;
   status: OrderStatus;
-  createdAt: string;
-  expiresAt: string;
+  createdAt?: string;
+  expiresAt?: string;
   paidAt?: string;
+  cancelledAt?: string;
+  items?: OrderItem[];
+  countdownSeconds?: number;
 }
 
 export interface PaymentStatusSnapshot {
@@ -276,7 +308,8 @@ export interface CategoryShowcase {
 export interface PaginatedResponse<T> {
   items: T[];
   page: number;
-  pageSize: number;
+  pageSize?: number;
+  size?: number;
   total: number;
-  totalPages: number;
+  totalPages?: number;
 }

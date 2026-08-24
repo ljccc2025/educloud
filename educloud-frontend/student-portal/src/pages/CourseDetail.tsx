@@ -13,7 +13,7 @@ import { useCourseStore } from '@/stores/useCourseStore';
 import { useCartStore } from '@/stores/useCartStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { courseApi } from '@/services/courseApi';
-import { cover } from '@/services/api';
+import { cover, cartApi } from '@/services/api';
 import { apiErrorText } from '@/services/http';
 import { cn } from '@/utils/cn';
 import type { CourseDetail as CourseDetailType } from '@/types';
@@ -129,7 +129,7 @@ export default function CourseDetail() {
   const coverSrc = course.coverUrl ?? cover(0);
   const mainTeacher = course.teachers?.[0];
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     addToCart({
       courseId: course.id,
       title: course.title,
@@ -138,6 +138,11 @@ export default function CourseDetail() {
       teacherName: mainTeacher?.teacherId ?? '讲师',
     });
     setAdded(true);
+    try {
+      await cartApi.addToCart(course.id);
+    } catch {
+      // client store already updated
+    }
     window.setTimeout(() => setAdded(false), 2000);
   };
 

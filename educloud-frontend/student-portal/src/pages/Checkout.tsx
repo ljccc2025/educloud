@@ -35,11 +35,14 @@ export default function Checkout() {
 
   const finishPaidOrder = useCallback(
     (paidOrder: Order) => {
-      removeFromCart(paidOrder.courseId);
-      clearCheckoutIntentKey(paidOrder.courseId);
+      const cId = paidOrder.courseId ?? courseIdParam;
+      if (cId) {
+        removeFromCart(cId);
+        clearCheckoutIntentKey(cId);
+      }
       navigate(`/checkout/success/${paidOrder.id}`, { replace: true });
     },
-    [navigate, removeFromCart],
+    [courseIdParam, navigate, removeFromCart],
   );
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Receipt, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Receipt, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { orderApi } from '@/services/api';
 import type { Order, OrderStatus } from '@/types';
 import { cn } from '@/utils/cn';
@@ -16,16 +16,58 @@ const statusConfig: Record<OrderStatus, { label: string; className: string; icon
   REFUNDED: { label: '已退款', className: 'badge-red', icon: XCircle },
 };
 
+type FilterStatus = 'ALL' | 'PENDING_PAYMENT' | 'PAID' | 'CANCELLED';
+
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterStatus>('ALL');
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const fetchOrders = async (currentFilter = filter) => {
+    setLoading(true);
+    try {
+      const statusParam = currentFilter === 'ALL' ? undefined : currentFilter;
+      const data = await orderApi.getAll({ status: statusParam });
+      setOrders(data);
+    } catch {
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    orderApi.getAll().then((data) => {
-      setOrders(data);
-      setLoading(false);
-    });
-  }, []);
+    fetchOrders(filter);
+  }, [filter]);
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!confirm('确定要取消该订单吗？')) return;
+    setActionLoadingId(orderId);
+    try {
+      await orderApi.cancelOrder(orderId);
+      setMessage('订单已成功取消');
+      await fetchOrders();
+    } catch (err: any) {
+      alert(err?.message || '取消订单失败');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleMockPay = async (orderId: string) => {
+    setActionLoadingId(orderId);
+    try {
+      await orderApi.mockPayOrder(orderId);
+      setMessage('支付成功，已开通课程学习权限！');
+      await fetchOrders();
+    } catch (err: any) {
+      alert(err?.message || '模拟支付失败');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   const totalSpent = orders
     .filter((o) => o.status === 'PAID')
@@ -38,6 +80,15 @@ export default function Orders() {
         <h1 className="display-heading text-4xl md:text-5xl mt-3">我的订单</h1>
         <p className="text-ink-500 mt-3">查看购买记录与订单状态</p>
       </div>
+
+      {message && (
+        <div className="mb-6 flex items-center justify-between rounded-xl bg-green-50 p-4 text-sm text-green-700 border border-green-200">
+          <span>{message}</span>
+          <button type="button" onClick={() => setMessage(null)} className="text-xs font-semibold underline">
+            关闭
+          </button>
+        </div>
+      )}
 
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -72,6 +123,32 @@ export default function Orders() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex items-center gap-2 mb-6 border-b border-ink-100 pb-3">
+        {(['ALL', 'PENDING_PAYMENT', 'PAID', 'CANCELLED'] as const).map((tab) => {
+          const labels: Record<FilterStatus, string> = {
+            ALL: '全部',
+            PENDING_PAYMENT: '待支付',
+            PAID: '已完成',
+            CANCELLED: '已取消',
+          };
+          const active = filter === tab;
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setFilter(tab)}
+              className={cn(
+                'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                active ? 'bg-indigo-800 text-white' : 'text-ink-600 hover:bg-ink-100',
+              )}
+            >
+              {labels[tab]}
+            </button>
+          );
+        })}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-indigo-800 border-t-transparent animate-spin" />
@@ -92,8 +169,10 @@ export default function Orders() {
               </thead>
               <tbody>
                 {orders.map((order) => {
-                  const config = statusConfig[order.status];
+                  const config = statusConfig[order.status] ?? statusConfig.PENDING_PAYMENT;
                   const StatusIcon = config.icon;
+                  const isActionLoading = actionLoadingId === order.id;
+
                   return (
                     <tr key={order.id}>
                       <td>
@@ -118,27 +197,41 @@ export default function Orders() {
                       </td>
                       <td>
                         <span className="text-sm text-ink-500">
-                          {dayjs(order.createdAt).format('YYYY-MM-DD HH:mm')}
+                          {order.createdAt ? dayjs(order.createdAt).format('YYYY-MM-DD HH:mm') : '--'}
                         </span>
                       </td>
                       <td className="text-right">
-                        {order.status === 'PENDING_PAYMENT' ? (
-                          <Link
-                            to={`/checkout/${order.courseId}`}
-                            className="btn-primary !px-4 !py-2 text-xs"
-                          >
-                            继续支付
-                          </Link>
-                        ) : order.status === 'PAID' ? (
-                          <Link
-                            to={`/learn/${order.courseId}`}
-                            className="text-sm text-indigo-800 link-underline"
-                          >
-                            开始学习
-                          </Link>
-                        ) : (
-                          <span className="text-sm text-ink-300">--</span>
-                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          {order.status === 'PENDING_PAYMENT' ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={isActionLoading}
+                                onClick={() => handleMockPay(order.id)}
+                                className="btn-primary !px-3 !py-1.5 text-xs"
+                              >
+                                {isActionLoading ? '处理中…' : '立即支付'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isActionLoading}
+                                onClick={() => handleCancelOrder(order.id)}
+                                className="text-xs text-ink-400 hover:text-red-600 px-2 py-1"
+                              >
+                                取消
+                              </button>
+                            </>
+                          ) : order.status === 'PAID' ? (
+                            <Link
+                              to={`/learn/${order.courseId}`}
+                              className="text-sm text-indigo-800 link-underline font-medium"
+                            >
+                              开始学习
+                            </Link>
+                          ) : (
+                            <span className="text-sm text-ink-300">--</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -150,7 +243,7 @@ export default function Orders() {
             <div className="text-center py-16">
               <Receipt size={40} className="mx-auto text-ink-200 mb-3" strokeWidth={1} />
               <p className="text-ink-400">暂无订单记录</p>
-              <Link to="/courses" className="btn-primary mt-4">去选课</Link>
+              <Link to="/courses" className="btn-primary mt-4 inline-block">去选课</Link>
             </div>
           )}
         </div>
