@@ -219,7 +219,9 @@ export default function Learning() {
               <VideoPlayer
                 title={activeCourseware?.title}
                 videoUrl={activeVideoUrl}
+                coursewareId={activeCourseware?.id}
                 coursewareType={activeCourseware?.coursewareType}
+                initialPositionSeconds={activeCourseware?.positionSeconds || 0}
                 onComplete={() => activeCourseware && handleMarkComplete(activeCourseware)}
               />
             </div>
