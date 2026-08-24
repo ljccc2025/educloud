@@ -335,7 +335,7 @@ export default function Home() {
                 准备好开始学习了吗？
               </h2>
               <p className="mt-4 leading-relaxed text-ink-500">
-                加入 50,000+ 名学员，在 EduCloud 开启你的技术成长之路。首单立减 50 元，限时优惠中。
+                加入 50,000+ 名学员，在 EduCloud 开启你的技术成长之路，海量精品课程随心学。
               </p>
             </div>
             <Link

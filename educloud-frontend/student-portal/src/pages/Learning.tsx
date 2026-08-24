@@ -161,6 +161,31 @@ export default function Learning() {
     );
   }
 
+  const isPaid = Number(currentCourse.price) > 0;
+  const isEnrolled = Boolean(currentCourse.enrolled);
+
+  if (isPaid && !isEnrolled) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-24 text-center">
+        <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600">
+          <BookOpen size={32} />
+        </div>
+        <h2 className="font-display text-2xl text-ink-900 font-bold mb-2">尚未获得该课程学习权限</h2>
+        <p className="text-sm text-ink-500 max-w-md mx-auto mb-6">
+          《{currentCourse.title}》为付费精选课程（¥{currentCourse.price}），您需要先完成购买与选课后方可开始学习全部章节。
+        </p>
+        <div className="flex items-center justify-center gap-3">
+          <Link to={`/courses/${currentCourse.id}`} className="btn-primary inline-flex items-center gap-2">
+            前往课程主页购买
+          </Link>
+          <Link to="/courses" className="btn-secondary inline-flex items-center gap-2">
+            浏览更多课程
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const course = currentCourse;
 
   return (

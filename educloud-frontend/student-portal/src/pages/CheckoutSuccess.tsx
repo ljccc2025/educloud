@@ -5,10 +5,12 @@ import PaymentStatusPanel from '@/components/checkout/PaymentStatusPanel';
 import PurchaseSuccessCard from '@/components/checkout/PurchaseSuccessCard';
 import { orderApi } from '@/services/api';
 import { paymentGateway } from '@/services/paymentGateway';
+import { useAuthStore } from '@/stores/useAuthStore';
 import type { Order } from '@/types';
 
 export default function CheckoutSuccess() {
   const { orderId } = useParams<{ orderId: string }>();
+  const currentUser = useAuthStore((state) => state.user);
   const [order, setOrder] = useState<Order>();
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -27,7 +29,7 @@ export default function CheckoutSuccess() {
     const load = async (attempt = 0) => {
       try {
         const payment = await paymentGateway.query(orderId);
-        const found = await orderApi.getById(orderId);
+        const found = await orderApi.getById(orderId, currentUser?.id);
         if (cancelled) return;
 
         if (!found) {

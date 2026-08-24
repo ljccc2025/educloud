@@ -206,6 +206,7 @@ export type MockPaymentOutcome = 'SUCCESS' | 'FAILED' | 'CANCELLED';
 export interface Order {
   id: string;
   orderNo: string;
+  userId?: string;
   courseId: string;
   courseTitle: string;
   courseCover: string;

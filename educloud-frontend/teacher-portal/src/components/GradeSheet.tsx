@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, CheckCircle2 } from 'lucide-react';
+import { Save, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import type { Submission } from '../types';
 import { cn } from '../utils/cn';
 import dayjs from 'dayjs';
@@ -9,7 +9,7 @@ interface GradeSheetProps {
   totalScore: number;
   selectedSubmissionId: string;
   onSelectSubmission: (submissionId: string) => void;
-  onGrade: (submissionId: string, score: number, feedback: string) => void;
+  onGrade: (submissionId: string, score: number, feedback: string) => Promise<void> | void;
 }
 
 export default function GradeSheet({
@@ -22,16 +22,39 @@ export default function GradeSheet({
   const [scores, setScores] = useState<Record<string, string>>({});
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const selected = submissions.find((submission) => submission.id === selectedSubmissionId);
 
-  const handleSave = (sub: Submission) => {
-    const score = Number(scores[sub.id] ?? sub.score ?? '');
+  const handleSave = async (sub: Submission) => {
+    const rawScore = scores[sub.id] !== undefined
+      ? scores[sub.id]
+      : (sub.score !== undefined ? String(sub.score) : '');
+
+    if (!rawScore || rawScore.trim() === '') {
+      setFormError('请输入有效的分数后再保存');
+      return;
+    }
+
+    const numScore = Number(rawScore);
+    if (isNaN(numScore) || numScore < 0 || numScore > totalScore) {
+      setFormError(`评分必须为 0 至 ${totalScore} 之间的有效数值`);
+      return;
+    }
+
     const feedback = feedbacks[sub.id] ?? sub.feedback ?? '';
-    if (score >= 0 && score <= totalScore) {
-      onGrade(sub.id, score, feedback);
+    setFormError(null);
+    setSubmitting(true);
+
+    try {
+      await onGrade(sub.id, numScore, feedback);
       setSavedId(sub.id);
-      setTimeout(() => setSavedId(null), 2000);
+      setTimeout(() => setSavedId(null), 2500);
+    } catch {
+      setFormError('评分保存失败，请稍后重试');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -49,7 +72,10 @@ export default function GradeSheet({
           {submissions.map((sub) => (
             <button
               key={sub.id}
-              onClick={() => onSelectSubmission(sub.id)}
+              onClick={() => {
+                onSelectSubmission(sub.id);
+                setFormError(null);
+              }}
               className={cn(
                 'w-full flex items-center gap-3 p-3 border text-left transition-all rounded-xl',
                 selectedSubmissionId === sub.id
@@ -127,10 +153,11 @@ export default function GradeSheet({
                   type="number"
                   min="0"
                   max={totalScore}
-                  value={scores[selected.id] ?? selected.score ?? ''}
-                  onChange={(e) =>
-                    setScores((prev) => ({ ...prev, [selected.id]: e.target.value }))
-                  }
+                  value={scores[selected.id] ?? (selected.score !== undefined ? String(selected.score) : '')}
+                  onChange={(e) => {
+                    setScores((prev) => ({ ...prev, [selected.id]: e.target.value }));
+                    if (formError) setFormError(null);
+                  }}
                   className="input-field w-32 text-center text-2xl font-display font-semibold"
                   placeholder="--"
                 />
@@ -154,13 +181,26 @@ export default function GradeSheet({
               />
             </div>
 
+            {formError && (
+              <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs flex items-center gap-2 border border-red-100">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+
             {/* Save */}
             <div className="flex items-center gap-3 pt-2">
               <button
-                onClick={() => handleSave(selected)}
-                className="btn-primary"
+                type="button"
+                onClick={() => void handleSave(selected)}
+                disabled={submitting}
+                className="btn-primary flex items-center gap-1.5 disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />
+                {submitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
                 {savedId === selected.id ? '已保存' : '保存评分'}
               </button>
               {savedId === selected.id && (

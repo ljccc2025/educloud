@@ -205,6 +205,7 @@ function generateOrders(): Order[] {
     list.push({
       id: String(i + 1),
       orderNo: `EC${createdAt.format('YYYYMMDD')}${String(20000 + i).padStart(5, '0')}`,
+      userId: currentUser.id,
       courseId: c.id,
       courseTitle: c.title,
       courseCover: c.cover,

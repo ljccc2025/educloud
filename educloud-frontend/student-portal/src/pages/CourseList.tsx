@@ -45,13 +45,19 @@ export default function CourseList() {
   const { courses, total, loading, error, fetchCourses } = useCourseStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [categoryList, setCategoryList] = useState<Category[]>([]);
-  const [search, setSearch] = useState('');
+  const keywordParam = searchParams.get('keyword') ?? '';
+  const [search, setSearch] = useState(keywordParam);
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [priceRange, setPriceRange] = useState<PriceRange>('all');
   const [sort, setSort] = useState<SortOption>('popular');
   const [page, setPage] = useState(1);
   const [retryTick, setRetryTick] = useState(0);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+  // 当 URL 中的 keyword 改变时（如 Navbar 搜索跳转），同步更新内部 search 状态
+  useEffect(() => {
+    setSearch(keywordParam);
+  }, [keywordParam]);
 
   // 真实分类（GET /api/v1/categories）
   useEffect(() => {
@@ -87,6 +93,20 @@ export default function CourseList() {
     });
   };
 
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams);
+      if (value.trim()) {
+        nextParams.set('keyword', value.trim());
+      } else {
+        nextParams.delete('keyword');
+      }
+      return nextParams;
+    });
+  };
+
   // 真实分页/筛选/排序：筛选或排序变化即重新请求（搜索输入 300ms 防抖）
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -117,7 +137,7 @@ export default function CourseList() {
 
   const clearFilters = () => {
     setSearch('');
-    selectCategory('all');
+    setSearchParams(new URLSearchParams());
     setSelectedLevel('all');
     setPriceRange('all');
     setSort('popular');
@@ -234,7 +254,7 @@ export default function CourseList() {
           <input
             type="text"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="搜索课程名称、标签..."
             className="w-full pl-11 pr-4 py-3 bg-white border border-ink-200 text-ink-800 text-sm placeholder:text-ink-400 focus:outline-none focus:border-indigo-800 transition-colors"
           />

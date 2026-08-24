@@ -44,11 +44,25 @@ const emptyState = (): PersistedState => ({
   idempotency: {},
 });
 
+/** 防御性校验 localStorage 解析结果，结构损坏时平滑回退，防止整页白屏崩溃 */
+const isValidState = (obj: unknown): obj is PersistedState => {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const s = obj as Record<string, unknown>;
+  return (
+    Array.isArray(s.orders) &&
+    Array.isArray(s.payments) &&
+    typeof s.idempotency === 'object' &&
+    s.idempotency !== null
+  );
+};
+
 const loadState = (): PersistedState => {
   if (typeof window === 'undefined') return emptyState();
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PersistedState) : emptyState();
+    if (!raw) return emptyState();
+    const parsed: unknown = JSON.parse(raw);
+    return isValidState(parsed) ? parsed : emptyState();
   } catch {
     return emptyState();
   }
@@ -56,7 +70,11 @@ const loadState = (): PersistedState => {
 
 const saveState = (state: PersistedState) => {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // 忽略配额超限或隐私模式存储异常
+  }
 };
 
 const wait = <T>(value: T, ms = 250): Promise<T> =>
@@ -128,26 +146,35 @@ export function createMockCheckoutApi({
   };
 
   const orderApi = {
-    getAll: async () => wait(allOrders().map(normalizeExpiry)),
+    getAll: async (userId?: string) => {
+      const orders = allOrders()
+        .map(normalizeExpiry)
+        .filter((order) => !userId || !order.userId || order.userId === userId);
+      return wait(orders);
+    },
 
-    getById: async (orderId: string) => {
-      const found = allOrders().find((order) => order.id === orderId);
+    getById: async (orderId: string, userId?: string) => {
+      const found = allOrders().find(
+        (order) =>
+          order.id === orderId &&
+          (!userId || !order.userId || order.userId === userId),
+      );
       return wait(found ? normalizeExpiry(found) : undefined);
     },
 
-    getPayableByCourse: async (courseId: string) => {
+    getPayableByCourse: async (courseId: string, userId?: string) => {
       const found = allOrders()
         .map(normalizeExpiry)
         .find(
           (order) =>
             order.courseId === courseId &&
-            (order.status === 'PAID' ||
-              order.status === 'PENDING_PAYMENT'),
+            (!userId || !order.userId || order.userId === userId) &&
+            (order.status === 'PAID' || order.status === 'PENDING_PAYMENT'),
         );
       return wait(found);
     },
 
-    create: async (courseId: string, idempotencyKey: string) => {
+    create: async (courseId: string, idempotencyKey: string, userId?: string) => {
       const course = await courses.getCourse(courseId);
       if (!course) throw new Error('COURSE_NOT_FOUND');
       if (course.price <= 0) {
@@ -160,6 +187,7 @@ export function createMockCheckoutApi({
         : undefined;
       if (
         existing &&
+        (!userId || !existing.userId || existing.userId === userId) &&
         (normalizeExpiry(existing).status === 'PAID' ||
           existing.status === 'PENDING_PAYMENT')
       ) {
@@ -172,8 +200,8 @@ export function createMockCheckoutApi({
         .find(
           (order) =>
             order.courseId === courseId &&
-            (order.status === 'PAID' ||
-              order.status === 'PENDING_PAYMENT'),
+            (!userId || !order.userId || order.userId === userId) &&
+            (order.status === 'PAID' || order.status === 'PENDING_PAYMENT'),
         );
       if (payable) return wait(payable);
 
@@ -183,6 +211,7 @@ export function createMockCheckoutApi({
         orderNo: `EC${dayjs().format('YYYYMMDDHHmmssSSS')}${String(
           state.orders.length + 1,
         ).padStart(3, '0')}`,
+        userId: userId || 'student001',
         courseId: course.id,
         courseTitle: course.title,
         courseCover: course.cover,
@@ -200,8 +229,12 @@ export function createMockCheckoutApi({
       return wait(order);
     },
 
-    cancel: async (orderId: string) => {
-      const order = state.orders.find((item) => item.id === orderId);
+    cancel: async (orderId: string, userId?: string) => {
+      const order = state.orders.find(
+        (item) =>
+          item.id === orderId &&
+          (!userId || !item.userId || item.userId === userId),
+      );
       if (!order) throw new Error('ORDER_NOT_FOUND');
       if (normalizeExpiry(order).status !== 'PENDING_PAYMENT') {
         throw new Error('ORDER_STATUS_CONFLICT');

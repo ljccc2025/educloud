@@ -11,6 +11,7 @@ import {
   getCheckoutIntentKey,
 } from '@/utils/checkoutSession';
 import { useCartStore } from '@/stores/useCartStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import type { CourseDetail, Order, PaymentMethod } from '@/types';
 
 type ViewState =
@@ -23,6 +24,7 @@ type ViewState =
 export default function Checkout() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
+  const currentUser = useAuthStore((state) => state.user);
   const removeFromCart = useCartStore((state) => state.removeFromCart);
   const [course, setCourse] = useState<CourseDetail>();
   const [order, setOrder] = useState<Order>();
@@ -53,7 +55,7 @@ export default function Checkout() {
       try {
         const [foundCourse, foundOrder] = await Promise.all([
           courseApi.getById(courseIdParam),
-          orderApi.getPayableByCourse(courseIdParam),
+          orderApi.getPayableByCourse(courseIdParam, currentUser?.id),
         ]);
         if (cancelled) return;
 
@@ -77,7 +79,7 @@ export default function Checkout() {
           const payment = await paymentGateway.query(foundOrder.id);
           if (cancelled) return;
           if (payment?.status === 'SUCCESS') {
-            const refreshed = await orderApi.getById(foundOrder.id);
+            const refreshed = await orderApi.getById(foundOrder.id, currentUser?.id);
             if (refreshed?.status === 'PAID') {
               finishPaidOrder(refreshed);
               return;
@@ -99,7 +101,7 @@ export default function Checkout() {
         setViewState('READY');
       } catch {
         if (!cancelled) {
-          setError('结算信息加载失败，请返回课程详情后重试');
+          setError('加载结算信息失败，请重试');
           setViewState('READY');
         }
       }
@@ -109,27 +111,50 @@ export default function Checkout() {
     return () => {
       cancelled = true;
     };
-  }, [courseIdParam, finishPaidOrder, navigate]);
+  }, [courseIdParam, currentUser?.id, finishPaidOrder, navigate]);
 
   useEffect(() => {
     if (viewState !== 'CONFIRMING' || !order) return;
+    let attempts = 0;
+    const maxAttempts = 20;
+    let active = true;
 
     const timer = globalThis.setInterval(async () => {
-      const payment = await paymentGateway.query(order.id);
-      if (!payment || payment.status === 'ACTIVE') return;
+      if (!active) return;
+      attempts += 1;
+      if (attempts > maxAttempts) {
+        active = false;
+        globalThis.clearInterval(timer);
+        setError('支付结果确认超时，请前往订单中心查看或重试');
+        setViewState('FAILED');
+        return;
+      }
 
-      if (payment.status === 'SUCCESS') {
-        const refreshed = await orderApi.getById(order.id);
-        if (refreshed?.status === 'PAID') finishPaidOrder(refreshed);
-      } else if (payment.status === 'CANCELLED') {
-        setViewState('CANCELLED');
-      } else {
+      try {
+        const payment = await paymentGateway.query(order.id);
+        if (!active) return;
+        if (!payment || payment.status === 'ACTIVE') return;
+
+        if (payment.status === 'SUCCESS') {
+          const refreshed = await orderApi.getById(order.id, currentUser?.id);
+          if (refreshed?.status === 'PAID') finishPaidOrder(refreshed);
+        } else if (payment.status === 'CANCELLED') {
+          setViewState('CANCELLED');
+        } else {
+          setViewState('FAILED');
+        }
+      } catch {
+        if (!active) return;
+        setError('支付状态查询异常');
         setViewState('FAILED');
       }
-    }, 400);
+    }, 600);
 
-    return () => globalThis.clearInterval(timer);
-  }, [finishPaidOrder, order, viewState]);
+    return () => {
+      active = false;
+      globalThis.clearInterval(timer);
+    };
+  }, [currentUser?.id, finishPaidOrder, order, viewState]);
 
   const confirmPayment = async () => {
     if (!course || viewState === 'CONFIRMING') return;
@@ -142,6 +167,7 @@ export default function Checkout() {
         (await orderApi.create(
           course.id,
           getCheckoutIntentKey(course.id),
+          currentUser?.id,
         ));
       setOrder(payableOrder);
 
@@ -157,12 +183,16 @@ export default function Checkout() {
         orderId: payableOrder.id,
         channel: method,
       });
-      const refreshed = await orderApi.getById(payableOrder.id);
+      const refreshed = await orderApi.getById(payableOrder.id, currentUser?.id);
+      if (refreshed) setOrder(refreshed);
 
-      if (payment.status === 'SUCCESS' && refreshed?.status === 'PAID') {
-        finishPaidOrder(refreshed);
+      if (payment.status === 'SUCCESS') {
+        const paid = await orderApi.getById(payableOrder.id, currentUser?.id);
+        if (paid?.status === 'PAID') finishPaidOrder(paid);
       } else if (payment.status === 'CANCELLED') {
         setViewState('CANCELLED');
+      } else if (payment.status === 'FAILED') {
+        setViewState('FAILED');
       } else if (payment.status === 'ACTIVE') {
         setViewState('CONFIRMING');
       } else {

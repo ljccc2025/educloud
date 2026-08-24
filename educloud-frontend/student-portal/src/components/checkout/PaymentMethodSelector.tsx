@@ -7,8 +7,8 @@ const methods: Array<{
   label: string;
   description: string;
 }> = [
-  { value: 'ALIPAY', label: '支付宝', description: '安全快捷支付' },
-  { value: 'WECHAT', label: '微信支付', description: '使用微信完成支付' },
+  { value: 'ALIPAY', label: '支付宝（沙箱模拟）', description: '演示沙箱环境，无需真实支付' },
+  { value: 'WECHAT', label: '微信支付（沙箱模拟）', description: '演示沙箱环境，无需真实支付' },
 ];
 
 interface PaymentMethodSelectorProps {
@@ -24,9 +24,14 @@ export default function PaymentMethodSelector({
 }: PaymentMethodSelectorProps) {
   return (
     <fieldset disabled={disabled}>
-      <legend className="mb-3 text-sm font-semibold text-ink-700">
-        选择支付方式
-      </legend>
+      <div className="flex items-center justify-between mb-3">
+        <legend className="text-sm font-semibold text-ink-700">
+          选择支付方式
+        </legend>
+        <span className="text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+          沙箱演示模式
+        </span>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
         {methods.map((method) => {
           const selected = method.value === value;
@@ -60,6 +65,9 @@ export default function PaymentMethodSelector({
           );
         })}
       </div>
+      <p className="mt-2 text-xs text-ink-400">
+        说明：当前支付流程处于沙箱模拟阶段，正式支付宝/微信第三方清算将在 M08 支付中心接通。
+      </p>
     </fieldset>
   );
 }
