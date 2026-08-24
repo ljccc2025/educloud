@@ -1,0 +1,61 @@
+package com.educloud.order.controller;
+
+import com.educloud.common.api.ApiResponse;
+import com.educloud.common.api.ApiResponseFactory;
+import com.educloud.common.api.PageResponse;
+import com.educloud.order.dto.request.OrderCreateRequest;
+import com.educloud.order.dto.response.OrderDetailResponse;
+import com.educloud.order.security.JwtSecurityUtils;
+import com.educloud.order.service.OrderService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/orders")
+@RequiredArgsConstructor
+public class OrderStudentController {
+
+    private final OrderService orderService;
+    private final ApiResponseFactory responses;
+
+    @PostMapping
+    public ApiResponse<OrderDetailResponse> createOrder(
+            @RequestBody(required = false) OrderCreateRequest request,
+            @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKeyHeader,
+            @AuthenticationPrincipal Jwt jwt) {
+        Long studentId = JwtSecurityUtils.userId(jwt);
+        if (request == null) {
+            request = new OrderCreateRequest();
+        }
+        return responses.success(orderService.createOrder(studentId, request, idempotencyKeyHeader));
+    }
+
+    @GetMapping
+    public ApiResponse<PageResponse<OrderDetailResponse>> listOrders(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal Jwt jwt) {
+        Long studentId = JwtSecurityUtils.userId(jwt);
+        return responses.success(orderService.listStudentOrders(studentId, status, page, size));
+    }
+
+    @GetMapping("/{id}")
+    public ApiResponse<OrderDetailResponse> getOrderDetail(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Jwt jwt) {
+        Long studentId = JwtSecurityUtils.userId(jwt);
+        return responses.success(orderService.getOrderDetail(studentId, id));
+    }
+
+    @PostMapping("/{id}/cancel")
+    public ApiResponse<Void> cancelOrder(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Jwt jwt) {
+        Long studentId = JwtSecurityUtils.userId(jwt);
+        orderService.cancelOrder(studentId, id);
+        return responses.success(null);
+    }
+}
