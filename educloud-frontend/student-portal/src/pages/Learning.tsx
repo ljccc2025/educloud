@@ -113,13 +113,21 @@ export default function Learning() {
   const completedCount = completedIds.size;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  const handleMarkComplete = (cw: Courseware) => {
+  const [isReporting, setIsReporting] = useState(false);
+
+  const handleMarkComplete = async (cw: Courseware) => {
+    if (isReporting) return;
+    setIsReporting(true);
     setCompletedIds((prev) => new Set([...prev, cw.id]));
-    if (courseId) {
-      void courseApi.reportProgress(courseId, cw.id, cw.durationSeconds || 60, true);
-    }
-    if (nextItem) {
-      setActiveCourseware(nextItem.courseware);
+    try {
+      if (courseId) {
+        await courseApi.reportProgress(courseId, cw.id, cw.durationSeconds || 60, true);
+      }
+      if (nextItem) {
+        setActiveCourseware(nextItem.courseware);
+      }
+    } finally {
+      setIsReporting(false);
     }
   };
 
