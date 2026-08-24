@@ -16,10 +16,13 @@ import com.educloud.order.feign.dto.CourseSalesSnapshotDto;
 import com.educloud.order.mapper.CartItemMapper;
 import com.educloud.order.mapper.TradeOrderItemMapper;
 import com.educloud.order.mapper.TradeOrderMapper;
+import com.educloud.order.messaging.OrderDelayProducer;
+import com.educloud.order.messaging.dto.OrderDelayMessage;
 import com.educloud.order.service.CartService;
 import com.educloud.order.service.IdempotencyService;
 import com.educloud.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +50,7 @@ public class OrderServiceImpl implements OrderService {
     private final CartService cartService;
     private final IdempotencyService idempotencyService;
     private final IdentifierGenerator identifierGenerator;
+    private final ObjectProvider<OrderDelayProducer> orderDelayProducerProvider;
 
     @Override
     @Transactional
@@ -130,6 +134,15 @@ public class OrderServiceImpl implements OrderService {
         tradeOrderMapper.insert(orderEntity);
         for (TradeOrderItemEntity item : orderItemEntities) {
             tradeOrderItemMapper.insert(item);
+        }
+
+        OrderDelayProducer delayProducer = orderDelayProducerProvider.getIfAvailable();
+        if (delayProducer != null) {
+            delayProducer.sendDelayMessage(OrderDelayMessage.builder()
+                    .orderId(orderId)
+                    .orderNo(orderNo)
+                    .createdAt(now)
+                    .build());
         }
 
         return toDetailResponse(orderEntity, orderItemEntities);

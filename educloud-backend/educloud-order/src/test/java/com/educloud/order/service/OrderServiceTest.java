@@ -18,10 +18,13 @@ import com.educloud.order.feign.dto.CourseSalesSnapshotDto;
 import com.educloud.order.mapper.CartItemMapper;
 import com.educloud.order.mapper.TradeOrderItemMapper;
 import com.educloud.order.mapper.TradeOrderMapper;
+import com.educloud.order.messaging.OrderDelayProducer;
+import com.educloud.order.messaging.dto.OrderDelayMessage;
 import com.educloud.order.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -44,11 +47,14 @@ class OrderServiceTest {
     private CartService cartService;
     private IdempotencyService idempotencyService;
     private IdentifierGenerator identifierGenerator;
+    private OrderDelayProducer orderDelayProducer;
+    private ObjectProvider<OrderDelayProducer> orderDelayProducerProvider;
     private OrderServiceImpl orderService;
 
     private final AtomicLong idSequence = new AtomicLong(10000L);
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         tradeOrderMapper = mock(TradeOrderMapper.class);
         tradeOrderItemMapper = mock(TradeOrderItemMapper.class);
@@ -57,6 +63,9 @@ class OrderServiceTest {
         cartService = mock(CartService.class);
         idempotencyService = mock(IdempotencyService.class);
         identifierGenerator = idSequence::incrementAndGet;
+        orderDelayProducer = mock(OrderDelayProducer.class);
+        orderDelayProducerProvider = mock(ObjectProvider.class);
+        when(orderDelayProducerProvider.getIfAvailable()).thenReturn(orderDelayProducer);
 
         orderService = new OrderServiceImpl(
                 tradeOrderMapper,
@@ -65,7 +74,8 @@ class OrderServiceTest {
                 courseClient,
                 cartService,
                 idempotencyService,
-                identifierGenerator);
+                identifierGenerator,
+                orderDelayProducerProvider);
     }
 
     @Test
@@ -96,6 +106,7 @@ class OrderServiceTest {
         verify(idempotencyService).validateAndConsume(studentId, token);
         verify(tradeOrderMapper).insert(any(TradeOrderEntity.class));
         verify(tradeOrderItemMapper).insert(any(TradeOrderItemEntity.class));
+        verify(orderDelayProducer).sendDelayMessage(any(OrderDelayMessage.class));
 
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT.name());
@@ -129,6 +140,7 @@ class OrderServiceTest {
         verify(cartService).clearCart(studentId, true);
         verify(tradeOrderMapper).insert(any(TradeOrderEntity.class));
         verify(tradeOrderItemMapper, times(2)).insert(any(TradeOrderItemEntity.class));
+        verify(orderDelayProducer).sendDelayMessage(any(OrderDelayMessage.class));
 
         assertThat(response.getPayableAmount()).isEqualByComparingTo("250.00");
         assertThat(response.getItems()).hasSize(2);
