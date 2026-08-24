@@ -19,6 +19,7 @@
         <module>educloud-file</module>
         <module>educloud-course</module>
         <module>educloud-content</module>
+        <module>educloud-order</module>
     </modules>
 
     <properties>
