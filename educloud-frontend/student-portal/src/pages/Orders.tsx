@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Receipt, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Receipt, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { orderApi } from '@/services/api';
 import type { Order, OrderStatus } from '@/types';
 import { cn } from '@/utils/cn';
@@ -17,6 +17,24 @@ const statusConfig: Record<OrderStatus, { label: string; className: string; icon
 };
 
 type FilterStatus = 'ALL' | 'PENDING_PAYMENT' | 'PAID' | 'CANCELLED';
+
+function getCountdownText(order: Order): string {
+  if (order.status !== 'PENDING_PAYMENT') return '';
+  if (order.countdownSeconds != null && order.countdownSeconds > 0) {
+    const m = Math.floor(order.countdownSeconds / 60);
+    const s = order.countdownSeconds % 60;
+    return `剩余 ${m}分${s.toString().padStart(2, '0')}秒`;
+  }
+  if (order.expiresAt) {
+    const diff = dayjs(order.expiresAt).diff(dayjs(), 'second');
+    if (diff > 0) {
+      const m = Math.floor(diff / 60);
+      const s = diff % 60;
+      return `剩余 ${m}分${s.toString().padStart(2, '0')}秒`;
+    }
+  }
+  return '即将超时';
+}
 
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -190,10 +208,18 @@ export default function Orders() {
                         <span className="font-display font-bold text-ink-900">¥{order.payableAmount}</span>
                       </td>
                       <td>
-                        <span className={cn(config.className)}>
-                          <StatusIcon size={12} />
-                          {config.label}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className={cn(config.className)}>
+                            <StatusIcon size={12} />
+                            {config.label}
+                          </span>
+                          {order.status === 'PENDING_PAYMENT' && (
+                            <span className="text-[11px] text-amber-700 flex items-center gap-1 font-mono">
+                              <Clock size={10} />
+                              {getCountdownText(order)}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <span className="text-sm text-ink-500">

@@ -167,11 +167,7 @@ export default function Checkout() {
     try {
       const payableOrder =
         order ??
-        (await orderApi.create(
-          course.id,
-          getCheckoutIntentKey(course.id),
-          currentUser?.id,
-        ));
+        (await orderApi.create(course.id));
       setOrder(payableOrder);
 
       if (payableOrder.status === 'PAID') {

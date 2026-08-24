@@ -301,14 +301,14 @@ export const cartApi = {
     await http.delete<ApiEnvelope<void>>(`/cart/items/${courseId}`);
   },
   clearCart: async (selectedOnly = false): Promise<void> => {
-    await http.delete<ApiEnvelope<void>>('/cart', { params: { selectedOnly } });
+    await http.delete<ApiEnvelope<void>>('/cart/items', { params: { onlySelected: selectedOnly } });
   },
 };
 
 export const orderApi = {
   getIdempotencyToken: async (): Promise<string> => {
-    const resp = await http.get<ApiEnvelope<{ token: string }>>('/orders/idempotency-token');
-    return resp.data.data.token;
+    const resp = await http.get<ApiEnvelope<string | { token: string }>>('/orders/idempotency-token');
+    return typeof resp.data.data === 'string' ? resp.data.data : (resp.data.data as any)?.token;
   },
   createOrder: async (data: { courseId?: string; idempotencyToken?: string }): Promise<Order> => {
     const token = data.idempotencyToken ?? (await orderApi.getIdempotencyToken());
