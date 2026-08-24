@@ -6,8 +6,8 @@ spring:
     name: educloud-order
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_order?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: ${MYSQL_USERNAME:root}
-    password: ${EDUCLOUD_ORDER_DB_PASSWORD:${MYSQL_PASSWORD:1}}
+    username: ${EDUCLOUD_ORDER_DB_USERNAME:${MYSQL_USERNAME:order_app}}
+    password: ${EDUCLOUD_ORDER_DB_PASSWORD:b97ac137f154ee3561da13eb792c502f7e2a4c357ed7cf95}
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
