@@ -143,10 +143,6 @@ export default function MyCourses() {
                 className="relative sm:w-64 h-40 sm:h-auto bg-indigo-900 flex items-center justify-center p-6 flex-shrink-0 overflow-hidden"
               >
                 <CoverImage src={course.coverUrl} title={course.title} />
-                <div className="absolute inset-0 bg-gradient-to-t from-indigo-950/80 via-indigo-900/35 to-transparent" />
-                <h3 className="relative font-display text-lg font-bold text-white text-center leading-tight">
-                  {course.title}
-                </h3>
               </Link>
 
               <div className="flex-1 p-6 flex flex-col">
