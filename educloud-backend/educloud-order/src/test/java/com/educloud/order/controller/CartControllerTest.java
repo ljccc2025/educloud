@@ -111,6 +111,8 @@ class CartControllerTest {
                         .header(RequestContext.REQUEST_ID_HEADER, "req-cart-get"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.items[0].id").value("1001"))
+                .andExpect(jsonPath("$.data.items[0].courseId").value("9001"))
                 .andExpect(jsonPath("$.data.totalCount").value(1))
                 .andExpect(jsonPath("$.data.selectedCount").value(1))
                 .andExpect(jsonPath("$.data.selectedAmount").value(199.00));
@@ -133,7 +135,8 @@ class CartControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
-                .andExpect(jsonPath("$.data.courseId").value(9001));
+                .andExpect(jsonPath("$.data.id").value("1001"))
+                .andExpect(jsonPath("$.data.courseId").value("9001"));
     }
 
     @Test
