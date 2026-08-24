@@ -7,12 +7,12 @@ import com.educloud.order.mapper.TradeOrderMapper;
 import com.educloud.order.messaging.dto.OrderDelayMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
+import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.time.LocalDateTime;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -45,6 +45,22 @@ class OrderDelayCancelTest {
                 eq(RabbitOrderConfig.ORDER_EXCHANGE),
                 eq(RabbitOrderConfig.ORDER_DELAY_ROUTING_KEY),
                 eq(message));
+    }
+
+    @Test
+    void producerCatchesExceptionAndLogsWhenRabbitMqFails() {
+        OrderDelayMessage message = OrderDelayMessage.builder()
+                .orderId(1001L)
+                .orderNo("ORD1001")
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        doThrow(new AmqpException("RabbitMQ connection down"))
+                .when(rabbitTemplate)
+                .convertAndSend(anyString(), anyString(), any(Object.class));
+
+        assertThatCode(() -> producer.sendDelayMessage(message))
+                .doesNotThrowAnyException();
     }
 
     @Test
