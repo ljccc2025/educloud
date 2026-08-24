@@ -18,6 +18,7 @@
         <module>educloud-user</module>
         <module>educloud-file</module>
         <module>educloud-course</module>
+        <module>educloud-content</module>
     </modules>
 
     <properties>

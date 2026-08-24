@@ -1,0 +1,85 @@
+server:
+  port: ${SERVER_PORT:8085}
+  shutdown: graceful
+
+spring:
+  application:
+    name: educloud-content
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_content?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    username: content_app
+    password: ${EDUCLOUD_CONTENT_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_DEFAULT_USER:}
+    password: ${RABBITMQ_DEFAULT_PASS:}
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:educloud}
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_CONTENT_NACOS_USERNAME:}
+      password: ${EDUCLOUD_CONTENT_NACOS_PASSWORD:}
+      discovery:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
+
+educloud:
+  content:
+    environment: ${EDUCLOUD_ENVIRONMENT:local}
+    file:
+      endpoint: ${EDUCLOUD_CONTENT_FILE_ENDPOINT:http://127.0.0.1:8087}
+      client-id: ${EDUCLOUD_CONTENT_FILE_CLIENT_ID:educloud-content}
+      client-secret: ${EDUCLOUD_CONTENT_FILE_CLIENT_SECRET:}
+      enabled: ${EDUCLOUD_CONTENT_FILE_ENABLED:true}
+      timeout: ${EDUCLOUD_CONTENT_FILE_TIMEOUT:3s}
+      token-endpoint: ${EDUCLOUD_CONTENT_USER_TOKEN_ENDPOINT:http://127.0.0.1:8082}
+    jwt:
+      jwks-location: ${CONTENT_JWKS_LOCATION:}
+      issuer: ${EDUCLOUD_CONTENT_JWT_ISSUER:https://issuer.educloud.local}
+      audience: ${EDUCLOUD_CONTENT_JWT_AUDIENCE:educloud-api}
+    internal:
+      allowed-client-ids: ${EDUCLOUD_CONTENT_INTERNAL_ALLOWED_CLIENT_IDS:educloud-course}
+      audience: ${EDUCLOUD_CONTENT_INTERNAL_AUDIENCE:educloud-content}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: assign_id
+
+management:
+  server:
+    address: ${CONTENT_MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${CONTENT_MANAGEMENT_PORT:8086}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,contentDependencies
+      show-details: never
+  tracing:
+    sampling:
+      probability: ${EDUCLOUD_CONTENT_TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://127.0.0.1:9411/api/v2/spans}
