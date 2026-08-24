@@ -2,7 +2,7 @@ name: educloud
 
 services:
   mysql:
-    image: mysql:8.0.36
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/mysql:8.0.36
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
@@ -46,7 +46,7 @@ services:
       - educloud-infra
 
   redis:
-    image: redis:7.2.5-alpine
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:7.2.5-alpine
     restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
@@ -64,7 +64,7 @@ services:
       - educloud-infra
 
   rabbitmq:
-    image: rabbitmq:3.13.7-management-alpine
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/rabbitmq:3.13.7-management-alpine
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?set RABBITMQ_DEFAULT_USER}
@@ -85,7 +85,7 @@ services:
       - educloud-infra
 
   nacos:
-    image: nacos/nacos-server:v2.3.2
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nacos/nacos-server:v2.3.2
     restart: unless-stopped
     environment:
       MODE: standalone
@@ -112,7 +112,7 @@ services:
       - educloud-infra
 
   minio:
-    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/minio/minio:RELEASE.2024-06-13T22-53-53Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -135,7 +135,7 @@ services:
       - educloud-infra
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.0
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.14.0
     restart: unless-stopped
     environment:
       discovery.type: single-node
@@ -155,7 +155,7 @@ services:
       - educloud-infra
 
   zipkin:
-    image: openzipkin/zipkin:3.6.1
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/openzipkin/zipkin:3.6.1
     restart: unless-stopped
     ports:
       - "${ZIPKIN_PORT:-9411}:9411"
@@ -163,7 +163,7 @@ services:
       - educloud-infra
 
   prometheus:
-    image: prom/prometheus:v2.53.5
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/quay.io/prometheus/prometheus:v2.54.1
     restart: unless-stopped
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
@@ -173,7 +173,7 @@ services:
       - educloud-infra
 
   grafana:
-    image: grafana/grafana:11.6.14-security-04
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/grafana/grafana:11.6.14
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:?set GF_SECURITY_ADMIN_USER}
