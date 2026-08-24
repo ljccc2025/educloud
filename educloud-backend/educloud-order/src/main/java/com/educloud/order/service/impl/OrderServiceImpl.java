@@ -7,7 +7,9 @@ import com.educloud.common.api.PageResponse;
 import com.educloud.common.id.IdentifierGenerator;
 import com.educloud.order.dto.request.OrderCreateRequest;
 import com.educloud.order.dto.response.OrderDetailResponse;
+import com.educloud.order.dto.response.OrderFulfillmentSnapshotResponse;
 import com.educloud.order.dto.response.OrderItemResponse;
+import com.educloud.order.dto.response.OrderPayableSnapshotResponse;
 import com.educloud.order.entity.*;
 import com.educloud.order.exception.OrderBizException;
 import com.educloud.order.exception.OrderErrorCode;
@@ -256,6 +258,89 @@ public class OrderServiceImpl implements OrderService {
             publisher.publishOrderPaid(event);
         }
 
+        return toDetailResponse(order, items);
+    }
+
+    @Override
+    public OrderPayableSnapshotResponse getPayableSnapshot(Long orderId) {
+        TradeOrderEntity order = tradeOrderMapper.selectById(orderId);
+        if (order == null) {
+            throw new OrderBizException(OrderErrorCode.ORDER_NOT_FOUND);
+        }
+        List<TradeOrderItemEntity> items = tradeOrderItemMapper.selectList(
+                new LambdaQueryWrapper<TradeOrderItemEntity>().eq(TradeOrderItemEntity::getOrderId, orderId));
+        List<OrderItemResponse> itemResponses = (items != null) ? items.stream()
+                .map(this::toItemResponse)
+                .toList() : List.of();
+
+        return OrderPayableSnapshotResponse.builder()
+                .orderId(order.getId())
+                .orderNo(order.getOrderNo())
+                .studentId(order.getStudentId())
+                .status(order.getStatus())
+                .payableAmount(order.getPayableAmount())
+                .currency(order.getCurrency())
+                .expiresAt(order.getExpiresAt())
+                .items(itemResponses)
+                .build();
+    }
+
+    @Override
+    public OrderFulfillmentSnapshotResponse getFulfillmentSnapshot(Long orderId) {
+        TradeOrderEntity order = tradeOrderMapper.selectById(orderId);
+        if (order == null) {
+            throw new OrderBizException(OrderErrorCode.ORDER_NOT_FOUND);
+        }
+        List<TradeOrderItemEntity> items = tradeOrderItemMapper.selectList(
+                new LambdaQueryWrapper<TradeOrderItemEntity>().eq(TradeOrderItemEntity::getOrderId, orderId));
+        List<OrderItemResponse> itemResponses = (items != null) ? items.stream()
+                .map(this::toItemResponse)
+                .toList() : List.of();
+
+        return OrderFulfillmentSnapshotResponse.builder()
+                .orderId(order.getId())
+                .status(order.getStatus())
+                .aggregateVersion(order.getVersion())
+                .items(itemResponses)
+                .build();
+    }
+
+    @Override
+    public PageResponse<OrderDetailResponse> listAdminOrders(String orderNo, String status, int page, int size) {
+        Page<TradeOrderEntity> pageParam = new Page<>(page, size);
+        LambdaQueryWrapper<TradeOrderEntity> query = new LambdaQueryWrapper<>();
+        if (orderNo != null && !orderNo.isBlank()) {
+            query.eq(TradeOrderEntity::getOrderNo, orderNo.trim());
+        }
+        if (status != null && !status.isBlank()) {
+            query.eq(TradeOrderEntity::getStatus, status.trim());
+        }
+        query.orderByDesc(TradeOrderEntity::getCreatedAt);
+
+        Page<TradeOrderEntity> resultPage = tradeOrderMapper.selectPage(pageParam, query);
+        List<TradeOrderEntity> records = resultPage.getRecords();
+        if (records == null || records.isEmpty()) {
+            return PageResponse.of(List.of(), page, size, resultPage.getTotal());
+        }
+
+        List<OrderDetailResponse> responseList = new ArrayList<>(records.size());
+        for (TradeOrderEntity record : records) {
+            List<TradeOrderItemEntity> items = tradeOrderItemMapper.selectList(
+                    new LambdaQueryWrapper<TradeOrderItemEntity>().eq(TradeOrderItemEntity::getOrderId, record.getId()));
+            responseList.add(toDetailResponse(record, items));
+        }
+
+        return PageResponse.of(responseList, page, size, resultPage.getTotal());
+    }
+
+    @Override
+    public OrderDetailResponse getAdminOrderDetail(Long orderId) {
+        TradeOrderEntity order = tradeOrderMapper.selectById(orderId);
+        if (order == null) {
+            throw new OrderBizException(OrderErrorCode.ORDER_NOT_FOUND);
+        }
+        List<TradeOrderItemEntity> items = tradeOrderItemMapper.selectList(
+                new LambdaQueryWrapper<TradeOrderItemEntity>().eq(TradeOrderItemEntity::getOrderId, orderId));
         return toDetailResponse(order, items);
     }
 
