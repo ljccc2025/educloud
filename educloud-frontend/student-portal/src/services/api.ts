@@ -324,9 +324,14 @@ export const orderApi = {
   },
   getMyOrders: async (params?: { status?: string; page?: number; size?: number }): Promise<PaginatedResponse<Order>> => {
     const resp = await http.get<ApiEnvelope<PaginatedResponse<any>>>('/orders', { params });
+    const payload = resp.data?.data;
+    const rawItems = Array.isArray(payload) ? payload : (payload?.items ?? []);
     return {
-      ...resp.data.data,
-      items: (resp.data.data.items ?? []).map(normalizeOrder),
+      page: payload?.page ?? 1,
+      pageSize: payload?.pageSize ?? 10,
+      total: payload?.total ?? rawItems.length,
+      totalPages: payload?.totalPages ?? 1,
+      items: rawItems.map(normalizeOrder),
     };
   },
   getOrderDetail: async (id: string): Promise<Order> => {
@@ -346,14 +351,14 @@ export const orderApi = {
     const res = await orderApi.getMyOrders(params);
     return res.items;
   },
-  getById: async (id: string): Promise<Order | undefined> => {
+  getById: async (id: string, _userId?: string | number): Promise<Order | undefined> => {
     try {
       return await orderApi.getOrderDetail(id);
     } catch {
       return undefined;
     }
   },
-  create: async (courseId: string, idempotencyKey?: string): Promise<Order> => {
+  create: async (courseId: string, idempotencyKey?: string, _userId?: string | number): Promise<Order> => {
     return orderApi.createOrder({ courseId, idempotencyToken: idempotencyKey });
   },
   cancel: async (orderId: string): Promise<Order> => {
@@ -363,7 +368,7 @@ export const orderApi = {
   mockPay: async (orderId: string): Promise<Order> => {
     return orderApi.mockPayOrder(orderId);
   },
-  getPayableByCourse: async (courseId: string): Promise<Order | undefined> => {
+  getPayableByCourse: async (courseId: string, _userId?: string | number): Promise<Order | undefined> => {
     try {
       const res = await orderApi.getMyOrders({ status: 'PENDING_PAYMENT', page: 1, size: 20 });
       return res.items.find((o) => o.courseId === courseId || o.items?.some((i) => i.courseId === courseId));
