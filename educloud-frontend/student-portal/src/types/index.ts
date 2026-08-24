@@ -10,6 +10,35 @@ export interface Category {
 // 课程难度
 export type CourseLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
+// 课件类型与实体（真实 API：GET /api/v1/courses/{courseId}/chapters）
+export type CoursewareType = 'VIDEO' | 'DOCUMENT' | 'EXTERNAL';
+
+export interface Courseware {
+  id: string;
+  chapterId: string;
+  courseId: string;
+  title: string;
+  coursewareType: CoursewareType;
+  fileId: string | null;
+  externalUrl: string | null;
+  durationSeconds: number;
+  sizeBytes: number;
+  freePreview: boolean;
+  sortOrder: number;
+  completed?: boolean;
+  positionSeconds?: number;
+}
+
+// 课程章节（真实 API：GET /api/v1/courses/{courseId}/chapters）
+export interface Chapter {
+  id: string;
+  courseId: string;
+  title: string;
+  description: string | null;
+  sortOrder: number;
+  coursewares: Courseware[];
+}
+
 // 课程评价（真实 API：CourseReviewResponse，M05 任务 14；Snowflake id/studentId 为 string）
 export interface Review {
   id: string;

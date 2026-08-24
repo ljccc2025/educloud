@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Course, CourseDetail, MyCourse } from '@/types';
+import type { Chapter, Course, CourseDetail, MyCourse } from '@/types';
 import { courseApi, type CourseListParams } from '@/services/courseApi';
 import { apiErrorText } from '@/services/http';
 
@@ -7,11 +7,13 @@ interface CourseState {
   courses: Course[];
   total: number;
   currentCourse: CourseDetail | null;
+  chapters: Chapter[];
   myCourses: MyCourse[];
   loading: boolean;
   error: string | null;
   fetchCourses: (params?: CourseListParams) => Promise<void>;
   fetchCourse: (id: string) => Promise<void>;
+  fetchChapters: (id: string) => Promise<Chapter[]>;
   fetchMyCourses: () => Promise<void>;
   enroll: (id: string) => Promise<void>;
 }
@@ -20,6 +22,7 @@ export const useCourseStore = create<CourseState>((set) => ({
   courses: [],
   total: 0,
   currentCourse: null,
+  chapters: [],
   myCourses: [],
   loading: false,
   error: null,
@@ -39,6 +42,16 @@ export const useCourseStore = create<CourseState>((set) => ({
       set({ currentCourse: data, loading: false });
     } catch (e) {
       set({ error: apiErrorText(e), loading: false });
+    }
+  },
+  fetchChapters: async (id: string) => {
+    try {
+      const data = await courseApi.getChapters(id);
+      set({ chapters: data });
+      return data;
+    } catch (e) {
+      set({ chapters: [] });
+      return [];
     }
   },
   fetchMyCourses: async () => {

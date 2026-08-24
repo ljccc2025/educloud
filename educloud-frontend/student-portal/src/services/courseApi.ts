@@ -1,6 +1,7 @@
 import { http, type ApiEnvelope } from './http';
 import type {
   Category,
+  Chapter,
   Course,
   CourseDetail,
   MyCourse,
@@ -77,6 +78,35 @@ export const courseApi = {
     const resp = await http.post<ApiEnvelope<Review>>(
       `/courses/${courseId}/reviews`,
       { rating, content },
+    );
+    return resp.data.data;
+  },
+
+  /** GET /api/v1/courses/{courseId}/chapters → 课程大纲章节课件树。 */
+  getChapters: async (courseId: string): Promise<Chapter[]> => {
+    const resp = await http.get<ApiEnvelope<Chapter[]>>(`/courses/${courseId}/chapters`);
+    return resp.data.data ?? [];
+  },
+
+  /** POST /api/v1/learning/progress → 上报课件学习进度。 */
+  reportProgress: async (
+    courseId: string,
+    coursewareId: string,
+    positionSeconds: number,
+    completed: boolean,
+  ): Promise<void> => {
+    await http.post<ApiEnvelope<unknown>>('/learning/progress', {
+      courseId,
+      coursewareId,
+      positionSeconds,
+      completed,
+    });
+  },
+
+  /** GET /api/v1/coursewares/{coursewareId}/download-url → 获取课件临时播放/下载 Presigned URL。 */
+  getCoursewareUrl: async (coursewareId: string): Promise<{ downloadUrl: string; expiresAt: string }> => {
+    const resp = await http.get<ApiEnvelope<{ downloadUrl: string; expiresAt: string }>>(
+      `/coursewares/${coursewareId}/download-url`,
     );
     return resp.data.data;
   },
