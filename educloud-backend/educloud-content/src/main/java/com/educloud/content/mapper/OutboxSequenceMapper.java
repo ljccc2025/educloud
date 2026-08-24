@@ -9,9 +9,10 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface OutboxSequenceMapper extends BaseMapper<OutboxSequenceEntity> {
-    @Select("SELECT `last_value` FROM outbox_sequence WHERE source_name = #{sourceName} FOR UPDATE")
-    Long lockAndGetLastValue(@Param("sourceName") String sourceName);
 
-    @Update("UPDATE outbox_sequence SET `last_value` = #{nextValue} WHERE source_name = #{sourceName}")
-    int updateLastValue(@Param("sourceName") String sourceName, @Param("nextValue") Long nextValue);
+    @Update("UPDATE outbox_sequence SET `last_value` = `last_value` + 1 WHERE source_name = #{sourceName}")
+    int increment(@Param("sourceName") String sourceName);
+
+    @Select("SELECT `last_value` FROM outbox_sequence WHERE source_name = #{sourceName}")
+    Long selectValue(@Param("sourceName") String sourceName);
 }
