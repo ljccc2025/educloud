@@ -121,7 +121,7 @@ export default function DataTable<T>({
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className={alignClass(col.align)}>
+                  <td key={col.key} className={cn(alignClass(col.align), 'whitespace-nowrap')}>
                     {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}
                   </td>
                 ))}

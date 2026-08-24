@@ -58,8 +58,18 @@ export default function Finance() {
     {
       key: 'status',
       header: '状态',
+      width: '96px',
       render: (o) => (
-        <span className={o.status === 'PAID' ? 'badge-green' : o.status === 'REFUNDED' ? 'badge-red' : 'badge-amber'}>
+        <span
+          className={
+            'whitespace-nowrap inline-flex items-center justify-center ' +
+            (o.status === 'PAID'
+              ? 'badge-green'
+              : o.status === 'REFUNDED'
+                ? 'badge-red'
+                : 'badge-amber')
+          }
+        >
           {o.status === 'PAID' ? '已支付' : o.status === 'REFUNDED' ? '已退款' : '待支付'}
         </span>
       ),
