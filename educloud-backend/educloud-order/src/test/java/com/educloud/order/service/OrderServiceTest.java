@@ -19,6 +19,7 @@ import com.educloud.order.mapper.CartItemMapper;
 import com.educloud.order.mapper.TradeOrderItemMapper;
 import com.educloud.order.mapper.TradeOrderMapper;
 import com.educloud.order.messaging.OrderDelayProducer;
+import com.educloud.order.messaging.OrderEventPublisher;
 import com.educloud.order.messaging.dto.OrderDelayMessage;
 import com.educloud.order.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,7 +49,9 @@ class OrderServiceTest {
     private IdempotencyService idempotencyService;
     private IdentifierGenerator identifierGenerator;
     private OrderDelayProducer orderDelayProducer;
+    private OrderEventPublisher orderEventPublisher;
     private ObjectProvider<OrderDelayProducer> orderDelayProducerProvider;
+    private ObjectProvider<OrderEventPublisher> orderEventPublisherProvider;
     private OrderServiceImpl orderService;
 
     private final AtomicLong idSequence = new AtomicLong(10000L);
@@ -64,8 +67,11 @@ class OrderServiceTest {
         idempotencyService = mock(IdempotencyService.class);
         identifierGenerator = idSequence::incrementAndGet;
         orderDelayProducer = mock(OrderDelayProducer.class);
+        orderEventPublisher = mock(OrderEventPublisher.class);
         orderDelayProducerProvider = mock(ObjectProvider.class);
+        orderEventPublisherProvider = mock(ObjectProvider.class);
         when(orderDelayProducerProvider.getIfAvailable()).thenReturn(orderDelayProducer);
+        when(orderEventPublisherProvider.getIfAvailable()).thenReturn(orderEventPublisher);
 
         orderService = new OrderServiceImpl(
                 tradeOrderMapper,
@@ -75,7 +81,8 @@ class OrderServiceTest {
                 cartService,
                 idempotencyService,
                 identifierGenerator,
-                orderDelayProducerProvider);
+                orderDelayProducerProvider,
+                orderEventPublisherProvider);
     }
 
     @Test

@@ -17,7 +17,9 @@ import com.educloud.order.mapper.CartItemMapper;
 import com.educloud.order.mapper.TradeOrderItemMapper;
 import com.educloud.order.mapper.TradeOrderMapper;
 import com.educloud.order.messaging.OrderDelayProducer;
+import com.educloud.order.messaging.OrderEventPublisher;
 import com.educloud.order.messaging.dto.OrderDelayMessage;
+import com.educloud.order.messaging.dto.OrderPaidEvent;
 import com.educloud.order.service.CartService;
 import com.educloud.order.service.IdempotencyService;
 import com.educloud.order.service.OrderService;
@@ -51,6 +53,7 @@ public class OrderServiceImpl implements OrderService {
     private final IdempotencyService idempotencyService;
     private final IdentifierGenerator identifierGenerator;
     private final ObjectProvider<OrderDelayProducer> orderDelayProducerProvider;
+    private final ObjectProvider<OrderEventPublisher> orderEventPublisherProvider;
 
     @Override
     @Transactional
@@ -206,6 +209,54 @@ public class OrderServiceImpl implements OrderService {
         if (rows == 0) {
             throw new OrderBizException(OrderErrorCode.ORDER_STATUS_INVALID);
         }
+    }
+
+    @Override
+    @Transactional
+    public OrderDetailResponse mockPay(Long studentId, Long orderId) {
+        TradeOrderEntity order = tradeOrderMapper.selectById(orderId);
+        if (order == null) {
+            throw new OrderBizException(OrderErrorCode.ORDER_NOT_FOUND);
+        }
+        if (!Objects.equals(order.getStudentId(), studentId)) {
+            throw new OrderBizException(OrderErrorCode.ORDER_NOT_OWNED);
+        }
+        if (!OrderStatus.PENDING_PAYMENT.name().equals(order.getStatus())) {
+            throw new OrderBizException(OrderErrorCode.ORDER_STATUS_INVALID);
+        }
+
+        LocalDateTime paidAt = LocalDateTime.now();
+        int rows = tradeOrderMapper.updateStatusToPaidWithCas(
+                orderId, OrderStatus.PENDING_PAYMENT.name(), OrderStatus.PAID.name(), paidAt);
+        if (rows == 0) {
+            throw new OrderBizException(OrderErrorCode.ORDER_STATUS_INVALID);
+        }
+
+        List<TradeOrderItemEntity> items = tradeOrderItemMapper.selectList(
+                new LambdaQueryWrapper<TradeOrderItemEntity>().eq(TradeOrderItemEntity::getOrderId, orderId));
+
+        List<Long> courseIds = (items != null) ? items.stream()
+                .map(TradeOrderItemEntity::getCourseId)
+                .toList() : List.of();
+
+        order.setStatus(OrderStatus.PAID.name());
+        order.setPaidAt(paidAt);
+
+        OrderPaidEvent event = OrderPaidEvent.builder()
+                .orderId(orderId)
+                .orderNo(order.getOrderNo())
+                .studentId(studentId)
+                .courseIds(courseIds)
+                .paidAmount(order.getPayableAmount())
+                .paidAt(paidAt)
+                .build();
+
+        OrderEventPublisher publisher = orderEventPublisherProvider.getIfAvailable();
+        if (publisher != null) {
+            publisher.publishOrderPaid(event);
+        }
+
+        return toDetailResponse(order, items);
     }
 
     private CourseSalesSnapshotDto fetchAndValidateCourse(Long courseId) {

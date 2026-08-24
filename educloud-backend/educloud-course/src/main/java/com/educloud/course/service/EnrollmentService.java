@@ -139,6 +139,56 @@ public class EnrollmentService {
         return insertAndPublish(course, studentId, roles);
     }
 
+    /**
+     * 付费订单履约选课（M07 任务 10）：幂等开通课程。
+     */
+    @Transactional
+    public CourseEnrollmentEntity enrollPaidCourse(Long courseId, Long studentId, Long orderId) {
+        CourseEnrollmentEntity existing = enrollmentMapper.selectByCourseAndStudentForUpdate(courseId, studentId);
+        if (existing != null) {
+            if ("REVOKED".equals(existing.getStatus())) {
+                existing.setStatus(STATUS_ACTIVE);
+                existing.setSource("ORDER");
+                existing.setSourceOrderId(orderId);
+                existing.setRevokeReason(null);
+                enrollmentMapper.updateById(existing);
+            }
+            return existing;
+        }
+
+        CourseEntity course = courseMapper.selectByIdForUpdate(courseId);
+        if (course == null) {
+            return null;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        CourseEnrollmentEntity enrollment = new CourseEnrollmentEntity();
+        enrollment.setCourseId(course.getId());
+        enrollment.setStudentId(studentId);
+        enrollment.setSource("ORDER");
+        enrollment.setSourceOrderId(orderId);
+        enrollment.setStatus(STATUS_ACTIVE);
+        enrollment.setEnrolledAt(now);
+        enrollment.setVersion(0L);
+
+        try {
+            enrollmentMapper.insert(enrollment);
+        } catch (DuplicateKeyException duplicate) {
+            return enrollmentMapper.selectByCourseAndStudentForUpdate(course.getId(), studentId);
+        }
+
+        courseMapper.incrementEnrollmentCount(course.getId(), course.getVersion());
+        eventPublisher.enrollmentCreated(
+                enrollment.getId(),
+                course.getId(),
+                studentId,
+                "ORDER",
+                enrollment.getVersion(),
+                now);
+        courseMetrics.recordEnrollmentCreated();
+        return enrollment;
+    }
+
     /** 插入新 enrollment + 计数递增 + EnrollmentCreated；uk 冲突 → 重查返回现状。 */
     private EnrollmentResponse insertAndPublish(CourseEntity course, Long studentId, Set<String> roles) {
         LocalDateTime now = LocalDateTime.now();

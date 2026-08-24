@@ -13,4 +13,6 @@ public interface OrderService {
     PageResponse<OrderDetailResponse> listStudentOrders(Long studentId, String status, int page, int size);
 
     void cancelOrder(Long studentId, Long orderId);
+
+    OrderDetailResponse mockPay(Long studentId, Long orderId);
 }

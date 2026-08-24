@@ -59,7 +59,28 @@ public class RabbitConfiguration {
     @Bean
     public Binding educloudEventPlaceholderBinding(
             @Qualifier("educloudEventPlaceholderQueue") Queue queue,
-            TopicExchange exchange) {
+            @Qualifier("educloudEventExchange") TopicExchange exchange) {
         return BindingBuilder.bind(queue).to(exchange).with("educloud.events.placeholder");
+    }
+
+    public static final String ORDER_EVENT_EXCHANGE = "educloud.order.exchange";
+    public static final String COURSE_ORDER_PAID_QUEUE = "educloud.course.order-paid.queue";
+    public static final String ORDER_PAID_ROUTING_KEY = "order.paid";
+
+    @Bean
+    public TopicExchange orderEventExchange() {
+        return new TopicExchange(ORDER_EVENT_EXCHANGE, true, false);
+    }
+
+    @Bean
+    public Queue courseOrderPaidQueue() {
+        return new Queue(COURSE_ORDER_PAID_QUEUE, true);
+    }
+
+    @Bean
+    public Binding courseOrderPaidBinding(
+            @Qualifier("courseOrderPaidQueue") Queue queue,
+            @Qualifier("orderEventExchange") TopicExchange exchange) {
+        return BindingBuilder.bind(queue).to(exchange).with(ORDER_PAID_ROUTING_KEY);
     }
 }

@@ -58,4 +58,12 @@ public class OrderStudentController {
         orderService.cancelOrder(studentId, id);
         return responses.success(null);
     }
+
+    @PostMapping("/{id}/mock-pay")
+    public ApiResponse<OrderDetailResponse> mockPay(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Jwt jwt) {
+        Long studentId = JwtSecurityUtils.userId(jwt);
+        return responses.success(orderService.mockPay(studentId, id));
+    }
 }

@@ -182,4 +182,23 @@ class OrderStudentControllerTest {
 
         verify(orderService).cancelOrder(2001L, 1001L);
     }
+
+    @Test
+    void mockPayReturnsOrderDetail() throws Exception {
+        OrderDetailResponse detail = OrderDetailResponse.builder()
+                .id(1001L)
+                .orderNo("ORD1001")
+                .studentId(2001L)
+                .status("PAID")
+                .payableAmount(new BigDecimal("199.00"))
+                .build();
+        when(orderService.mockPay(2001L, 1001L)).thenReturn(detail);
+
+        mockMvc.perform(post("/api/v1/orders/1001/mock-pay")
+                        .header(RequestContext.REQUEST_ID_HEADER, "req-mock-pay"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.id").value("1001"))
+                .andExpect(jsonPath("$.data.status").value("PAID"));
+    }
 }

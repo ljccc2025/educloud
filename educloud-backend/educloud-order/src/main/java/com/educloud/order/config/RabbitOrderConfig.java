@@ -4,6 +4,7 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -23,6 +24,9 @@ public class RabbitOrderConfig {
     public static final String ORDER_CANCEL_QUEUE = "educloud.order.cancel.queue";
     public static final String ORDER_CANCEL_ROUTING_KEY = "order.cancel";
 
+    public static final String ORDER_EVENT_EXCHANGE = "educloud.order.exchange";
+    public static final String ORDER_PAID_ROUTING_KEY = "order.paid";
+
     public static final int ORDER_TTL_MS = 900000; // 15 minutes
 
     @Bean
@@ -38,6 +42,11 @@ public class RabbitOrderConfig {
     @Bean
     public DirectExchange orderDlxExchange() {
         return new DirectExchange(ORDER_DLX_EXCHANGE, true, false);
+    }
+
+    @Bean
+    public TopicExchange orderEventExchange() {
+        return new TopicExchange(ORDER_EVENT_EXCHANGE, true, false);
     }
 
     @Bean
