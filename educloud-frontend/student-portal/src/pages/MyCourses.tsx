@@ -16,6 +16,10 @@ const displayTeacher = (name?: string) => {
 
 function CoverImage({ src, title }: { src: string | null; title: string }) {
   const [imageFailed, setImageFailed] = useState(false);
+  // src 变化时重置失败标记：封面更新（如 presigned URL 轮换）后自动重试，避免永久兜底图
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
   const resolved = imageFailed || !src ? cover(0) : src;
   return (
     <img

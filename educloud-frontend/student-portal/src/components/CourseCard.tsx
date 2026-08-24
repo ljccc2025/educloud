@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, Users, Play } from 'lucide-react';
 import { cover } from '../services/api';
@@ -19,6 +19,10 @@ const levelLabel: Record<string, string> = {
 
 export default function CourseCard({ course, index = 0 }: { course: Course; index?: number }) {
   const [imageFailed, setImageFailed] = useState(false);
+  // coverUrl 变化（presigned URL 轮换/封面更新）时重置失败标记，避免永久兜底图
+  useEffect(() => {
+    setImageFailed(false);
+  }, [course.coverUrl]);
   const isFree = Number(course.price) === 0;
   const coverSrc = imageFailed || !course.coverUrl ? cover(index) : course.coverUrl;
   // 教师展示名：后端暂以 teacherId 占位，纯数字时掩码为「讲师 ···尾6位」提升真实感
