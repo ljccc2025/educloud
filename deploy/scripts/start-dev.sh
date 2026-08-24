@@ -153,7 +153,7 @@ fi
 
 wait_ready "http://127.0.0.1:8088/actuator/health/readiness" "educloud-file"
 
-printf "[6/7] Starting educloud-content...\n"
+printf "[6/8] Starting educloud-content...\n"
 if port_free 8085; then
   SERVER_PORT=8085 CONTENT_MANAGEMENT_PORT=8086 \
   MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_CONTENT_DB_PASSWORD="$EDUCLOUD_CONTENT_DB_PASSWORD" \
@@ -180,7 +180,30 @@ fi
 
 wait_ready "http://127.0.0.1:8086/actuator/health/readiness" "educloud-content"
 
-printf "[7/7] Starting frontend dev servers...\n"
+printf "[7/8] Starting educloud-order...\n"
+if port_free 8091; then
+  SERVER_PORT=8091 ORDER_MANAGEMENT_PORT=8092 \
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_ORDER_DB_PASSWORD="$EDUCLOUD_ORDER_DB_PASSWORD" \
+  REDIS_HOST=127.0.0.1 REDIS_PORT="${REDIS_PORT:-6379}" REDIS_PASSWORD="$REDIS_PASSWORD" \
+  RABBITMQ_HOST=127.0.0.1 RABBITMQ_PORT="${RABBITMQ_AMQP_PORT:-5672}" \
+  RABBITMQ_DEFAULT_USER="$RABBITMQ_DEFAULT_USER" RABBITMQ_DEFAULT_PASS="$RABBITMQ_DEFAULT_PASS" \
+  RABBITMQ_DEFAULT_VHOST="${RABBITMQ_DEFAULT_VHOST:-educloud}" \
+  NACOS_SERVER_ADDR=127.0.0.1:"$NACOS_HTTP_PORT" \
+  EDUCLOUD_ORDER_NACOS_USERNAME=educloud_order EDUCLOUD_ORDER_NACOS_PASSWORD="$NACOS_ORDER_PASSWORD" \
+  ORDER_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json \
+  EDUCLOUD_ORDER_JWT_ISSUER="${EDUCLOUD_ORDER_JWT_ISSUER:-https://issuer.educloud.local}" \
+  EDUCLOUD_ORDER_JWT_AUDIENCE="${EDUCLOUD_ORDER_JWT_AUDIENCE:-educloud-api}" \
+  EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
+  setsid nohup java -jar educloud-backend/educloud-order/target/educloud-order-1.0.0-SNAPSHOT.jar \
+    > /tmp/educloud-live/order.log 2>&1 < /dev/null &
+  printf "  educloud-order started (8091/8092)\n"
+else
+  printf "  educloud-order already running\n"
+fi
+
+wait_ready "http://127.0.0.1:8092/actuator/health/readiness" "educloud-order"
+
+printf "[8/8] Starting frontend dev servers...\n"
 start_portal() {
   local dir="$1" port="$2"
   if port_free "$port"; then
@@ -204,4 +227,5 @@ printf "  Admin:   http://192.168.100.136:5175  (demo_admin / EduCloud@2026)\n"
 printf "  File:    http://192.168.100.136:8087  (management 8088)\n"
 printf "  Course:  http://192.168.100.136:8089  (management 8090)\n"
 printf "  Content: http://192.168.100.136:8085  (management 8086)\n"
-printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content}.log, /tmp/vm-vite-*.log\n"
+printf "  Order:   http://192.168.100.136:8091  (management 8092)\n"
+printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content,order}.log, /tmp/vm-vite-*.log\n"

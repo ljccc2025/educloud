@@ -61,7 +61,7 @@ spring:
           uri: lb://educloud-order
           order: 80
           predicates:
-            - Path=/api/v1/cart/**,/api/v1/orders/**,/api/v1/refund-requests/**
+            - Path=/api/v1/cart/**,/api/v1/orders/**,/api/v1/refund-requests/**,/api/v1/admin/orders/**,/api/v1/admin/refund-requests/**
         - id: payment-core
           uri: lb://educloud-payment
           order: 90
