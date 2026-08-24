@@ -43,12 +43,13 @@ public class SecurityConfig {
                         .requestMatchers("/internal/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> {
-                    JwtDecoder decoder = jwtDecoderProvider.getIfAvailable();
-                    if (decoder != null) {
-                        oauth2.jwt(jwt -> jwt
-                                .decoder(decoder)
-                                .jwtAuthenticationConverter(jwtAuthenticationConverter()));
-                    }
+                    oauth2.jwt(jwt -> {
+                        JwtDecoder decoder = jwtDecoderProvider.getIfAvailable();
+                        if (decoder != null) {
+                            jwt.decoder(decoder);
+                        }
+                        jwt.jwtAuthenticationConverter(jwtAuthenticationConverter());
+                    });
                     oauth2.authenticationEntryPoint(authenticationEntryPoint(responses, objectMapper));
                     oauth2.accessDeniedHandler(accessDeniedHandler(responses, objectMapper));
                 })

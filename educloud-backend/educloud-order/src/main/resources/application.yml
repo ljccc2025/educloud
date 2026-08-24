@@ -31,3 +31,15 @@ mybatis-plus:
 management:
   server:
     port: 8092
+
+educloud:
+  environment: ${EDUCLOUD_ENVIRONMENT:local}
+  order:
+    jwt:
+      jwks-location: ${ORDER_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
+      issuer: ${EDUCLOUD_ORDER_JWT_ISSUER:https://issuer.educloud.local}
+      audience: ${EDUCLOUD_ORDER_JWT_AUDIENCE:educloud-api}
+    internal:
+      audience: ${EDUCLOUD_ORDER_INTERNAL_AUDIENCE:educloud-order}
+      allowed-client-ids: ${EDUCLOUD_ORDER_INTERNAL_ALLOWED_CLIENT_IDS:gateway,user-service,educloud-course,educloud-payment}
+      secret-token: ${EDUCLOUD_ORDER_INTERNAL_SECRET:educloud-internal-secret}
