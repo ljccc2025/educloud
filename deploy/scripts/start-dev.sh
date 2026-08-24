@@ -141,7 +141,7 @@ if port_free 8087; then
   EDUCLOUD_FILE_JWT_ISSUER="${EDUCLOUD_FILE_JWT_ISSUER:-https://issuer.educloud.local}" \
   EDUCLOUD_FILE_JWT_AUDIENCE="${EDUCLOUD_FILE_JWT_AUDIENCE:-educloud-api}" \
   EDUCLOUD_FILE_INTERNAL_BOOTSTRAP_KEY="${EDUCLOUD_FILE_INTERNAL_BOOTSTRAP_KEY:-}" \
-  EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS="${EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS:-user-service,educloud-course}" \
+  EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS="${EDUCLOUD_FILE_INTERNAL_ALLOWED_CLIENT_IDS:-user-service,educloud-course,educloud-content}" \
   EDUCLOUD_FILE_INTERNAL_AUDIENCE="${EDUCLOUD_FILE_INTERNAL_AUDIENCE:-educloud-file}" \
   EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
   setsid nohup java -jar educloud-backend/educloud-file/target/educloud-file-1.0.0-SNAPSHOT.jar \
@@ -153,7 +153,33 @@ fi
 
 wait_ready "http://127.0.0.1:8088/actuator/health/readiness" "educloud-file"
 
-printf "[6/6] Starting frontend dev servers...\n"
+printf "[6/7] Starting educloud-content...\n"
+if port_free 8085; then
+  SERVER_PORT=8085 CONTENT_MANAGEMENT_PORT=8086 \
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_CONTENT_DB_PASSWORD="$EDUCLOUD_CONTENT_DB_PASSWORD" \
+  REDIS_HOST=127.0.0.1 REDIS_PORT="${REDIS_PORT:-6379}" REDIS_PASSWORD="$REDIS_PASSWORD" \
+  RABBITMQ_HOST=127.0.0.1 RABBITMQ_PORT="${RABBITMQ_AMQP_PORT:-5672}" \
+  RABBITMQ_DEFAULT_USER="$RABBITMQ_DEFAULT_USER" RABBITMQ_DEFAULT_PASS="$RABBITMQ_DEFAULT_PASS" \
+  RABBITMQ_DEFAULT_VHOST="${RABBITMQ_DEFAULT_VHOST:-educloud}" \
+  NACOS_SERVER_ADDR=127.0.0.1:"$NACOS_HTTP_PORT" \
+  CONTENT_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json \
+  EDUCLOUD_CONTENT_JWT_ISSUER="${EDUCLOUD_CONTENT_JWT_ISSUER:-https://issuer.educloud.local}" \
+  EDUCLOUD_CONTENT_JWT_AUDIENCE="${EDUCLOUD_CONTENT_JWT_AUDIENCE:-educloud-api}" \
+  EDUCLOUD_CONTENT_FILE_ENDPOINT="${EDUCLOUD_CONTENT_FILE_ENDPOINT:-http://127.0.0.1:8087}" \
+  EDUCLOUD_CONTENT_FILE_CLIENT_ID="${EDUCLOUD_CONTENT_FILE_CLIENT_ID:-educloud-content}" \
+  EDUCLOUD_CONTENT_FILE_CLIENT_SECRET="${EDUCLOUD_CONTENT_FILE_CLIENT_SECRET:-${EDUCLOUD_COURSE_FILE_CLIENT_SECRET}}" \
+  EDUCLOUD_CONTENT_USER_TOKEN_ENDPOINT="${EDUCLOUD_CONTENT_USER_TOKEN_ENDPOINT:-http://127.0.0.1:8082}" \
+  EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
+  setsid nohup java -jar educloud-backend/educloud-content/target/educloud-content-1.0.0-SNAPSHOT.jar \
+    > /tmp/educloud-live/content.log 2>&1 < /dev/null &
+  printf "  educloud-content started (8085/8086)\n"
+else
+  printf "  educloud-content already running\n"
+fi
+
+wait_ready "http://127.0.0.1:8086/actuator/health/readiness" "educloud-content"
+
+printf "[7/7] Starting frontend dev servers...\n"
 start_portal() {
   local dir="$1" port="$2"
   if port_free "$port"; then
@@ -176,4 +202,5 @@ printf "  Teacher: http://192.168.100.136:5174  (demo_teacher / EduCloud@2026)\n
 printf "  Admin:   http://192.168.100.136:5175  (demo_admin / EduCloud@2026)\n"
 printf "  File:    http://192.168.100.136:8087  (management 8088)\n"
 printf "  Course:  http://192.168.100.136:8089  (management 8090)\n"
-printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file}.log, /tmp/vm-vite-*.log\n"
+printf "  Content: http://192.168.100.136:8085  (management 8086)\n"
+printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content}.log, /tmp/vm-vite-*.log\n"
