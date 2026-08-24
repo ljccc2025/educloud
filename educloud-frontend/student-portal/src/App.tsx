@@ -69,6 +69,7 @@ export default function App() {
           <Route index element={<Home />} />
           <Route path="courses" element={<CourseList />} />
           <Route path="courses/:id" element={<CourseDetail />} />
+          <Route path="checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           <Route path="checkout/:courseId" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           <Route path="checkout/success/:orderId" element={<ProtectedRoute><CheckoutSuccess /></ProtectedRoute>} />
           <Route path="my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />

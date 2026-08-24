@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 import CheckoutCourseSummary from '@/components/checkout/CheckoutCourseSummary';
 import PaymentMethodSelector from '@/components/checkout/PaymentMethodSelector';
@@ -23,6 +23,7 @@ type ViewState =
 
 export default function Checkout() {
   const { courseId } = useParams<{ courseId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const currentUser = useAuthStore((state) => state.user);
   const removeFromCart = useCartStore((state) => state.removeFromCart);
@@ -31,7 +32,7 @@ export default function Checkout() {
   const [method, setMethod] = useState<PaymentMethod>('ALIPAY');
   const [viewState, setViewState] = useState<ViewState>('LOADING');
   const [error, setError] = useState('');
-  const courseIdParam = courseId ?? '';
+  const courseIdParam = courseId || searchParams.get('courseId') || '';
 
   const finishPaidOrder = useCallback(
     (paidOrder: Order) => {
