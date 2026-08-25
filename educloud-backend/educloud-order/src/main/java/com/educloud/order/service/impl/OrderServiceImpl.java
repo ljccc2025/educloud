@@ -373,6 +373,8 @@ public class OrderServiceImpl implements OrderService {
         try {
             response = courseClient.getCourseDetail(courseId);
         } catch (Exception ex) {
+            // 排查日志：保留真实远端异常，避免 COURSE_NOT_ON_SALE 掩盖网络/反序列化问题
+            log.warn("获取课程详情失败，courseId={}", courseId, ex);
             throw new OrderBizException(OrderErrorCode.COURSE_NOT_ON_SALE, "无法获取课程详情", null, ex);
         }
         if (response == null || response.data() == null) {
