@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   BookOpen,
   ChevronLeft,
@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Play,
   FileText,
-  ExternalLink,
   CheckCircle2,
   Lock,
   Sparkles,
@@ -15,16 +14,19 @@ import {
   Clock,
   User,
   HelpCircle,
+  ShoppingCart,
 } from 'lucide-react';
 import { useCourseStore } from '@/stores/useCourseStore';
 import VideoPlayer from '@/components/VideoPlayer';
 import ProgressBar from '@/components/ProgressBar';
 import { courseApi } from '@/services/api';
+import { getCourseTeacher } from '@/utils/courseHelper';
 import { cn } from '@/utils/cn';
 import type { Chapter, Courseware } from '@/types';
 
 export default function Learning() {
   const { courseId } = useParams<{ courseId: string }>();
+  const [searchParams] = useSearchParams();
   const { currentCourse, loading, error, fetchCourse, fetchChapters } = useCourseStore();
 
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -52,21 +54,43 @@ export default function Learning() {
           });
           setExpandedChapters(initialExpanded);
 
-          // 默认选中第一个课件
-          const firstCw = data.find((ch) => ch.coursewares.length > 0)?.coursewares[0];
-          if (firstCw) {
-            setActiveCourseware(firstCw);
+          // 优先根据 URL query 指定的 cw 参数选中
+          const targetCwId = searchParams.get('cw');
+          let targetCw: Courseware | undefined;
+          if (targetCwId) {
+            for (const ch of data) {
+              const found = ch.coursewares.find((c) => c.id === targetCwId);
+              if (found) {
+                targetCw = found;
+                break;
+              }
+            }
+          }
+
+          // 如果没有指定或未找到，默认选中第一个试看课件或首个课件
+          if (!targetCw) {
+            const allCws = data.flatMap((ch) => ch.coursewares);
+            const firstPreview = allCws.find((c) => c.freePreview);
+            targetCw = firstPreview || allCws[0];
+          }
+
+          if (targetCw) {
+            setActiveCourseware(targetCw);
           }
         }
       })
       .finally(() => {
         setLoadingChapters(false);
       });
-  }, [courseId, fetchCourse, fetchChapters]);
+  }, [courseId, fetchCourse, fetchChapters, searchParams]);
+
+  const isPaid = Number(currentCourse?.price) > 0;
+  const isEnrolled = Boolean(currentCourse?.enrolled);
+  const isLessonLocked = Boolean(isPaid && !isEnrolled && activeCourseware && !activeCourseware.freePreview);
 
   // 当选中课件切换时，解析播放 URL 并上报进度
   useEffect(() => {
-    if (!activeCourseware) {
+    if (!activeCourseware || isLessonLocked) {
       setActiveVideoUrl(null);
       return;
     }
@@ -87,7 +111,7 @@ export default function Learning() {
     } else {
       setActiveVideoUrl(null);
     }
-  }, [activeCourseware]);
+  }, [activeCourseware, isLessonLocked]);
 
   // 扁平化课件列表，便于前后翻页
   const flatCoursewares = useMemo(() => {
@@ -99,6 +123,10 @@ export default function Learning() {
     });
     return list;
   }, [chapters]);
+
+  const firstPreviewCw = useMemo(() => {
+    return flatCoursewares.find((item) => item.courseware.freePreview)?.courseware || null;
+  }, [flatCoursewares]);
 
   const currentIndex = useMemo(() => {
     if (!activeCourseware) return -1;
@@ -161,31 +189,6 @@ export default function Learning() {
     );
   }
 
-  const isPaid = Number(currentCourse.price) > 0;
-  const isEnrolled = Boolean(currentCourse.enrolled);
-
-  if (isPaid && !isEnrolled) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-24 text-center">
-        <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600">
-          <BookOpen size={32} />
-        </div>
-        <h2 className="font-display text-2xl text-ink-900 font-bold mb-2">尚未获得该课程学习权限</h2>
-        <p className="text-sm text-ink-500 max-w-md mx-auto mb-6">
-          《{currentCourse.title}》为付费精选课程（¥{currentCourse.price}），您需要先完成购买与选课后方可开始学习全部章节。
-        </p>
-        <div className="flex items-center justify-center gap-3">
-          <Link to={`/courses/${currentCourse.id}`} className="btn-primary inline-flex items-center gap-2">
-            前往课程主页购买
-          </Link>
-          <Link to="/courses" className="btn-secondary inline-flex items-center gap-2">
-            浏览更多课程
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   const course = currentCourse;
 
   return (
@@ -239,16 +242,78 @@ export default function Learning() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
           {/* 左侧主体播放与课件详情区 (占 8 列) */}
           <div className="lg:col-span-8 space-y-6">
-            {/* 播放器卡片 */}
+            {/* 未付费用户试看提示横幅 */}
+            {isPaid && !isEnrolled && (
+              <div className="bg-gradient-to-r from-amber-500/15 to-amber-500/5 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center flex-shrink-0 font-bold">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-ink-900 text-sm">
+                      {activeCourseware?.freePreview ? '您正在试看免费课时' : '当前课时为付费专享内容'}
+                    </p>
+                    <p className="text-ink-600 mt-0.5">
+                      购买《{course.title}》（¥{course.price}）即可解锁全部 {totalCount} 个课件、高清视频与课后辅导。
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  to={`/courses/${course.id}`}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 flex-shrink-0 self-start sm:self-auto"
+                >
+                  <ShoppingCart size={14} />
+                  立即购买课程
+                </Link>
+              </div>
+            )}
+
+            {/* 播放器卡片 或 付费锁屏提示 */}
             <div className="bg-ink-950 rounded-2xl overflow-hidden shadow-md border border-ink-800">
-              <VideoPlayer
-                title={activeCourseware?.title}
-                videoUrl={activeVideoUrl}
-                coursewareId={activeCourseware?.id}
-                coursewareType={activeCourseware?.coursewareType}
-                initialPositionSeconds={activeCourseware?.positionSeconds || 0}
-                onComplete={() => activeCourseware && handleMarkComplete(activeCourseware)}
-              />
+              {isLessonLocked ? (
+                <div className="aspect-video w-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-ink-900 to-ink-950 text-white">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center mb-4 shadow-inner">
+                    <Lock size={32} />
+                  </div>
+                  <span className="px-3 py-1 text-xs font-semibold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-2">
+                    付费专享课时
+                  </span>
+                  <h3 className="text-lg sm:text-xl font-bold font-display text-white mb-2">
+                    {activeCourseware?.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-ink-300 max-w-md mx-auto mb-6 leading-relaxed">
+                    本课时为课程《{course.title}》的付费专属内容。购买后即可立即解锁全部章节高清视频、随堂讲义与课后答疑。
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <Link
+                      to={`/courses/${course.id}`}
+                      className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-ink-950 font-bold text-sm rounded-xl shadow-lg transition-all flex items-center gap-2"
+                    >
+                      <ShoppingCart size={16} />
+                      立即购买课程 (¥{course.price})
+                    </Link>
+                    {firstPreviewCw && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveCourseware(firstPreviewCw)}
+                        className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-medium text-sm rounded-xl transition-all flex items-center gap-2 border border-white/10"
+                      >
+                        <Play size={15} />
+                        返回免费试看
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <VideoPlayer
+                  title={activeCourseware?.title}
+                  videoUrl={activeVideoUrl}
+                  coursewareId={activeCourseware?.id}
+                  coursewareType={activeCourseware?.coursewareType}
+                  initialPositionSeconds={activeCourseware?.positionSeconds || 0}
+                  onComplete={() => activeCourseware && handleMarkComplete(activeCourseware)}
+                />
+              )}
             </div>
 
             {/* 课件操作条与翻页控制 */}
@@ -261,6 +326,12 @@ export default function Learning() {
                   {activeCourseware?.freePreview && (
                     <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                       免费试看
+                    </span>
+                  )}
+                  {isLessonLocked && (
+                    <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                      <Lock size={12} />
+                      需购买
                     </span>
                   )}
                   {activeCourseware && completedIds.has(activeCourseware.id) && (
@@ -295,7 +366,7 @@ export default function Learning() {
                   上一节
                 </button>
 
-                {activeCourseware && !completedIds.has(activeCourseware.id) && (
+                {!isLessonLocked && activeCourseware && !completedIds.has(activeCourseware.id) && (
                   <button
                     type="button"
                     onClick={() => handleMarkComplete(activeCourseware)}
@@ -373,14 +444,16 @@ export default function Learning() {
                       {course.description || '暂无详细介绍。'}
                     </p>
                     <div className="pt-4 border-t border-ink-100 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-900 flex items-center justify-center font-bold text-sm">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-900 flex items-center justify-center font-bold text-sm">
                         <User size={18} />
                       </div>
                       <div>
                         <p className="text-sm font-bold text-ink-900">
-                          {course.teachers?.[0]?.teacherId ? `主讲讲师 ID ···${course.teachers[0].teacherId.slice(-4)}` : 'EduCloud 认证名师团队'}
+                          {getCourseTeacher(course.title, course.teachers?.[0]?.teacherId).name}
                         </p>
-                        <p className="text-xs text-ink-400">资深全栈架构师 · 课程总设计师</p>
+                        <p className="text-xs text-ink-400">
+                          {getCourseTeacher(course.title, course.teachers?.[0]?.teacherId).title}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -516,6 +589,7 @@ export default function Learning() {
                             {chapter.coursewares.map((cw) => {
                               const isActive = activeCourseware?.id === cw.id;
                               const isCompleted = completedIds.has(cw.id);
+                              const isCwLocked = isPaid && !isEnrolled && !cw.freePreview;
 
                               return (
                                 <button
@@ -535,12 +609,16 @@ export default function Learning() {
                                         'w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0',
                                         isActive
                                           ? 'bg-white/20 text-white'
-                                          : isCompleted
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'bg-ink-100 text-ink-500',
+                                          : isCwLocked
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : isCompleted
+                                              ? 'bg-green-100 text-green-700'
+                                              : 'bg-ink-100 text-ink-500',
                                       )}
                                     >
-                                      {isCompleted ? (
+                                      {isCwLocked ? (
+                                        <Lock size={12} />
+                                      ) : isCompleted ? (
                                         <CheckCircle2 size={13} />
                                       ) : cw.coursewareType === 'VIDEO' ? (
                                         <Play size={12} fill={isActive ? 'currentColor' : 'none'} />
@@ -559,9 +637,24 @@ export default function Learning() {
                                   </div>
 
                                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                                    {cw.freePreview && !isActive && (
-                                      <span className="px-1.5 py-0.5 text-[10px] rounded bg-emerald-100 text-emerald-800 font-semibold">
+                                    {cw.freePreview && (
+                                      <span
+                                        className={cn(
+                                          'px-1.5 py-0.5 text-[10px] rounded font-semibold',
+                                          isActive ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800',
+                                        )}
+                                      >
                                         试看
+                                      </span>
+                                    )}
+                                    {isCwLocked && (
+                                      <span
+                                        className={cn(
+                                          'px-1.5 py-0.5 text-[10px] rounded font-semibold',
+                                          isActive ? 'bg-amber-400 text-ink-950' : 'bg-amber-100 text-amber-800',
+                                        )}
+                                      >
+                                        需购买
                                       </span>
                                     )}
                                     {cw.durationSeconds ? (

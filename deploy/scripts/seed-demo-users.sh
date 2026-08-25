@@ -64,7 +64,7 @@ bcrypt_of() {
 teacher_hash="$(bcrypt_of "$teacher_password")"
 admin_hash="$(bcrypt_of "$admin_password")"
 
-MYSQL_PWD="$mysql_root_password" mysql --protocol=TCP -h "$mysql_host" -P "$mysql_port" -u root educloud_user <<SQL
+MYSQL_PWD="$mysql_root_password" mysql --default-character-set=utf8mb4 --protocol=TCP -h "$mysql_host" -P "$mysql_port" -u root educloud_user <<SQL
 INSERT INTO sys_user (id, username, email, phone, password_hash, user_type, status, token_version, created_at, updated_at)
 VALUES
   (9000000000000000001, 'demo_teacher', 'demo_teacher@educloud.cn', '13800000001', '$teacher_hash', 'TEACHER', 'ACTIVE', 0, NOW(3), NOW(3)),

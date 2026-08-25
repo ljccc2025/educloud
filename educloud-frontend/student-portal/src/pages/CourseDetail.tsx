@@ -6,14 +6,15 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import {
-  Star, Users, Play, ShoppingCart, Check, BookOpen, Send, AlertCircle, Lock,
+  Star, Users, Play, ShoppingCart, Check, BookOpen, Send, AlertCircle, Lock, FileText,
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import { useCourseStore } from '@/stores/useCourseStore';
 import { useCartStore } from '@/stores/useCartStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { courseApi } from '@/services/courseApi';
-import { cover, cartApi } from '@/services/api';
+import { cartApi } from '@/services/api';
+import { getCourseCover, getCourseTeacher } from '@/utils/courseHelper';
 import { apiErrorText } from '@/services/http';
 import { cn } from '@/utils/cn';
 import type { CourseDetail as CourseDetailType } from '@/types';
@@ -33,7 +34,7 @@ export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { currentCourse, loading, error, fetchCourse } = useCourseStore();
+  const { currentCourse, chapters, loading, error, fetchCourse, fetchChapters } = useCourseStore();
   const { addToCart, isInCart } = useCartStore();
   const token = useAuthStore((state) => state.token);
   const [added, setAdded] = useState(false);
@@ -48,8 +49,11 @@ export default function CourseDetail() {
   const [reviewSuccess, setReviewSuccess] = useState(false);
 
   useEffect(() => {
-    if (id) void fetchCourse(id);
-  }, [id, fetchCourse]);
+    if (id) {
+      void fetchCourse(id);
+      void fetchChapters(id);
+    }
+  }, [id, fetchCourse, fetchChapters]);
 
   const enrollFreeCourse = useCallback(async () => {
     const course = currentCourse;
@@ -126,8 +130,9 @@ export default function CourseDetail() {
   const course: CourseDetailType = currentCourse;
   const inCart = isInCart(course.id);
   const isFree = Number(course.price) === 0;
-  const coverSrc = course.coverUrl ?? cover(0);
+  const coverSrc = course.coverUrl || getCourseCover(course.title, 0);
   const mainTeacher = course.teachers?.[0];
+  const teacher = getCourseTeacher(course.title, mainTeacher?.teacherId);
 
   const handleAddToCart = async () => {
     addToCart({
@@ -135,7 +140,7 @@ export default function CourseDetail() {
       title: course.title,
       price: Number(course.price),
       cover: coverSrc,
-      teacherName: mainTeacher?.teacherId ?? '讲师',
+      teacherName: teacher.name,
     });
     setAdded(true);
     try {
@@ -269,21 +274,97 @@ export default function CourseDetail() {
               </p>
             </section>
 
-            {/* Chapters Placeholder */}
+            {/* Chapters & Syllabus */}
             <section>
               <h2 className="font-display text-2xl font-bold text-ink-900 mb-5 flex items-center gap-3">
                 <span className="w-1 h-6 bg-amber-600" />
                 课程大纲
               </h2>
-              <div className="border border-ink-100 bg-ink-50/40 px-6 py-14 text-center">
-                <BookOpen size={36} className="mx-auto text-ink-200 mb-3" strokeWidth={1} />
-                <div className="whitespace-pre-line text-sm text-ink-700 leading-relaxed">
-            {course.description || '课程大纲整理中，敬请期待'}
-          </div>
-                <p className="text-sm text-ink-400 mt-2">
-                  章节与课件内容将在内容模块接入后展示，请先加入课程开始学习
-                </p>
-              </div>
+              {chapters.length > 0 ? (
+                <div className="border border-ink-100 divide-y divide-ink-100 bg-white shadow-sm">
+                  {chapters.map((ch, chIdx) => (
+                    <div key={ch.id} className="p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <span className="text-xs font-bold text-indigo-900 block mb-0.5">第 {chIdx + 1} 章</span>
+                          <h3 className="font-bold text-ink-900 text-sm">{ch.title}</h3>
+                          {ch.description && (
+                            <p className="text-xs text-ink-400 mt-0.5">{ch.description}</p>
+                          )}
+                        </div>
+                        <span className="text-xs text-ink-400 font-medium">
+                          {ch.coursewares.length} 个课件
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 pl-2">
+                        {ch.coursewares.map((cw) => {
+                          const isLocked = !isFree && !course.enrolled && !cw.freePreview;
+                          return (
+                            <div
+                              key={cw.id}
+                              className="flex items-center justify-between p-3 rounded-lg bg-ink-50/70 border border-ink-100 text-xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 pr-3">
+                                <div className="w-6 h-6 rounded flex items-center justify-center bg-ink-100 text-ink-600 flex-shrink-0">
+                                  {isLocked ? (
+                                    <Lock size={12} className="text-amber-700" />
+                                  ) : cw.coursewareType === 'VIDEO' ? (
+                                    <Play size={12} />
+                                  ) : (
+                                    <FileText size={12} />
+                                  )}
+                                </div>
+                                <span className="text-ink-800 font-medium truncate">{cw.title}</span>
+                              </div>
+
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {cw.durationSeconds ? (
+                                  <span className="text-ink-400 text-[11px]">
+                                    {Math.ceil(cw.durationSeconds / 60)} 分钟
+                                  </span>
+                                ) : null}
+
+                                {cw.freePreview ? (
+                                  <Link
+                                    to={`/learn/${course.id}?cw=${cw.id}`}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded text-[11px] transition-colors flex items-center gap-1 shadow-sm"
+                                  >
+                                    <Play size={10} fill="currentColor" />
+                                    免费试看
+                                  </Link>
+                                ) : isLocked ? (
+                                  <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-medium text-[11px] flex items-center gap-1">
+                                    <Lock size={10} />
+                                    需购买
+                                  </span>
+                                ) : (
+                                  <Link
+                                    to={`/learn/${course.id}?cw=${cw.id}`}
+                                    className="px-2.5 py-1 bg-indigo-900 hover:bg-indigo-800 text-white font-medium rounded text-[11px] transition-colors"
+                                  >
+                                    开始学习
+                                  </Link>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="border border-ink-100 bg-ink-50/40 px-6 py-14 text-center">
+                  <BookOpen size={36} className="mx-auto text-ink-200 mb-3" strokeWidth={1} />
+                  <div className="whitespace-pre-line text-sm text-ink-700 leading-relaxed">
+                    {course.description || '课程大纲整理中，敬请期待'}
+                  </div>
+                  <p className="text-sm text-ink-400 mt-2">
+                    章节与课件内容正在整理中
+                  </p>
+                </div>
+              )}
             </section>
 
             {/* Reviews */}
@@ -386,25 +467,24 @@ export default function CourseDetail() {
           <aside className="space-y-6">
             {/* Teacher Card */}
             <div className="card-editorial p-6">
-              <h3 className="font-display text-lg font-bold text-ink-900 mb-4">讲师介绍</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display text-lg font-bold text-ink-900">主讲讲师</h3>
+                <span className="text-xs font-semibold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/80">
+                  {course.enrollmentCount.toLocaleString()} 人已加入
+                </span>
+              </div>
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 bg-gradient-to-br from-indigo-700 to-indigo-900 flex items-center justify-center">
-                  <span className="text-xl font-bold text-paper">师</span>
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-700 to-indigo-900 flex items-center justify-center shadow-md flex-shrink-0">
+                  <span className="text-xl font-bold text-white">{teacher.name.charAt(0)}</span>
                 </div>
-                <div>
-                  <p className="font-semibold text-ink-900">
-                    {mainTeacher ? `讲师 ${maskedId(mainTeacher.teacherId)}` : '讲师信息即将上线'}
-                  </p>
-                  <p className="text-sm text-ink-500">
-                    {mainTeacher ? (roleLabel[mainTeacher.teacherRole] ?? mainTeacher.teacherRole) : '—'}
-                  </p>
+                <div className="min-w-0">
+                  <p className="font-bold text-ink-900 text-base">{teacher.name}</p>
+                  <p className="text-xs text-ink-500 mt-0.5 leading-tight">{teacher.title}</p>
                 </div>
               </div>
-              {course.teachers && course.teachers.length > 1 && (
-                <p className="text-xs text-ink-400">
-                  共 {course.teachers.length} 位教师（含助教）
-                </p>
-              )}
+              <p className="text-xs text-ink-600 leading-relaxed bg-ink-50 p-3 rounded-xl border border-ink-100">
+                资深架构师与名师团队，主导过多款高并发分布式系统与企业级全栈产品架构研发。
+              </p>
             </div>
 
             {/* Enrolled note */}

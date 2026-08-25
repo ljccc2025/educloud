@@ -13,9 +13,11 @@ spring:
             read-timeout: 3000
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-      username: ${EDUCLOUD_NOTIFICATION_NACOS_USERNAME:${EDUCLOUD_ORDER_NACOS_USERNAME:educloud_order}}
-      password: ${EDUCLOUD_NOTIFICATION_NACOS_PASSWORD:${EDUCLOUD_ORDER_NACOS_PASSWORD:19a3b3adbef019a2a0a0b964b14011c33658cb2090d999cd}}
+      username: ${EDUCLOUD_NOTIFICATION_NACOS_USERNAME:${NACOS_ADMIN_USERNAME:nacos}}
+      password: ${EDUCLOUD_NOTIFICATION_NACOS_PASSWORD:${NACOS_ADMIN_PASSWORD:nacos}}
       discovery:
+        username: ${EDUCLOUD_NOTIFICATION_NACOS_USERNAME:${NACOS_ADMIN_USERNAME:nacos}}
+        password: ${EDUCLOUD_NOTIFICATION_NACOS_PASSWORD:${NACOS_ADMIN_PASSWORD:nacos}}
         namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
         group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
         register-enabled: true

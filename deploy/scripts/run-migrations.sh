@@ -69,7 +69,7 @@ lock_timeout="$(printenv MIGRATION_LOCK_TIMEOUT 2>/dev/null || true)"
 lock_name="educloud_$service_flat"'_migration'
 
 mysql_call() {
-  MYSQL_PWD="$migration_password" mysql --protocol=TCP -h "$mysql_host" -P "$mysql_port" \
+  MYSQL_PWD="$migration_password" mysql --default-character-set=utf8mb4 --protocol=TCP -h "$mysql_host" -P "$mysql_port" \
     -u "$migration_user" --batch --skip-column-names "$database_name" "$@"
 }
 

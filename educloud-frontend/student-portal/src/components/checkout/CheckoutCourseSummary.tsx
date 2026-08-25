@@ -1,15 +1,10 @@
-import { cover } from '@/services/api';
+import { getCourseCover, getCourseTeacher } from '@/utils/courseHelper';
 import type { CourseDetail } from '@/types';
-
-function maskedId(id: string | undefined): string {
-  if (!id) return '讲师';
-  if (id.length <= 6) return id;
-  return `...${id.slice(-6)}`;
-}
 
 export default function CheckoutCourseSummary({ course }: { course: CourseDetail }) {
   const price = Number(course.price);
-  const coverSrc = course.coverUrl ?? cover(0);
+  const coverSrc = course.coverUrl || getCourseCover(course.title, 0);
+  const teacher = getCourseTeacher(course.title, course.teachers?.[0]?.teacherId);
 
   return (
     <section
@@ -23,9 +18,12 @@ export default function CheckoutCourseSummary({ course }: { course: CourseDetail
           className="h-32 w-full rounded-2xl object-cover sm:w-52"
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-ink-400">
-            {maskedId(course.teachers?.[0]?.teacherId)} · 永久访问
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-indigo-900">
+              {teacher.name}
+            </p>
+            <span className="text-xs text-ink-400">· {course.enrollmentCount.toLocaleString()} 人已购买 · 永久有效</span>
+          </div>
           <h2
             id="checkout-course-title"
             className="mt-2 font-display text-2xl font-bold text-ink-900"

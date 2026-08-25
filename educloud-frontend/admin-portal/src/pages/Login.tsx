@@ -6,8 +6,8 @@ import { useAuthStore } from '../stores/useAuthStore';
 export default function Login() {
   const navigate = useNavigate();
   const { login, loading, error, token, clearError } = useAuthStore();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('demo_admin');
+  const [password, setPassword] = useState('EduCloud@2026');
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
@@ -149,7 +149,7 @@ export default function Login() {
           </form>
 
           <div className="mt-8 p-4 bg-ink-50 border border-ink-100 text-sm text-ink-500">
-            <span className="font-medium text-ink-700">演示账号：</span> admin / admin123
+            <span className="font-medium text-ink-700">演示账号：</span> demo_admin / EduCloud@2026
           </div>
         </div>
       </div>

@@ -25,6 +25,8 @@ public class UserNotificationEntity {
 
     private Long notificationId;
 
+    private com.educloud.notification.enums.NotificationKind kind;
+
     private Integer isRead;
 
     private LocalDateTime readAt;

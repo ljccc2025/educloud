@@ -3,24 +3,16 @@ import { Link } from 'react-router-dom';
 import { BookOpen, CalendarDays, Check, Lock, Play, Sparkles } from 'lucide-react';
 import dayjs from 'dayjs';
 import { useCourseStore } from '@/stores/useCourseStore';
-import { cover } from '@/services/api';
+import { getCourseCover, getCourseTeacher } from '@/utils/courseHelper';
 import { apiErrorText } from '@/services/http';
 import type { Course, MyCourse } from '@/types';
 
-/** 教师展示名：纯数字（占位的 teacherId）时掩码显示，与 CourseCard 一致。 */
-const displayTeacher = (name?: string) => {
-  if (!name) return '讲师';
-  if (/^\d+$/.test(name)) return '讲师 ···' + name.slice(-6);
-  return name;
-};
-
 function CoverImage({ src, title }: { src: string | null; title: string }) {
   const [imageFailed, setImageFailed] = useState(false);
-  // src 变化时重置失败标记：封面更新（如 presigned URL 轮换）后自动重试，避免永久兜底图
   useEffect(() => {
     setImageFailed(false);
-  }, [src]);
-  const resolved = imageFailed || !src ? cover(0) : src;
+  }, [src, title]);
+  const resolved = imageFailed || !src ? getCourseCover(title, 0) : src;
   return (
     <img
       src={resolved}
@@ -215,7 +207,7 @@ export default function MyCourses() {
                 >
                   {course.title}
                 </Link>
-                <p className="text-sm text-ink-500 mt-1 mb-4">{displayTeacher(course.teacherName)}</p>
+                <p className="text-sm text-ink-500 mt-1 mb-4">{getCourseTeacher(course.title, course.teacherName).name}</p>
                 <div className="mt-auto">
                   {course.enrolled ? (
                     <span className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium">

@@ -19,13 +19,15 @@ CREATE TABLE IF NOT EXISTS sys_user_notification (
     id BIGINT NOT NULL PRIMARY KEY COMMENT '收件箱记录 ID',
     user_id BIGINT NOT NULL COMMENT '接收人用户 ID',
     notification_id BIGINT NOT NULL COMMENT '关联通知 ID (sys_notification.id)',
+    kind VARCHAR(32) NOT NULL DEFAULT 'SYSTEM' COMMENT '通知分类冗余字段',
     is_read TINYINT NOT NULL DEFAULT 0 COMMENT '是否已读: 0-未读, 1-已读',
     read_at DATETIME(3) NULL COMMENT '读取时间',
     is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-正常, 1-已删除',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     UNIQUE KEY uk_user_notification (user_id, notification_id),
-    INDEX idx_user_unread (user_id, is_deleted, is_read, created_at DESC)
+    INDEX idx_user_unread (user_id, is_deleted, is_read, created_at DESC),
+    INDEX idx_user_kind (user_id, is_deleted, kind, created_at DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户收件箱与已读隔离表';
 
 CREATE TABLE IF NOT EXISTS sys_delivery_task (

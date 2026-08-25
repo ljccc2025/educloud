@@ -15,6 +15,7 @@ export default function CheckoutSuccess() {
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState('');
+  const [channel, setChannel] = useState<string>();
 
   useEffect(() => {
     if (!orderId) {
@@ -38,6 +39,7 @@ export default function CheckoutSuccess() {
         } else if (found.status === 'PAID') {
           setConfirming(false);
           setOrder(found);
+          setChannel(payment?.channel);
         } else if (
           found.status === 'PENDING_PAYMENT' &&
           (payment?.status === 'ACTIVE' || payment?.status === 'SUCCESS') &&
@@ -81,7 +83,7 @@ export default function CheckoutSuccess() {
     <main className="min-h-[calc(100vh-6rem)] bg-paper px-4 py-16">
       <div className="mx-auto max-w-4xl">
         {order ? (
-          <PurchaseSuccessCard order={order} />
+          <PurchaseSuccessCard order={order} paymentMethod={channel} />
         ) : confirming ? (
           <div className="rounded-3xl bg-white p-8 shadow-xl shadow-indigo-950/5">
             <PaymentStatusPanel state="CONFIRMING" />

@@ -45,7 +45,7 @@ if [[ ! -f /tmp/educloud-live/private.pem ]]; then
 fi
 
 printf "[3/6] Starting educloud-user and educloud-gateway...\n"
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-17.0.20.1.1-1.1.el8_10.x86_64
+export JAVA_HOME="${JAVA_HOME:-$(dirname $(dirname $(readlink -f $(which java))))}"
 export PATH="$JAVA_HOME/bin:$PATH"
 
 if port_free 8082; then

@@ -29,7 +29,7 @@ export default function Checkout() {
   const removeFromCart = useCartStore((state) => state.removeFromCart);
   const [course, setCourse] = useState<CourseDetail>();
   const [order, setOrder] = useState<Order>();
-  const [method, setMethod] = useState<PaymentMethod>('ALIPAY');
+  const [method, setMethod] = useState<PaymentMethod>('MOCK');
   const [viewState, setViewState] = useState<ViewState>('LOADING');
   const [error, setError] = useState('');
   const courseIdParam = courseId || searchParams.get('courseId') || '';

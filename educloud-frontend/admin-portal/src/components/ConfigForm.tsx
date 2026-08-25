@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Upload, Shield, Mail, Server, Settings2, type LucideIcon } from 'lucide-react';
 import type { SystemConfig } from '../types';
+import { notificationAdminApi } from '../services/notificationAdminApi';
 
 export type ConfigSection = 'basic' | 'email' | 'storage' | 'security';
 
@@ -10,6 +12,9 @@ interface ConfigFormProps {
 }
 
 export default function ConfigForm({ value, onChange, section }: ConfigFormProps) {
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [emailResult, setEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
   const update = <K extends keyof SystemConfig>(key: K, val: SystemConfig[K]) => {
     onChange({ ...value, [key]: val });
   };
@@ -124,11 +129,37 @@ export default function ConfigForm({ value, onChange, section }: ConfigFormProps
               />
             </Field>
           </div>
-          <div className="mt-5 pt-5 border-t border-ink-100">
-            <button className="btn-outline" type="button">
+          <div className="mt-5 pt-5 border-t border-ink-100 flex items-center gap-4">
+            <button
+              className="btn-outline"
+              type="button"
+              disabled={testingEmail}
+              onClick={async () => {
+                setTestingEmail(true);
+                setEmailResult(null);
+                try {
+                  const res = await notificationAdminApi.testSendEmail('EduCloud 管理员渠道自测');
+                  if (res.code === 'SUCCESS') {
+                    setEmailResult({ ok: true, msg: '测试邮件发送成功！已投递至发信网关' });
+                  } else {
+                    setEmailResult({ ok: false, msg: res.message || '发送失败' });
+                  }
+                } catch (err: any) {
+                  const msg = err.response?.data?.message || err.message || '发送失败';
+                  setEmailResult({ ok: false, msg });
+                } finally {
+                  setTestingEmail(false);
+                }
+              }}
+            >
               <Mail size={14} />
-              发送测试邮件
+              {testingEmail ? '发送中...' : '发送测试邮件'}
             </button>
+            {emailResult && (
+              <span className={`text-sm ${emailResult.ok ? 'text-emerald-600' : 'text-red-500'}`}>
+                {emailResult.msg}
+              </span>
+            )}
           </div>
         </ConfigCard>
       )}

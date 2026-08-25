@@ -69,7 +69,10 @@ public class DeliveryTaskJob {
                 handleTaskFailure(task, result.getErrorMessage(), now);
             }
         } catch (Exception e) {
-            handleTaskFailure(task, e.getMessage(), now);
+            String errorMsg = e.getMessage() != null && !e.getMessage().isBlank()
+                    ? e.getMessage()
+                    : e.getClass().getSimpleName();
+            handleTaskFailure(task, errorMsg, now);
         }
     }
 

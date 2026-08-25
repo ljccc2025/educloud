@@ -33,7 +33,18 @@ public class EmailChannelServiceImpl implements EmailChannelService {
     @Override
     public EmailChannelStatusResponse getEmailChannelStatus() {
         NotificationProperties.EmailProperties emailProps = properties.getEmail();
-        String rawUsername = emailProps.getUsername();
+        if (emailProps == null) {
+            return EmailChannelStatusResponse.builder()
+                    .provider("mock")
+                    .host("")
+                    .port(465)
+                    .username("***")
+                    .from("")
+                    .sslEnabled(true)
+                    .passwordConfigured(false)
+                    .build();
+        }
+        String rawUsername = emailProps.getUsername() != null ? emailProps.getUsername() : "";
         String maskedUsername = maskEmail(rawUsername);
         boolean hasPassword = emailProps.getPassword() != null && !emailProps.getPassword().isBlank();
 

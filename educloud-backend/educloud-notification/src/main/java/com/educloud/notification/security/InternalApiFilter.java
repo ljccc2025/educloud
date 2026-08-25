@@ -43,7 +43,10 @@ public final class InternalApiFilter extends OncePerRequestFilter {
         String internalTokenHeader = request.getHeader("X-Internal-Token");
         if (internalTokenHeader != null && !internalTokenHeader.isBlank()) {
             String configuredSecret = properties.getInternal() != null ? properties.getInternal().getSecretToken() : null;
-            if (configuredSecret != null && !configuredSecret.isBlank() && configuredSecret.equals(internalTokenHeader)) {
+            if (configuredSecret != null && !configuredSecret.isBlank()
+                    && java.security.MessageDigest.isEqual(
+                            configuredSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                            internalTokenHeader.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
                 String caller = request.getHeader("X-Client-Id");
                 request.setAttribute(CLIENT_ID_ATTRIBUTE, caller != null ? caller : "internal-service");
                 filterChain.doFilter(request, response);

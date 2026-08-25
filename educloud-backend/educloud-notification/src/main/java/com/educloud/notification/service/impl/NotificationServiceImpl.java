@@ -81,33 +81,9 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         for (Long uid : recipientUserIds) {
-            UserNotificationEntity userNotif = UserNotificationEntity.builder()
-                    .id(IdWorker.getId())
-                    .userId(uid)
-                    .notificationId(notificationId)
-                    .isRead(0)
-                    .readAt(null)
-                    .isDeleted(0)
-                    .createdAt(now)
-                    .updatedAt(now)
-                    .build();
-            userNotificationMapper.insert(userNotif);
-
+            saveUserNotification(uid, notificationId, notification.getKind(), now);
             if (request.isSendEmail()) {
-                DeliveryTaskEntity task = DeliveryTaskEntity.builder()
-                        .id(IdWorker.getId())
-                        .notificationId(notificationId)
-                        .userId(uid)
-                        .channelCode(ChannelCode.EMAIL)
-                        .receiverTarget("user_" + uid + "@educloud.cn")
-                        .status(DeliveryStatus.PENDING)
-                        .retryCount(0)
-                        .maxRetries(3)
-                        .nextRetryAt(now)
-                        .createdAt(now)
-                        .updatedAt(now)
-                        .build();
-                deliveryTaskMapper.insert(task);
+                saveEmailDeliveryTask(uid, notificationId, now);
             }
         }
 
@@ -127,6 +103,38 @@ public class NotificationServiceImpl implements NotificationService {
                 .build();
     }
 
+    private void saveUserNotification(Long userId, Long notificationId, NotificationKind kind, LocalDateTime now) {
+        UserNotificationEntity userNotif = UserNotificationEntity.builder()
+                .id(IdWorker.getId())
+                .userId(userId)
+                .notificationId(notificationId)
+                .kind(kind)
+                .isRead(0)
+                .readAt(null)
+                .isDeleted(0)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        userNotificationMapper.insert(userNotif);
+    }
+
+    private void saveEmailDeliveryTask(Long userId, Long notificationId, LocalDateTime now) {
+        DeliveryTaskEntity task = DeliveryTaskEntity.builder()
+                .id(IdWorker.getId())
+                .notificationId(notificationId)
+                .userId(userId)
+                .channelCode(ChannelCode.EMAIL)
+                .receiverTarget("user_" + userId + "@educloud.cn")
+                .status(DeliveryStatus.PENDING)
+                .retryCount(0)
+                .maxRetries(3)
+                .nextRetryAt(now)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        deliveryTaskMapper.insert(task);
+    }
+
     @Override
     public PageResponse<NotificationResponse> getMyNotifications(
             Long userId, int page, int size, NotificationKind kind, Boolean unreadOnly) {
@@ -141,6 +149,9 @@ public class NotificationServiceImpl implements NotificationService {
                 .eq(UserNotificationEntity::getUserId, userId)
                 .eq(UserNotificationEntity::getIsDeleted, 0);
 
+        if (kind != null) {
+            query.eq(UserNotificationEntity::getKind, kind);
+        }
         if (Boolean.TRUE.equals(unreadOnly)) {
             query.eq(UserNotificationEntity::getIsRead, 0);
         }
@@ -166,7 +177,6 @@ public class NotificationServiceImpl implements NotificationService {
         for (UserNotificationEntity record : records) {
             NotificationEntity parent = notifMap.get(record.getNotificationId());
             if (parent == null) continue;
-            if (kind != null && parent.getKind() != kind) continue;
 
             responses.add(NotificationResponse.builder()
                     .id(record.getId())
@@ -263,33 +273,10 @@ public class NotificationServiceImpl implements NotificationService {
                 .build();
         notificationMapper.insert(notification);
 
-        UserNotificationEntity userNotif = UserNotificationEntity.builder()
-                .id(IdWorker.getId())
-                .userId(targetUserId)
-                .notificationId(notificationId)
-                .isRead(0)
-                .readAt(null)
-                .isDeleted(0)
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
-        userNotificationMapper.insert(userNotif);
+        saveUserNotification(targetUserId, notificationId, notification.getKind(), now);
 
         if (sendEmail) {
-            DeliveryTaskEntity task = DeliveryTaskEntity.builder()
-                    .id(IdWorker.getId())
-                    .notificationId(notificationId)
-                    .userId(targetUserId)
-                    .channelCode(ChannelCode.EMAIL)
-                    .receiverTarget("user_" + targetUserId + "@educloud.cn")
-                    .status(DeliveryStatus.PENDING)
-                    .retryCount(0)
-                    .maxRetries(3)
-                    .nextRetryAt(now)
-                    .createdAt(now)
-                    .updatedAt(now)
-                    .build();
-            deliveryTaskMapper.insert(task);
+            saveEmailDeliveryTask(targetUserId, notificationId, now);
         }
     }
 }

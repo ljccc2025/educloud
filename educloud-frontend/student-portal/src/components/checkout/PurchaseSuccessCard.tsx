@@ -2,7 +2,13 @@ import { CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Order } from '@/types';
 
-export default function PurchaseSuccessCard({ order }: { order: Order }) {
+export default function PurchaseSuccessCard({
+  order,
+  paymentMethod,
+}: {
+  order: Order;
+  paymentMethod?: string;
+}) {
   return (
     <section className="rounded-3xl border border-white/70 bg-white/85 p-8 text-center shadow-2xl shadow-indigo-950/10 backdrop-blur-xl">
       <CheckCircle2
@@ -34,7 +40,12 @@ export default function PurchaseSuccessCard({ order }: { order: Order }) {
         <div>
           <dt className="text-ink-400">支付方式</dt>
           <dd className="mt-1 font-medium text-ink-800">
-            {order.paymentMethod === 'WECHAT' ? '微信支付' : '支付宝'}
+            {paymentMethod === 'WECHAT' ? '微信支付'
+              : paymentMethod === 'ALIPAY' ? '支付宝'
+              : paymentMethod === 'MOCK' ? 'Mock 沙箱'
+              : order.paymentMethod === 'WECHAT' ? '微信支付'
+              : order.paymentMethod === 'ALIPAY' ? '支付宝'
+              : '在线支付'}
           </dd>
         </div>
       </dl>
