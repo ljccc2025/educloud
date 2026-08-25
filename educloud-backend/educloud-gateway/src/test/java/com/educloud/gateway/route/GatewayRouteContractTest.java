@@ -118,7 +118,8 @@ class GatewayRouteContractTest {
                 "/api/v1/admin/orders/**", "/api/v1/admin/refund-requests/**");
         assertThat(pathArguments(route("payment-core"))).containsExactly(
                 "/api/v1/payments/**", "/api/v1/payment-callbacks/**",
-                "/api/v1/payment-refunds/**", "/api/v1/reconciliations/**");
+                "/api/v1/payment-refunds/**", "/api/v1/reconciliations/**",
+                "/api/v1/admin/payments/**");
         assertThat(pathArguments(route("live-http"))).containsExactly("/api/v1/live-rooms/**");
         assertThat(pathArguments(route("file-core"))).containsExactly(
                 "/api/v1/files/**", "/api/v1/file-upload-sessions/**");

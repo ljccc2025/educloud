@@ -218,7 +218,7 @@ export type OrderStatus =
   | 'REFUNDED';
 
 // 支付方式
-export type PaymentMethod = 'ALIPAY' | 'WECHAT';
+export type PaymentMethod = 'MOCK' | 'ALIPAY' | 'WECHAT';
 
 // 单次支付尝试状态
 export type PaymentAttemptStatus =

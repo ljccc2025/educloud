@@ -204,7 +204,30 @@ fi
 
 wait_ready "http://127.0.0.1:8092/actuator/health/readiness" "educloud-order"
 
-printf "[8/8] Starting frontend dev servers...\n"
+printf "[8/9] Starting educloud-payment...\n"
+if port_free 8093; then
+  SERVER_PORT=8093 PAYMENT_MANAGEMENT_PORT=8094 \
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_PAYMENT_DB_PASSWORD="${EDUCLOUD_PAYMENT_DB_PASSWORD:-0776b911c75c80efcb36c841c888e285a73e46c7ad721be0}" \
+  REDIS_HOST=127.0.0.1 REDIS_PORT="${REDIS_PORT:-6379}" REDIS_PASSWORD="${REDIS_PASSWORD:-}" \
+  RABBITMQ_HOST=127.0.0.1 RABBITMQ_PORT="${RABBITMQ_AMQP_PORT:-5672}" \
+  RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER:-educloud_local}" RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS:-14451aa84db1b5ac47576ea9058d287c8e5ef5cb58675f42}" \
+  RABBITMQ_DEFAULT_VHOST="${RABBITMQ_DEFAULT_VHOST:-educloud}" \
+  NACOS_SERVER_ADDR=127.0.0.1:"${NACOS_HTTP_PORT:-8848}" \
+  EDUCLOUD_PAYMENT_NACOS_USERNAME="${EDUCLOUD_PAYMENT_NACOS_USERNAME:-${NACOS_ADMIN_USERNAME:-nacos}}" EDUCLOUD_PAYMENT_NACOS_PASSWORD="${NACOS_PAYMENT_PASSWORD:-${NACOS_ADMIN_PASSWORD:-nacos}}" \
+  PAYMENT_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json \
+  EDUCLOUD_PAYMENT_JWT_ISSUER="${EDUCLOUD_PAYMENT_JWT_ISSUER:-https://issuer.educloud.local}" \
+  EDUCLOUD_PAYMENT_JWT_AUDIENCE="${EDUCLOUD_PAYMENT_JWT_AUDIENCE:-educloud-api}" \
+  EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
+  setsid nohup java -jar educloud-backend/educloud-payment/target/educloud-payment-1.0.0-SNAPSHOT.jar \
+    > /tmp/educloud-live/payment.log 2>&1 < /dev/null &
+  printf "  educloud-payment started (8093/8094)\n"
+else
+  printf "  educloud-payment already running\n"
+fi
+
+wait_ready "http://127.0.0.1:8094/actuator/health/readiness" "educloud-payment"
+
+printf "[9/9] Starting frontend dev servers...\n"
 start_portal() {
   local dir="$1" port="$2"
   if port_free "$port"; then
@@ -229,4 +252,5 @@ printf "  File:    http://192.168.100.136:8087  (management 8088)\n"
 printf "  Course:  http://192.168.100.136:8089  (management 8090)\n"
 printf "  Content: http://192.168.100.136:8085  (management 8086)\n"
 printf "  Order:   http://192.168.100.136:8091  (management 8092)\n"
-printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content,order}.log, /tmp/vm-vite-*.log\n"
+printf "  Payment: http://192.168.100.136:8093  (management 8094)\n"
+printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content,order,payment}.log, /tmp/vm-vite-*.log\n"

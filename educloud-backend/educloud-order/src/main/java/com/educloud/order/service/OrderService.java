@@ -25,4 +25,8 @@ public interface OrderService {
     PageResponse<OrderDetailResponse> listAdminOrders(String orderNo, String status, int page, int size);
 
     OrderDetailResponse getAdminOrderDetail(Long orderId);
+
+    void processPaymentSuccess(Long orderId, Long paymentOrderId, Long userId, Long amountCents, java.time.LocalDateTime paidAt);
+
+    void processPaymentRefund(Long orderId, Long refundId, Long refundAmountCents, java.time.LocalDateTime refundedAt);
 }

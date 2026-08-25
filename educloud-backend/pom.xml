@@ -20,6 +20,7 @@
         <module>educloud-course</module>
         <module>educloud-content</module>
         <module>educloud-order</module>
+        <module>educloud-payment</module>
     </modules>
 
     <properties>

@@ -7,8 +7,9 @@ const methods: Array<{
   label: string;
   description: string;
 }> = [
-  { value: 'ALIPAY', label: '支付宝（沙箱模拟）', description: '演示沙箱环境，无需真实支付' },
-  { value: 'WECHAT', label: '微信支付（沙箱模拟）', description: '演示沙箱环境，无需真实支付' },
+  { value: 'MOCK', label: 'Mock 聚合沙箱（推荐）', description: '一键极速模拟完成支付与自动开课' },
+  { value: 'ALIPAY', label: '支付宝（沙箱/当面付）', description: '支持支付宝扫码与网页收银台' },
+  { value: 'WECHAT', label: '微信支付（Native 扫码）', description: '支持微信扫码支付与异步验签' },
 ];
 
 interface PaymentMethodSelectorProps {

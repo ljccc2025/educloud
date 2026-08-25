@@ -26,6 +26,7 @@ import com.educloud.order.service.CartService;
 import com.educloud.order.service.IdempotencyService;
 import com.educloud.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +43,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
@@ -425,6 +427,73 @@ public class OrderServiceImpl implements OrderService {
                 .lineAmount(entity.getLineAmount())
                 .fulfillmentStatus(entity.getFulfillmentStatus())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void processPaymentSuccess(Long orderId, Long paymentOrderId, Long userId, Long amountCents, LocalDateTime paidAt) {
+        if (orderId == null) {
+            return;
+        }
+        TradeOrderEntity order = tradeOrderMapper.selectById(orderId);
+        if (order == null) {
+            log.warn("Order {} not found when processing payment success event", orderId);
+            return;
+        }
+        if (OrderStatus.PAID.name().equals(order.getStatus())) {
+            log.info("Order {} is already in PAID status, ignoring duplicate payment event", orderId);
+            return;
+        }
+
+        LocalDateTime actualPaidAt = paidAt != null ? paidAt : LocalDateTime.now();
+        int rows = tradeOrderMapper.updateStatusToPaidWithCas(
+                orderId, OrderStatus.PENDING_PAYMENT.name(), OrderStatus.PAID.name(), actualPaidAt);
+        if (rows == 0) {
+            log.info("CAS update failed for order {}, possibly already updated or expired", orderId);
+            return;
+        }
+
+        List<TradeOrderItemEntity> items = tradeOrderItemMapper.selectList(
+                new LambdaQueryWrapper<TradeOrderItemEntity>().eq(TradeOrderItemEntity::getOrderId, orderId));
+
+        List<Long> courseIds = (items != null) ? items.stream()
+                .map(TradeOrderItemEntity::getCourseId)
+                .toList() : List.of();
+
+        OrderPaidEvent event = OrderPaidEvent.builder()
+                .orderId(orderId)
+                .orderNo(order.getOrderNo())
+                .studentId(order.getStudentId())
+                .courseIds(courseIds)
+                .paidAmount(order.getPayableAmount())
+                .paidAt(actualPaidAt)
+                .build();
+
+        outboxEventWriter.appendOrderPaid(event, order.getVersion() + 1L);
+        log.info("Successfully updated order {} to PAID and appended OrderPaidEvent to outbox", orderId);
+    }
+
+    @Override
+    @Transactional
+    public void processPaymentRefund(Long orderId, Long refundId, Long refundAmountCents, LocalDateTime refundedAt) {
+        if (orderId == null) {
+            return;
+        }
+        TradeOrderEntity order = tradeOrderMapper.selectById(orderId);
+        if (order == null) {
+            log.warn("Order {} not found when processing payment refund event", orderId);
+            return;
+        }
+        if (OrderStatus.REFUNDED.name().equals(order.getStatus())) {
+            log.info("Order {} is already in REFUNDED status, ignoring", orderId);
+            return;
+        }
+
+        int rows = tradeOrderMapper.updateStatusWithCas(
+                orderId, OrderStatus.PAID.name(), OrderStatus.REFUNDED.name());
+        if (rows > 0) {
+            log.info("Successfully updated order {} status to REFUNDED from payment refund event", orderId);
+        }
     }
 
     private static String sha256(String input) {

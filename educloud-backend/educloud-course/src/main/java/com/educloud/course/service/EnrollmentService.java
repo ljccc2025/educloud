@@ -301,6 +301,22 @@ public class EnrollmentService {
         return PageResponse.of(items, pageNum, sizeNum, result.getTotal());
     }
 
+    @Transactional
+    public void revokeCourseEnrollmentByOrder(Long orderId, String reason) {
+        if (orderId == null) {
+            return;
+        }
+        List<CourseEnrollmentEntity> enrollments = enrollmentMapper.selectList(
+                new LambdaQueryWrapper<CourseEnrollmentEntity>()
+                        .eq(CourseEnrollmentEntity::getSourceOrderId, orderId)
+                        .eq(CourseEnrollmentEntity::getStatus, "ACTIVE"));
+        for (CourseEnrollmentEntity enrollment : enrollments) {
+            enrollment.setStatus("REVOKED");
+            enrollment.setRevokeReason(reason != null ? reason : "PAYMENT_REFUNDED");
+            enrollmentMapper.updateById(enrollment);
+        }
+    }
+
     private CourseEnrollmentEntity findEnrollment(Long courseId, Long studentId) {
         return enrollmentMapper.selectOne(new LambdaQueryWrapper<CourseEnrollmentEntity>()
                 .eq(CourseEnrollmentEntity::getCourseId, courseId)

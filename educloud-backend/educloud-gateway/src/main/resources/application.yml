@@ -66,7 +66,7 @@ spring:
           uri: lb://educloud-payment
           order: 90
           predicates:
-            - Path=/api/v1/payments/**,/api/v1/payment-callbacks/**,/api/v1/payment-refunds/**,/api/v1/reconciliations/**
+            - Path=/api/v1/payments/**,/api/v1/payment-callbacks/**,/api/v1/payment-refunds/**,/api/v1/reconciliations/**,/api/v1/admin/payments/**
         - id: live-http
           uri: lb://educloud-live
           order: 100

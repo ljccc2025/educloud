@@ -1,28 +1,66 @@
-import { paymentApi } from '@/services/api';
-import type { PaymentRequest, PaymentStatusSnapshot } from '@/types';
+import { paymentApi, type CashierPayResponse, type PaymentDetailResponse } from './paymentApi';
+import type { PaymentMethod, PaymentAttemptStatus } from '@/types';
 
-/**
- * Checkout only depends on this boundary. A real backend implementation can
- * replace the MOCK adapter without changing pages or trusting browser returns.
- */
-export interface PaymentGateway {
-  initiate(request: PaymentRequest): Promise<PaymentStatusSnapshot>;
-  query(orderId: string): Promise<PaymentStatusSnapshot | undefined>;
+export interface PaymentRequest {
+  orderId: string;
+  channel: PaymentMethod;
 }
 
-export class MockPaymentGateway implements PaymentGateway {
-  async initiate(request: PaymentRequest) {
-    await paymentApi.create(request.orderId, request.channel);
-    await new Promise((resolve) => globalThis.setTimeout(resolve, 700));
+export interface PaymentStatusSnapshot {
+  paymentId: string;
+  orderId: string;
+  channel: PaymentMethod;
+  status: PaymentAttemptStatus;
+  payUrl?: string;
+  qrCode?: string;
+}
 
-    const result = await paymentApi.getByOrderId(request.orderId);
-    if (!result) throw new Error('PAYMENT_STATUS_MISSING');
-    return result;
+export class RealPaymentGateway {
+  async initiate(request: PaymentRequest): Promise<PaymentStatusSnapshot> {
+    const cashier = await paymentApi.createCashier({
+      orderId: request.orderId,
+      channelCode: request.channel,
+      tradeType: 'NATIVE',
+    });
+
+    if (request.channel === 'MOCK') {
+      // Mock 渠道：自动触发模拟确认
+      const confirmed = await paymentApi.mockConfirm(cashier.paymentOrderId);
+      return {
+        paymentId: confirmed.paymentOrderId,
+        orderId: confirmed.orderId,
+        channel: confirmed.channelCode as PaymentMethod,
+        status: confirmed.status === 'SUCCESS' ? 'SUCCESS' : 'ACTIVE',
+        payUrl: confirmed.payUrl,
+        qrCode: confirmed.qrCode,
+      };
+    }
+
+    return {
+      paymentId: cashier.paymentOrderId,
+      orderId: cashier.orderId,
+      channel: cashier.channelCode as PaymentMethod,
+      status: cashier.status === 'SUCCESS' ? 'SUCCESS' : 'ACTIVE',
+      payUrl: cashier.payUrl,
+      qrCode: cashier.qrCode,
+    };
   }
 
-  query(orderId: string) {
-    return paymentApi.getByOrderId(orderId);
+  async query(paymentOrderId: string): Promise<PaymentStatusSnapshot | undefined> {
+    try {
+      const detail = await paymentApi.getPaymentDetail(paymentOrderId);
+      return {
+        paymentId: detail.paymentOrderId,
+        orderId: detail.orderId,
+        channel: detail.channelCode as PaymentMethod,
+        status: detail.status === 'SUCCESS' ? 'SUCCESS' : 'ACTIVE',
+        payUrl: detail.payUrl,
+        qrCode: detail.qrCode,
+      };
+    } catch {
+      return undefined;
+    }
   }
 }
 
-export const paymentGateway: PaymentGateway = new MockPaymentGateway();
+export const paymentGateway = new RealPaymentGateway();

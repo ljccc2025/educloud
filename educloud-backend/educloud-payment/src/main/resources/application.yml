@@ -1,0 +1,72 @@
+server:
+  port: 8093
+
+spring:
+  application:
+    name: educloud-payment
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 2000
+            read-timeout: 3000
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_PAYMENT_NACOS_USERNAME:${EDUCLOUD_ORDER_NACOS_USERNAME:educloud_order}}
+      password: ${EDUCLOUD_PAYMENT_NACOS_PASSWORD:${EDUCLOUD_ORDER_NACOS_PASSWORD:19a3b3adbef019a2a0a0b964b14011c33658cb2090d999cd}}
+      discovery:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_payment?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${EDUCLOUD_PAYMENT_DB_USERNAME:${MYSQL_USERNAME:payment_app}}
+    password: ${EDUCLOUD_PAYMENT_DB_PASSWORD:${EDUCLOUD_ORDER_DB_PASSWORD:b97ac137f154ee3561da13eb792c502f7e2a4c357ed7cf95}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_DEFAULT_USER:${RABBITMQ_USERNAME:guest}}
+    password: ${RABBITMQ_DEFAULT_PASS:${RABBITMQ_PASSWORD:guest}}
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:educloud}
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  server:
+    port: 8094
+
+educloud:
+  environment: ${EDUCLOUD_ENVIRONMENT:prod}
+  payment:
+    environment: ${EDUCLOUD_ENVIRONMENT:prod}
+    jwt:
+      jwks-location: ${PAYMENT_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
+      issuer: ${EDUCLOUD_PAYMENT_JWT_ISSUER:https://issuer.educloud.local}
+      audience: ${EDUCLOUD_PAYMENT_JWT_AUDIENCE:educloud-api}
+    internal:
+      audience: ${EDUCLOUD_PAYMENT_INTERNAL_AUDIENCE:educloud-payment}
+      allowed-client-ids: ${EDUCLOUD_PAYMENT_INTERNAL_ALLOWED_CLIENT_IDS:gateway,user-service,educloud-order,educloud-course}
+      secret-token: ${EDUCLOUD_PAYMENT_INTERNAL_SECRET:educloud-internal-secret}
+    alipay:
+      app-id: ${ALIPAY_APP_ID:2021000000000001}
+      merchant-private-key: ${ALIPAY_MERCHANT_PRIVATE_KEY:MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...}
+      alipay-public-key: ${ALIPAY_PUBLIC_KEY:MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...}
+      notify-url: ${ALIPAY_NOTIFY_URL:http://192.168.100.136:8080/api/v1/payment-callbacks/ALIPAY}
+      gateway-host: ${ALIPAY_GATEWAY_HOST:openapi-sandbox.dl.alipaydev.com}
+    wechat:
+      app-id: ${WECHAT_APP_ID:wx8888888888888888}
+      mch-id: ${WECHAT_MCH_ID:1900000109}
+      api-v3-key: ${WECHAT_API_V3_KEY:abcdef0123456789abcdef0123456789}
+      merchant-serial-no: ${WECHAT_MERCHANT_SERIAL_NO:7054B2A...}
+      private-key-path: ${WECHAT_PRIVATE_KEY_PATH:/tmp/educloud-live/apiclient_key.pem}
+      notify-url: ${WECHAT_NOTIFY_URL:http://192.168.100.136:8080/api/v1/payment-callbacks/WECHAT}
