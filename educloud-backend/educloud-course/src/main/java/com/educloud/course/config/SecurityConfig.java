@@ -58,6 +58,7 @@ public class SecurityConfig {
                                 "/api/v1/courses", "/api/v1/courses/{courseId:[0-9]+}").permitAll()
                         .requestMatchers(HttpMethod.HEAD, "/actuator/health/**", "/api/v1/categories",
                                 "/api/v1/courses", "/api/v1/courses/{courseId:[0-9]+}").permitAll()
+                        .requestMatchers("/internal/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
