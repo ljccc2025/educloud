@@ -256,7 +256,30 @@ fi
 
 wait_ready "http://127.0.0.1:8096/actuator/health/readiness" "educloud-live"
 
-printf "[9/9] Starting frontend dev servers...\n"
+printf "[9/10] Starting educloud-notification...\n"
+if port_free 8097; then
+  SERVER_PORT=8097 NOTIFICATION_MANAGEMENT_PORT=8098 \
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_NOTIFICATION_DB_PASSWORD="${EDUCLOUD_NOTIFICATION_DB_PASSWORD:-${EDUCLOUD_ORDER_DB_PASSWORD:-b97ac137f154ee3561da13eb792c502f7e2a4c357ed7cf95}}" \
+  REDIS_HOST=127.0.0.1 REDIS_PORT="${REDIS_PORT:-6379}" REDIS_PASSWORD="${REDIS_PASSWORD:-}" \
+  RABBITMQ_HOST=127.0.0.1 RABBITMQ_PORT="${RABBITMQ_AMQP_PORT:-5672}" \
+  RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER:-educloud_local}" RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS:-14451aa84db1b5ac47576ea9058d287c8e5ef5cb58675f42}" \
+  RABBITMQ_DEFAULT_VHOST="${RABBITMQ_DEFAULT_VHOST:-educloud}" \
+  NACOS_SERVER_ADDR=127.0.0.1:"${NACOS_HTTP_PORT:-8848}" \
+  EDUCLOUD_NOTIFICATION_NACOS_USERNAME="${EDUCLOUD_NOTIFICATION_NACOS_USERNAME:-${NACOS_ADMIN_USERNAME:-nacos}}" EDUCLOUD_NOTIFICATION_NACOS_PASSWORD="${NACOS_NOTIFICATION_PASSWORD:-${NACOS_ADMIN_PASSWORD:-nacos}}" \
+  NOTIFICATION_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json \
+  EDUCLOUD_NOTIFICATION_JWT_ISSUER="${EDUCLOUD_NOTIFICATION_JWT_ISSUER:-https://issuer.educloud.local}" \
+  EDUCLOUD_NOTIFICATION_JWT_AUDIENCE="${EDUCLOUD_NOTIFICATION_JWT_AUDIENCE:-educloud-api}" \
+  EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
+  setsid nohup java -jar educloud-backend/educloud-notification/target/educloud-notification-1.0.0-SNAPSHOT.jar \
+    > /tmp/educloud-live/notification.log 2>&1 < /dev/null &
+  printf "  educloud-notification started (8097/8098)\n"
+else
+  printf "  educloud-notification already running\n"
+fi
+
+wait_ready "http://127.0.0.1:8098/actuator/health/readiness" "educloud-notification"
+
+printf "[10/10] Starting frontend dev servers...\n"
 start_portal() {
   local dir="$1" port="$2"
   if port_free "$port"; then
@@ -274,13 +297,14 @@ start_portal admin-portal 5175
 
 sleep 5
 printf "\nAll set. Open in your browser:\n"
-printf "  Student: http://192.168.100.136:5173\n"
-printf "  Teacher: http://192.168.100.136:5174  (demo_teacher / EduCloud@2026)\n"
-printf "  Admin:   http://192.168.100.136:5175  (demo_admin / EduCloud@2026)\n"
-printf "  File:    http://192.168.100.136:8087  (management 8088)\n"
-printf "  Course:  http://192.168.100.136:8089  (management 8090)\n"
-printf "  Content: http://192.168.100.136:8085  (management 8086)\n"
-printf "  Order:   http://192.168.100.136:8091  (management 8092)\n"
-printf "  Payment: http://192.168.100.136:8093  (management 8094)\n"
-printf "  Live:    http://192.168.100.136:8095  (management 8096)\n"
-printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content,order,payment,live}.log, /tmp/vm-vite-*.log\n"
+printf "  Student:      http://192.168.100.136:5173\n"
+printf "  Teacher:      http://192.168.100.136:5174  (demo_teacher / EduCloud@2026)\n"
+printf "  Admin:        http://192.168.100.136:5175  (demo_admin / EduCloud@2026)\n"
+printf "  File:         http://192.168.100.136:8087  (management 8088)\n"
+printf "  Course:       http://192.168.100.136:8089  (management 8090)\n"
+printf "  Content:      http://192.168.100.136:8085  (management 8086)\n"
+printf "  Order:        http://192.168.100.136:8091  (management 8092)\n"
+printf "  Payment:      http://192.168.100.136:8093  (management 8094)\n"
+printf "  Live:         http://192.168.100.136:8095  (management 8096)\n"
+printf "  Notification: http://192.168.100.136:8097  (management 8098)\n"
+printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content,order,payment,live,notification}.log, /tmp/vm-vite-*.log\n"

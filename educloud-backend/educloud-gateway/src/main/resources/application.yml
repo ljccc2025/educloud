@@ -86,7 +86,7 @@ spring:
           uri: lb://educloud-notification
           order: 120
           predicates:
-            - Path=/api/v1/notifications/**,/api/v1/notification-channels/**
+            - Path=/api/v1/notifications/**,/api/v1/notification-channels/**,/api/v1/admin/notifications/**
         - id: analytics-core
           uri: lb://educloud-analytics
           order: 130
