@@ -121,11 +121,14 @@ public class AuthenticationService {
             throw new BusinessException(UserErrorCode.ACCOUNT_DISABLED);
         }
         if ("LOCKED".equals(user.getStatus())) {
-            if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)) {
+            // BUG-034 修复：locked_until 为空说明是管理员手动锁定（UserStatusService
+            // 置 LOCKED 时清空到期时间），视为永久锁定直接拒绝，登录流程不再代为解锁；
+            // 只有带到期时间的自动失败锁定才允许到期后自动放行。
+            if (user.getLockedUntil() == null || user.getLockedUntil().isAfter(now)) {
                 auditFailure(user.getId(), Masking.loginName(loginName), "ACCOUNT_LOCKED", ip, userAgent, requestId);
                 throw new BusinessException(UserErrorCode.ACCOUNT_LOCKED);
             }
-            // 锁定到期自动放行并重置（设计规格第 5 节）。
+            // 自动锁定到期自动放行并重置（设计规格第 5 节）。
             clearLock(user.getId(), now);
         }
 

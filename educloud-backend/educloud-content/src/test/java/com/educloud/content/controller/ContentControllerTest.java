@@ -108,7 +108,8 @@ class ContentControllerTest {
     void teacherDraft_requiresValidToken() throws Exception {
         Jwt jwt = createJwt("9000000000000000001", Set.of("TEACHER"), Set.of("content:manage"));
         when(jwtDecoder.decode(eq("teacher-token"))).thenReturn(jwt);
-        when(teacherAccessGuard.checkTeacherAccess(any())).thenReturn(9000000000000000001L);
+        // BUG-005 修复后端点改用归属校验重载（Jwt, courseId），stub 需匹配新签名。
+        when(teacherAccessGuard.checkTeacherAccess(any(), any())).thenReturn(9000000000000000001L);
 
         ContentDraftResponse draft = new ContentDraftResponse();
         draft.setCourseId(110L);

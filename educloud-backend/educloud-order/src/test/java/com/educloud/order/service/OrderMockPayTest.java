@@ -13,13 +13,14 @@ import com.educloud.order.mapper.CartItemMapper;
 import com.educloud.order.mapper.TradeOrderItemMapper;
 import com.educloud.order.mapper.TradeOrderMapper;
 import com.educloud.order.messaging.OrderDelayProducer;
-import com.educloud.order.messaging.OrderEventPublisher;
+import com.educloud.order.messaging.OutboxEventWriter;
 import com.educloud.order.messaging.dto.OrderPaidEvent;
 import com.educloud.order.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -41,9 +42,9 @@ class OrderMockPayTest {
     private IdempotencyService idempotencyService;
     private IdentifierGenerator identifierGenerator;
     private OrderDelayProducer orderDelayProducer;
-    private OrderEventPublisher orderEventPublisher;
     private ObjectProvider<OrderDelayProducer> orderDelayProducerProvider;
-    private ObjectProvider<OrderEventPublisher> orderEventPublisherProvider;
+    private OutboxEventWriter outboxEventWriter;
+    private TransactionTemplate transactionTemplate;
     private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -57,11 +58,12 @@ class OrderMockPayTest {
         idempotencyService = mock(IdempotencyService.class);
         identifierGenerator = () -> 10001L;
         orderDelayProducer = mock(OrderDelayProducer.class);
-        orderEventPublisher = mock(OrderEventPublisher.class);
         orderDelayProducerProvider = mock(ObjectProvider.class);
-        orderEventPublisherProvider = mock(ObjectProvider.class);
         when(orderDelayProducerProvider.getIfAvailable()).thenReturn(orderDelayProducer);
-        when(orderEventPublisherProvider.getIfAvailable()).thenReturn(orderEventPublisher);
+        // BUG-017：已支付事件经 outbox 写入（不再直发 publisher）；
+        // mockPay 不走事务模板，直接 mock 即可。
+        outboxEventWriter = mock(OutboxEventWriter.class);
+        transactionTemplate = mock(TransactionTemplate.class);
 
         orderService = new OrderServiceImpl(
                 tradeOrderMapper,
@@ -72,7 +74,8 @@ class OrderMockPayTest {
                 idempotencyService,
                 identifierGenerator,
                 orderDelayProducerProvider,
-                orderEventPublisherProvider);
+                outboxEventWriter,
+                transactionTemplate);
     }
 
     @Test
@@ -86,6 +89,7 @@ class OrderMockPayTest {
                 .status(OrderStatus.PENDING_PAYMENT.name())
                 .payableAmount(new BigDecimal("199.00"))
                 .currency("CNY")
+                .version(0)
                 .build();
         TradeOrderItemEntity item = TradeOrderItemEntity.builder()
                 .id(5001L)
@@ -109,7 +113,8 @@ class OrderMockPayTest {
         assertThat(response.getStatus()).isEqualTo(OrderStatus.PAID.name());
 
         ArgumentCaptor<OrderPaidEvent> captor = ArgumentCaptor.forClass(OrderPaidEvent.class);
-        verify(orderEventPublisher).publishOrderPaid(captor.capture());
+        // BUG-017：已支付事件写入 outbox（aggregateVersion = CAS 后的 version+1）。
+        verify(outboxEventWriter).appendOrderPaid(captor.capture(), eq(1L));
         OrderPaidEvent event = captor.getValue();
         assertThat(event.getOrderId()).isEqualTo(orderId);
         assertThat(event.getStudentId()).isEqualTo(studentId);

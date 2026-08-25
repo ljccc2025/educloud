@@ -82,6 +82,12 @@ public class UserStatusService {
             // 恢复为 ACTIVE 时重置失败计数与锁定到期，避免"输错一次立即再锁"。
             update.set("failed_login_count", 0).set("locked_until", null);
         }
+        if ("LOCKED".equals(newStatus)) {
+            // BUG-034 修复：管理员手动锁定显式清空 locked_until（永久锁定语义），
+            // 与自动失败锁定（带到期时间）区分；登录侧据此拒绝到期自动解锁，
+            // 同时避免残留的旧自动锁定到期时间被登录流程绕过。
+            update.set("locked_until", null);
+        }
         int updated = sysUserMapper.update(null, update);
         if (updated != 1) {
             throw new BusinessException(

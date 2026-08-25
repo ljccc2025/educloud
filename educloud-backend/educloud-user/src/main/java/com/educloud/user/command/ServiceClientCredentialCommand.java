@@ -101,6 +101,9 @@ public class ServiceClientCredentialCommand {
         } else {
             // 旧凭据进入 24h GRACE（宽限期内仍可签发），新凭据 ACTIVE。
             active.setStatus("GRACE");
+            // BUG-035 修复：GRACE 必须带到期时间（now+24h），否则旧 secret 在
+            // issue 的宽限期判定中永久有效，凭据泄露后无法通过轮换止血。
+            active.setExpiresAt(Instant.now().plus(GRACE_DURATION));
             credentialMapper.updateById(active);
             insertCredential(client.getId(), active.getCredentialVersion() + 1, SessionFactory.sha256Hex(newSecret), "ACTIVE");
         }

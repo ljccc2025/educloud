@@ -74,8 +74,10 @@ public final class ServiceTokenService {
                 new QueryWrapper<ServiceClientCredentialEntity>()
                         .eq("service_client_id", client.getId())
                         .and(wrapper -> wrapper.eq("status", "ACTIVE")
-                                .or(w -> w.eq("status", "GRACE")
-                                        .and(x -> x.isNull("expires_at").or().gt("expires_at", now)))));
+                                // BUG-035 修复：GRACE 凭据必须未过期才放行；删除
+                                // expires_at IS NULL 放行分支（fail-closed），
+                                // 无到期时间的 GRACE 视为不可用。
+                                .or(w -> w.eq("status", "GRACE").gt("expires_at", now))));
         if (credential == null
                 || (credential.getNotBefore() != null && credential.getNotBefore().isAfter(now))
                 || (credential.getExpiresAt() != null && credential.getExpiresAt().isBefore(now))

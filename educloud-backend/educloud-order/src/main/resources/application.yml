@@ -4,6 +4,21 @@ server:
 spring:
   application:
     name: educloud-order
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 2000
+            read-timeout: 3000
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_ORDER_NACOS_USERNAME:${EDUCLOUD_COURSE_NACOS_USERNAME:educloud_course}}
+      password: ${EDUCLOUD_ORDER_NACOS_PASSWORD:${NACOS_COURSE_PASSWORD:19a3b3adbef019a2a0a0b964b14011c33658cb2090d999cd}}
+      discovery:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_order?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: ${EDUCLOUD_ORDER_DB_USERNAME:${MYSQL_USERNAME:order_app}}
@@ -20,15 +35,6 @@ spring:
     username: ${RABBITMQ_DEFAULT_USER:${RABBITMQ_USERNAME:guest}}
     password: ${RABBITMQ_DEFAULT_PASS:${RABBITMQ_PASSWORD:guest}}
     virtual-host: ${RABBITMQ_DEFAULT_VHOST:educloud}
-  cloud:
-    nacos:
-      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-      username: ${EDUCLOUD_ORDER_NACOS_USERNAME:${EDUCLOUD_COURSE_NACOS_USERNAME:educloud_course}}
-      password: ${EDUCLOUD_ORDER_NACOS_PASSWORD:${NACOS_COURSE_PASSWORD:19a3b3adbef019a2a0a0b964b14011c33658cb2090d999cd}}
-      discovery:
-        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
-        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
-        register-enabled: true
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
@@ -42,6 +48,11 @@ management:
 educloud:
   environment: ${EDUCLOUD_ENVIRONMENT:local}
   order:
+    # BUG-022 修复：mock-pay 环境门控绑定（仅 local/dev 放行；与顶层
+    # educloud.environment 同源，OrderProperties 前缀为 educloud.order）。
+    # 默认值 prod：环境变量缺失时 fail-closed（禁用 mock-pay），
+    # 本地开发由 start-dev.sh 显式传 EDUCLOUD_ENVIRONMENT=local 放行。
+    environment: ${EDUCLOUD_ENVIRONMENT:prod}
     jwt:
       jwks-location: ${ORDER_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
       issuer: ${EDUCLOUD_ORDER_JWT_ISSUER:https://issuer.educloud.local}

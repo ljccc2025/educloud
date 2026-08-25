@@ -36,13 +36,20 @@ public class OrderPaidListener {
             if (courseId == null) {
                 continue;
             }
+            // BUG-051 修复：消费异常不再吞掉。AUTO ack 下监听器正常返回即确认消息，
+            // 原先 catch 仅记日志意味着开课失败后消息被确认、权益永久丢失且队列
+            // 无痕迹。现在异常上抛 → 容器本地退避重试（RabbitConfiguration）→
+            // 耗尽后 requeue 重投；EnrollmentService 幂等（FOR UPDATE 锁读 +
+            // 唯一键兜底）保证重投安全，多课程部分成功重投亦无副作用。
             try {
                 enrollmentService.enrollPaidCourse(courseId, event.getStudentId(), event.getOrderId());
                 log.info("Enrolled student {} into course {} from order {}",
                         event.getStudentId(), courseId, event.getOrderId());
             } catch (Exception ex) {
-                log.error("Failed to enroll student {} into course {} from order {}",
+                log.error("Failed to enroll student {} into course {} from order {}; "
+                        + "rethrowing for retry/redelivery",
                         event.getStudentId(), courseId, event.getOrderId(), ex);
+                throw ex;
             }
         }
     }

@@ -19,19 +19,22 @@ import com.educloud.order.mapper.CartItemMapper;
 import com.educloud.order.mapper.TradeOrderItemMapper;
 import com.educloud.order.mapper.TradeOrderMapper;
 import com.educloud.order.messaging.OrderDelayProducer;
-import com.educloud.order.messaging.OrderEventPublisher;
+import com.educloud.order.messaging.OutboxEventWriter;
 import com.educloud.order.messaging.dto.OrderDelayMessage;
 import com.educloud.order.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -49,9 +52,9 @@ class OrderServiceTest {
     private IdempotencyService idempotencyService;
     private IdentifierGenerator identifierGenerator;
     private OrderDelayProducer orderDelayProducer;
-    private OrderEventPublisher orderEventPublisher;
     private ObjectProvider<OrderDelayProducer> orderDelayProducerProvider;
-    private ObjectProvider<OrderEventPublisher> orderEventPublisherProvider;
+    private OutboxEventWriter outboxEventWriter;
+    private TransactionTemplate transactionTemplate;
     private OrderServiceImpl orderService;
 
     private final AtomicLong idSequence = new AtomicLong(10000L);
@@ -67,11 +70,17 @@ class OrderServiceTest {
         idempotencyService = mock(IdempotencyService.class);
         identifierGenerator = idSequence::incrementAndGet;
         orderDelayProducer = mock(OrderDelayProducer.class);
-        orderEventPublisher = mock(OrderEventPublisher.class);
         orderDelayProducerProvider = mock(ObjectProvider.class);
-        orderEventPublisherProvider = mock(ObjectProvider.class);
         when(orderDelayProducerProvider.getIfAvailable()).thenReturn(orderDelayProducer);
-        when(orderEventPublisherProvider.getIfAvailable()).thenReturn(orderEventPublisher);
+        outboxEventWriter = mock(OutboxEventWriter.class);
+        // BUG-019：DB 写入收敛到编程式短事务；mock 需真实执行 lambda，
+        // 否则 insert/clearCart 的 verify 会因代码未执行而失败。
+        transactionTemplate = mock(TransactionTemplate.class);
+        doAnswer(invocation -> {
+            Consumer<TransactionStatus> action = invocation.getArgument(0);
+            action.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
 
         orderService = new OrderServiceImpl(
                 tradeOrderMapper,
@@ -82,7 +91,8 @@ class OrderServiceTest {
                 idempotencyService,
                 identifierGenerator,
                 orderDelayProducerProvider,
-                orderEventPublisherProvider);
+                outboxEventWriter,
+                transactionTemplate);
     }
 
     @Test

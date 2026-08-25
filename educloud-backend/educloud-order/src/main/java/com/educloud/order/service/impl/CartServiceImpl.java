@@ -1,15 +1,19 @@
 package com.educloud.order.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.educloud.common.api.ApiResponse;
 import com.educloud.order.dto.request.CartAddRequest;
 import com.educloud.order.dto.response.CartItemResponse;
 import com.educloud.order.dto.response.CartSummaryResponse;
 import com.educloud.order.entity.CartItemEntity;
 import com.educloud.order.exception.OrderBizException;
 import com.educloud.order.exception.OrderErrorCode;
+import com.educloud.order.feign.CourseClient;
+import com.educloud.order.feign.dto.CourseSalesSnapshotDto;
 import com.educloud.order.mapper.CartItemMapper;
 import com.educloud.order.service.CartService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,11 +22,13 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CartServiceImpl implements CartService {
 
     private final CartItemMapper cartItemMapper;
+    private final CourseClient courseClient;
 
     @Override
     @Transactional
@@ -37,7 +43,7 @@ public class CartServiceImpl implements CartService {
             existing.setSelected(true);
             existing.setUpdatedAt(now);
             cartItemMapper.updateById(existing);
-            return toResponse(existing);
+            return toResponse(existing, fetchCourseSnapshot(existing.getCourseId()));
         }
 
         CartItemEntity newEntity = CartItemEntity.builder()
@@ -48,7 +54,7 @@ public class CartServiceImpl implements CartService {
                 .updatedAt(now)
                 .build();
         cartItemMapper.insert(newEntity);
-        return toResponse(newEntity);
+        return toResponse(newEntity, fetchCourseSnapshot(newEntity.getCourseId()));
     }
 
     @Override
@@ -101,17 +107,21 @@ public class CartServiceImpl implements CartService {
                     .build();
         }
 
+        // BUG-020 修复：逐项拉取课程销售快照（title/封面/价格/上架状态），
+        // 替代硬编码假数据；快照获取失败或已下架的课程 isOnSale=false 且
+        // 不计入 selectedAmount（fail-closed，购物车条目量小，循环单查可接受）。
         List<CartItemResponse> responses = new ArrayList<>(entities.size());
         int totalCount = entities.size();
         int selectedCount = 0;
         BigDecimal selectedAmount = BigDecimal.ZERO;
 
         for (CartItemEntity entity : entities) {
-            CartItemResponse res = toResponse(entity);
+            CourseSalesSnapshotDto snapshot = fetchCourseSnapshot(entity.getCourseId());
+            CartItemResponse res = toResponse(entity, snapshot);
             responses.add(res);
             if (Boolean.TRUE.equals(entity.getSelected())) {
                 selectedCount++;
-                if (res.getUnitPrice() != null) {
+                if (Boolean.TRUE.equals(res.getIsOnSale()) && res.getUnitPrice() != null) {
                     selectedAmount = selectedAmount.add(res.getUnitPrice());
                 }
             }
@@ -125,15 +135,29 @@ public class CartServiceImpl implements CartService {
                 .build();
     }
 
-    private CartItemResponse toResponse(CartItemEntity entity) {
+    private CourseSalesSnapshotDto fetchCourseSnapshot(Long courseId) {
+        try {
+            ApiResponse<CourseSalesSnapshotDto> response = courseClient.getCourseDetail(courseId);
+            return (response != null) ? response.data() : null;
+        } catch (Exception ex) {
+            log.warn("Failed to fetch course snapshot for cart item, marking not on sale: courseId={}", courseId, ex);
+            return null;
+        }
+    }
+
+    private CartItemResponse toResponse(CartItemEntity entity, CourseSalesSnapshotDto snapshot) {
+        boolean onSale = snapshot != null && snapshot.isPurchasable();
+        BigDecimal price = (onSale && snapshot.getPrice() != null) ? snapshot.getPrice() : BigDecimal.ZERO;
+        String title = (snapshot != null && snapshot.getTitle() != null)
+                ? snapshot.getTitle() : ("课程 " + entity.getCourseId());
         return CartItemResponse.builder()
                 .id(entity.getId())
                 .courseId(entity.getCourseId())
-                .courseTitle("课程 " + entity.getCourseId())
-                .coverFileId(null)
-                .unitPrice(BigDecimal.ZERO)
+                .courseTitle(title)
+                .coverFileId(snapshot != null ? snapshot.getCoverFileId() : null)
+                .unitPrice(price)
                 .selected(entity.getSelected())
-                .isOnSale(true)
+                .isOnSale(onSale)
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

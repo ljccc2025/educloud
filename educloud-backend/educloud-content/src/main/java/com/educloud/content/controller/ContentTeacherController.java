@@ -44,7 +44,7 @@ public class ContentTeacherController {
     public ApiResponse<ContentDraftResponse> getContentDraft(
             @PathVariable Long courseId,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt, courseId);
         ContentDraftResponse draft = courseContentService.getOrCreateDraft(courseId, teacherId);
         return responses.success(draft);
     }
@@ -53,7 +53,7 @@ public class ContentTeacherController {
     public ApiResponse<ContentDraftResponse> createNewDraft(
             @PathVariable Long courseId,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt, courseId);
         ContentDraftResponse draft = courseContentService.cloneNewDraft(courseId, teacherId);
         return responses.success(draft);
     }
@@ -63,7 +63,7 @@ public class ContentTeacherController {
             @PathVariable Long courseId,
             @Valid @RequestBody ChapterCreateRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt, courseId);
         ChapterResponse chapter = chapterService.addChapter(courseId, request, teacherId);
         return responses.success(chapter);
     }
@@ -73,7 +73,7 @@ public class ContentTeacherController {
             @PathVariable Long chapterId,
             @Valid @RequestBody ChapterUpdateRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccessByChapter(jwt, chapterId);
         ChapterResponse chapter = chapterService.updateChapter(chapterId, request, teacherId);
         return responses.success(chapter);
     }
@@ -82,7 +82,7 @@ public class ContentTeacherController {
     public ApiResponse<Void> deleteChapter(
             @PathVariable Long chapterId,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccessByChapter(jwt, chapterId);
         chapterService.deleteChapter(chapterId, teacherId);
         return responses.success(null);
     }
@@ -92,7 +92,7 @@ public class ContentTeacherController {
             @PathVariable Long chapterId,
             @Valid @RequestBody CoursewareCreateRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccessByChapter(jwt, chapterId);
         CoursewareResponse courseware = coursewareService.addCourseware(chapterId, request, teacherId);
         return responses.success(courseware);
     }
@@ -102,7 +102,7 @@ public class ContentTeacherController {
             @PathVariable Long coursewareId,
             @Valid @RequestBody CoursewareUpdateRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccessByCourseware(jwt, coursewareId);
         CoursewareResponse courseware = coursewareService.updateCourseware(coursewareId, request, teacherId);
         return responses.success(courseware);
     }
@@ -111,7 +111,7 @@ public class ContentTeacherController {
     public ApiResponse<Void> deleteCourseware(
             @PathVariable Long coursewareId,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccessByCourseware(jwt, coursewareId);
         coursewareService.deleteCourseware(coursewareId, teacherId);
         return responses.success(null);
     }
@@ -120,7 +120,7 @@ public class ContentTeacherController {
     public ApiResponse<Void> submitRevision(
             @PathVariable Long revisionId,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccessByRevision(jwt, revisionId);
         revisionService.submitReview(revisionId, teacherId);
         return responses.success(null);
     }
@@ -129,7 +129,7 @@ public class ContentTeacherController {
     public ApiResponse<Void> withdrawRevision(
             @PathVariable Long revisionId,
             @AuthenticationPrincipal Jwt jwt) {
-        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        Long teacherId = teacherAccessGuard.checkTeacherAccessByRevision(jwt, revisionId);
         revisionService.withdrawReview(revisionId, teacherId);
         return responses.success(null);
     }

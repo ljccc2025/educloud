@@ -7,6 +7,7 @@ import com.educloud.order.dto.response.CartSummaryResponse;
 import com.educloud.order.entity.CartItemEntity;
 import com.educloud.order.exception.OrderBizException;
 import com.educloud.order.exception.OrderErrorCode;
+import com.educloud.order.feign.CourseClient;
 import com.educloud.order.mapper.CartItemMapper;
 import com.educloud.order.service.impl.CartServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,12 +26,15 @@ import static org.mockito.Mockito.*;
 class CartServiceTest {
 
     private CartItemMapper cartItemMapper;
+    private CourseClient courseClient;
     private CartServiceImpl cartService;
 
     @BeforeEach
     void setUp() {
         cartItemMapper = mock(CartItemMapper.class);
-        cartService = new CartServiceImpl(cartItemMapper);
+        // BUG-020：购物车快照来自 CourseClient；mock 返回 null 时 fail-closed（isOnSale=false）。
+        courseClient = mock(CourseClient.class);
+        cartService = new CartServiceImpl(cartItemMapper, courseClient);
     }
 
     @Test

@@ -4,6 +4,8 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
@@ -82,5 +84,36 @@ public class RabbitConfiguration {
             @Qualifier("courseOrderPaidQueue") Queue queue,
             @Qualifier("orderEventExchange") TopicExchange exchange) {
         return BindingBuilder.bind(queue).to(exchange).with(ORDER_PAID_ROUTING_KEY);
+    }
+
+    /**
+     * BUG-051 修复：监听器容器带本地退避重试（3 次尝试，1s/2s/4s）吸收瞬时故障
+     * （DB 抖动、行锁超时）；重试耗尽后重抛原始异常 → 容器 nack(requeue) 服务端
+     * 重投，形成“本地重试 + 服务端重投”闭环，消息不再因异常被吞而丢失。
+     * EnrollmentService 幂等保证重投安全；持续失败时每轮约 7s 节奏重试，可监控恢复。
+     * 死信队列需为已存在队列追加 DLX 参数（需运维删除重建，避免 406
+     * PRECONDITION_FAILED），待后续版本与队列迁移一并落地。
+     */
+    @Bean
+    public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
+            ConnectionFactory connectionFactory,
+            MessageConverter messageConverter) {
+        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+        factory.setConnectionFactory(connectionFactory);
+        factory.setMessageConverter(messageConverter);
+        factory.setDefaultRequeueRejected(true);
+        factory.setAdviceChain(RetryInterceptorBuilder.stateless()
+                .maxAttempts(3)
+                .backOffOptions(1000, 2.0, 10000)
+                // 重试耗尽后重抛原始异常（而非默认 RejectAndDontRequeueRecoverer
+                // 丢弃消息），交由容器 requeue 重投。
+                .recoverer((message, cause) -> {
+                    if (cause instanceof RuntimeException runtimeException) {
+                        throw runtimeException;
+                    }
+                    throw new org.springframework.amqp.AmqpException(cause);
+                })
+                .build());
+        return factory;
     }
 }

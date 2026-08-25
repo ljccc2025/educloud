@@ -403,7 +403,7 @@ class CourseAuditServiceTest {
         when(courseVersionMapper.selectById(302L)).thenReturn(pending);
         when(submissionMapper.updateById(any(CourseAuditSubmissionEntity.class))).thenReturn(1);
         when(courseVersionMapper.update(isNull(), any())).thenReturn(1);
-        when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
+        when(courseMapper.update(any(CourseEntity.class), any())).thenReturn(1);
 
         CourseAuditResponse response = auditService().reject(401L, 3001L, "内容不完整", Set.of("SYSTEM_ADMIN"));
 
@@ -428,11 +428,40 @@ class CourseAuditServiceTest {
         verify(courseVersionMapper).update(isNull(), versionCaptor.capture());
         assertThat(versionCaptor.getValue().getParamNameValuePairs()).containsValue("REJECTED");
 
+        // BUG-052/053：根更新改走 update(entity, wrapper)（与 approve 同模式），
+        // wrapper 显式 SET pre_submit_lifecycle_status=null（NOT_NULL 策略下
+        // updateById 无法清空）。
         ArgumentCaptor<CourseEntity> courseCaptor = ArgumentCaptor.forClass(CourseEntity.class);
-        verify(courseMapper).updateById(courseCaptor.capture());
-        // 驳回后 draft 指针保留在 REJECTED 版本（可复制新草稿），lifecycle 回到 DRAFT。
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaUpdateWrapper> rootWrapperCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(courseMapper).update(courseCaptor.capture(), rootWrapperCaptor.capture());
+        // 驳回后 draft 指针保留在 REJECTED 版本（可复制新草稿）；无提交前记录回落 DRAFT。
         assertThat(courseCaptor.getValue().getDraftVersionId()).isEqualTo(302L);
         assertThat(courseCaptor.getValue().getLifecycleStatus()).isEqualTo("DRAFT");
+        assertThat(rootWrapperCaptor.getValue().getSqlSet()).contains("pre_submit_lifecycle_status=");
+    }
+
+    /** BUG-052：已发布课程迭代被驳回后恢复 PUBLISHED（旧版本继续在售），不打回 DRAFT。 */
+    @Test
+    void rejectRestoresPreSubmitLifecycleForPublishedCourse() {
+        CourseEntity course = course(101L, 1001L, 302L, 301L, "PENDING_REVIEW", 6L);
+        course.setPreSubmitLifecycleStatus("PUBLISHED");
+        CourseVersionEntity pending = version(302L, 101L, 2, "PENDING_REVIEW", "迭代待驳回");
+        CourseAuditSubmissionEntity submission = submission(401L, 101L, 302L, "PENDING", 1001L);
+        when(submissionMapper.selectById(401L)).thenReturn(submission);
+        when(courseMapper.selectByIdForUpdate(101L)).thenReturn(course);
+        when(courseVersionMapper.selectById(302L)).thenReturn(pending);
+        when(submissionMapper.updateById(any(CourseAuditSubmissionEntity.class))).thenReturn(1);
+        when(courseVersionMapper.update(isNull(), any())).thenReturn(1);
+        when(courseMapper.update(any(CourseEntity.class), any())).thenReturn(1);
+
+        CourseAuditResponse response = auditService().reject(401L, 3001L, "迭代驳回", Set.of("SYSTEM_ADMIN"));
+
+        assertThat(response.lifecycleStatus()).isEqualTo("PUBLISHED");
+        ArgumentCaptor<CourseEntity> courseCaptor = ArgumentCaptor.forClass(CourseEntity.class);
+        verify(courseMapper).update(courseCaptor.capture(), any());
+        assertThat(courseCaptor.getValue().getLifecycleStatus()).isEqualTo("PUBLISHED");
+        assertThat(courseCaptor.getValue().getPublishedVersionId()).isEqualTo(301L);
     }
 
     @Test
@@ -468,7 +497,7 @@ class CourseAuditServiceTest {
         when(courseVersionMapper.selectById(302L)).thenReturn(pending);
         when(submissionMapper.updateById(any(CourseAuditSubmissionEntity.class))).thenReturn(1);
         when(courseVersionMapper.update(isNull(), any())).thenReturn(1);
-        when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
+        when(courseMapper.update(any(CourseEntity.class), any())).thenReturn(1);
 
         CourseAuditResponse response = auditService().withdraw(401L, 1001L, Set.of("TEACHER"));
 
@@ -490,10 +519,15 @@ class CourseAuditServiceTest {
         assertThat(versionCaptor.getValue().getParamNameValuePairs()).containsValue("WITHDRAWN");
 
         // 任务 22 规格审查：撤回后 draft 指针清空 → 编辑页 GET draft 404，走重建草稿恢复路径。
+        // BUG-053：指针清空经 wrapper 显式 SET null（NOT_NULL 策略下 updateById 无效）。
         ArgumentCaptor<CourseEntity> courseCaptor = ArgumentCaptor.forClass(CourseEntity.class);
-        verify(courseMapper).updateById(courseCaptor.capture());
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaUpdateWrapper> rootWrapperCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(courseMapper).update(courseCaptor.capture(), rootWrapperCaptor.capture());
         assertThat(courseCaptor.getValue().getDraftVersionId()).isNull();
         assertThat(courseCaptor.getValue().getLifecycleStatus()).isEqualTo("DRAFT");
+        assertThat(rootWrapperCaptor.getValue().getSqlSet())
+                .contains("draft_version_id=").contains("pre_submit_lifecycle_status=");
     }
 
     @Test
@@ -508,15 +542,20 @@ class CourseAuditServiceTest {
         when(courseVersionMapper.selectById(302L)).thenReturn(pending);
         when(submissionMapper.updateById(any(CourseAuditSubmissionEntity.class))).thenReturn(1);
         when(courseVersionMapper.update(isNull(), any())).thenReturn(1);
-        when(courseMapper.updateById(any(CourseEntity.class))).thenReturn(1);
+        when(courseMapper.update(any(CourseEntity.class), any())).thenReturn(1);
 
         auditService().withdraw(401L, 1001L, Set.of("TEACHER"));
 
         ArgumentCaptor<CourseEntity> courseCaptor = ArgumentCaptor.forClass(CourseEntity.class);
-        verify(courseMapper).updateById(courseCaptor.capture());
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<LambdaUpdateWrapper> rootWrapperCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(courseMapper).update(courseCaptor.capture(), rootWrapperCaptor.capture());
         assertThat(courseCaptor.getValue().getDraftVersionId()).isNull();
         assertThat(courseCaptor.getValue().getPublishedVersionId()).isNull();
         assertThat(courseCaptor.getValue().getLifecycleStatus()).isEqualTo("DRAFT");
+        // BUG-053：draft_version_id 清空必须经 wrapper 显式 SET（updateById 的
+        // NOT_NULL 策略会跳过 null 字段）。
+        assertThat(rootWrapperCaptor.getValue().getSqlSet()).contains("draft_version_id=");
     }
 
     @Test

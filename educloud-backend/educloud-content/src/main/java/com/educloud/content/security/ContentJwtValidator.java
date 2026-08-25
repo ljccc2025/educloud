@@ -49,7 +49,8 @@ public final class ContentJwtValidator implements OAuth2TokenValidator<Jwt> {
                 return OAuth2TokenValidatorResult.success();
             }
         }
-        return OAuth2TokenValidatorResult.success();
+        // BUG-004 修复：aud 缺失或不匹配时拒绝（fail-closed），禁止跨服务令牌复用。
+        return failure("audience");
     }
 
     private static OAuth2TokenValidatorResult failure(String description) {

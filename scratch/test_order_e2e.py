@@ -39,8 +39,13 @@ def test_full_order_lifecycle():
         "Content-Type": "application/json"
     }
     
-    # Find a published course
-    course_id = "9000000000000000101"
+    # Find a published course dynamically from course list
+    courses_resp = session.get(f"{GATEWAY_BASE}/api/v1/courses?page=1&pageSize=10")
+    assert courses_resp.status_code == 200, f"Query courses failed: {courses_resp.text}"
+    items = courses_resp.json()["data"]["items"]
+    target_course = next((c for c in items if float(c.get("price", "0")) > 0 and not c.get("enrolled", False)), items[0])
+    course_id = str(target_course["id"])
+    print(f"-> Selected Target Course: ID={course_id}, Title={target_course.get('title')}, Price={target_course.get('price')}")
     
     # 2. Add to Cart & Query Cart
     print(f"\n[Step 2] Add course {course_id} to Cart and Query Cart...")

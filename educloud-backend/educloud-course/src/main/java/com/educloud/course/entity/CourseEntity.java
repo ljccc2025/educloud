@@ -26,6 +26,12 @@ public class CourseEntity {
     /** DRAFT/PENDING_REVIEW/PUBLISHED/OFFLINE/ARCHIVED。 */
     private String lifecycleStatus;
 
+    /**
+     * 提交审核前的生命周期（BUG-052 修复）：submitForReview 记录，驳回/撤回时
+     * 恢复原状态（已发布课程迭代被驳回后旧版本继续在售）；approve 后清空。
+     */
+    private String preSubmitLifecycleStatus;
+
     /** 公开读取跟随的已发布版本。 */
     private Long publishedVersionId;
 

@@ -6,6 +6,7 @@ import com.educloud.common.web.RequestContext;
 import com.educloud.common.web.RequestContextFilter;
 import com.educloud.common.web.RequestIdPolicy;
 import com.educloud.common.web.ServletRequestContextAccessor;
+import com.educloud.order.config.OrderProperties;
 import com.educloud.order.dto.request.OrderCreateRequest;
 import com.educloud.order.dto.response.OrderDetailResponse;
 import com.educloud.order.dto.response.OrderItemResponse;
@@ -59,7 +60,11 @@ class OrderStudentControllerTest {
         var responses = new ApiResponseFactory(
                 requestContext,
                 Clock.fixed(Instant.parse("2026-08-24T08:00:00Z"), ZoneOffset.UTC));
-        OrderStudentController controller = new OrderStudentController(orderService, responses);
+        OrderStudentController controller = new OrderStudentController(
+                orderService,
+                // BUG-022 环境门控：local 环境 mock-pay 可用，测试行为不变。
+                new OrderProperties("local", null, null),
+                responses);
         OrderExceptionHandler exceptionHandler = new OrderExceptionHandler(responses);
 
         Jwt mockJwt = new Jwt(

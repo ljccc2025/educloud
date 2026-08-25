@@ -3,6 +3,8 @@ package com.educloud.user.controller;
 import com.educloud.user.command.ServiceClientCredentialCommand;
 import com.educloud.user.config.InternalProperties;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -25,6 +27,7 @@ import java.util.Map;
 public final class InternalServiceClientBootstrapController {
 
     private static final String BOOTSTRAP_KEY_HEADER = "X-Bootstrap-Key";
+    private static final Logger LOGGER = LoggerFactory.getLogger(InternalServiceClientBootstrapController.class);
 
     private final ServiceClientCredentialCommand command;
     private final InternalProperties internalProperties;
@@ -33,6 +36,13 @@ public final class InternalServiceClientBootstrapController {
             ServiceClientCredentialCommand command, InternalProperties internalProperties) {
         this.command = command;
         this.internalProperties = internalProperties;
+        // BUG-036 修复：默认占位绑定空串而非 null，启动时提示运维；
+        // 请求侧已 fail-closed（空白密钥一律拒绝），未配置时端点不可用。
+        String key = internalProperties.bootstrapKey();
+        if (key == null || key.isBlank()) {
+            LOGGER.warn("educloud.user.internal.bootstrap-key is blank; "
+                    + "/internal/bootstrap/** endpoints are disabled (fail-closed)");
+        }
     }
 
     @PostMapping(value = "/service-clients", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -40,9 +50,13 @@ public final class InternalServiceClientBootstrapController {
             @RequestHeader(BOOTSTRAP_KEY_HEADER) String bootstrapKey,
             @RequestBody BootstrapRequest request,
             HttpServletRequest servletRequest) {
-        if (internalProperties.bootstrapKey() == null
+        // BUG-036 修复：默认占位 `${EDUCLOUD_USER_INTERNAL_BOOTSTRAP_KEY:}` 绑定空串，
+        // 只判 null 时 MessageDigest.isEqual("".bytes, "".bytes) 恒真，空 key 头
+        // 即可绕过鉴权；空白密钥配置一律 fail-closed 拒绝。
+        String configuredKey = internalProperties.bootstrapKey();
+        if (configuredKey == null || configuredKey.isBlank()
                 || !MessageDigest.isEqual(
-                        internalProperties.bootstrapKey().getBytes(StandardCharsets.UTF_8),
+                        configuredKey.getBytes(StandardCharsets.UTF_8),
                         bootstrapKey.getBytes(StandardCharsets.UTF_8))) {
             throw new org.springframework.security.access.AccessDeniedException("invalid bootstrap key");
         }

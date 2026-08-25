@@ -9,8 +9,10 @@ import com.educloud.common.web.RequestIdPolicy;
 import com.educloud.common.web.ServletRequestContextAccessor;
 import com.educloud.course.config.CourseProperties;
 import com.educloud.course.config.SecurityConfig;
+import com.educloud.course.entity.CourseEnrollmentEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseTeacherEntity;
+import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.support.MybatisPlusTestSupport;
@@ -66,6 +68,8 @@ class InternalCourseControllerTest {
         // 纯 Mockito 切片单测无 Mapper 注册，LambdaWrapper 渲染列名依赖 TableInfo（与
         // 服务层测试同一共享支持类）。
         MybatisPlusTestSupport.registerTableInfo(CourseTeacherEntity.class);
+        // BUG-002 新增的选课状态端点使用 CourseEnrollmentEntity LambdaWrapper。
+        MybatisPlusTestSupport.registerTableInfo(CourseEnrollmentEntity.class);
     }
 
     @Autowired
@@ -79,6 +83,9 @@ class InternalCourseControllerTest {
 
     @MockBean
     private CourseTeacherMapper courseTeacherMapper;
+
+    @MockBean
+    private CourseEnrollmentMapper courseEnrollmentMapper;
 
     @Test
     void rejectsMissingServiceTokenWith401() throws Exception {
@@ -153,6 +160,39 @@ class InternalCourseControllerTest {
                         .header("Authorization", "Bearer content-token"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+    }
+
+    /** BUG-002 新端点：已报名学生返回 enrolled=true。 */
+    @Test
+    void returnsEnrolledTrueForActiveEnrollment() throws Exception {
+        when(jwtDecoder.decode("content-token"))
+                .thenReturn(serviceToken("educloud-content", "educloud-course"));
+        CourseEnrollmentEntity enrollment = new CourseEnrollmentEntity();
+        enrollment.setCourseId(COURSE_ID);
+        enrollment.setStudentId(2001L);
+        enrollment.setStatus("ACTIVE");
+        when(courseEnrollmentMapper.selectOne(any())).thenReturn(enrollment);
+
+        mockMvc.perform(get("/internal/v1/courses/{courseId}/enrollments/{studentId}", COURSE_ID, 2001L)
+                        .header("Authorization", "Bearer content-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.courseId").value("101"))
+                .andExpect(jsonPath("$.studentId").value("2001"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.enrolled").value(true));
+    }
+
+    /** BUG-002 新端点：无选课记录返回 enrolled=false（fail-closed 拒绝下载）。 */
+    @Test
+    void returnsEnrolledFalseWhenNoEnrollmentRecord() throws Exception {
+        when(jwtDecoder.decode("content-token"))
+                .thenReturn(serviceToken("educloud-content", "educloud-course"));
+        when(courseEnrollmentMapper.selectOne(any())).thenReturn(null);
+
+        mockMvc.perform(get("/internal/v1/courses/{courseId}/enrollments/{studentId}", COURSE_ID, 2001L)
+                        .header("Authorization", "Bearer content-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enrolled").value(false));
     }
 
     private static CourseEntity course() {

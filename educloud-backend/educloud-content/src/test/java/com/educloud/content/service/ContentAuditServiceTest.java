@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,6 +76,13 @@ class ContentAuditServiceTest {
         when(revisionMapper.selectById(202L)).thenReturn(targetRevision);
         when(contentMapper.selectOne(any())).thenReturn(contentRoot);
         when(revisionMapper.selectById(201L)).thenReturn(oldPublished);
+        // BUG-006 修复后 updateById 返回行数参与校验（0 → 409）；模拟
+        // OptimisticLockerInnerInterceptor 对 @Version 的自动递增与回写。
+        doAnswer(invocation -> {
+            CourseContentEntity entity = invocation.getArgument(0);
+            entity.setAggregateVersion(entity.getAggregateVersion() + 1);
+            return 1;
+        }).when(contentMapper).updateById(any(CourseContentEntity.class));
 
         auditService.approveAudit(501L, 9002L);
 

@@ -138,6 +138,9 @@ public class CourseAuditService {
                     null, exception);
         }
 
+        // BUG-052 修复：记录提交前生命周期，供驳回/撤回恢复原状态——
+        // 已发布课程迭代被驳回/撤回后旧版本继续在售（PUBLISHED），而非打回 DRAFT。
+        course.setPreSubmitLifecycleStatus(course.getLifecycleStatus());
         course.setLifecycleStatus(LIFECYCLE_PENDING_REVIEW);
         int rootUpdated = courseMapper.updateById(course);
         if (rootUpdated == 0) {
@@ -214,9 +217,11 @@ public class CourseAuditService {
         // updateById(entity) 会把 null 字段排除在 SET 之外，draft_version_id 永远清不掉。
         // 根乐观锁：entity 携带 selectByIdForUpdate 加载的 version，OptimisticLockerInnerInterceptor
         // 对 update(entity, wrapper) 自动追加 version 条件并回写新 version（禁止手动 +1）。
+        // BUG-052 修复：审批发布后无待恢复状态，一并清空提交前生命周期。
         LambdaUpdateWrapper<CourseEntity> rootUpdate = new LambdaUpdateWrapper<CourseEntity>()
                 .eq(CourseEntity::getId, course.getId())
-                .set(CourseEntity::getDraftVersionId, null);
+                .set(CourseEntity::getDraftVersionId, null)
+                .set(CourseEntity::getPreSubmitLifecycleStatus, null);
         int rootUpdated = courseMapper.update(course, rootUpdate);
         if (rootUpdated == 0) {
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
@@ -235,7 +240,7 @@ public class CourseAuditService {
     /**
      * 驳回（POST /course-audits/{id}/reject）：原因必填（400）；submission REJECTED +
      * reviewed_by/reviewed_at；版本 REJECTED；course.draft_version_id 保留指向 REJECTED
-     * 版本（可复制新草稿），lifecycle 回到 DRAFT。
+     * 版本（可复制新草稿）；BUG-052：lifecycle 恢复提交前状态（无记录回落 DRAFT）。
      */
     @Transactional
     public CourseAuditResponse reject(Long auditId, Long reviewerId, String reason, Set<String> roles) {
@@ -273,8 +278,16 @@ public class CourseAuditService {
         }
 
         course.setDraftVersionId(version.getId());
-        course.setLifecycleStatus(LIFECYCLE_DRAFT);
-        int rootUpdated = courseMapper.updateById(course);
+        // BUG-052 修复：恢复提交前生命周期（已发布课程旧版本继续在售），无记录
+        // 回落 DRAFT；恢复值只接受白名单（防脏数据破坏状态机）。
+        course.setLifecycleStatus(restorePreSubmitLifecycle(course));
+        course.setPreSubmitLifecycleStatus(null);
+        // BUG-053 同源修复：清空 pre_submit 必须用 wrapper 显式 set(null)，
+        // updateById 的 NOT_NULL 策略会把 null 字段排除在 SET 之外；乐观锁语义
+        // 与 approve 的 update(entity, wrapper) 模式一致。
+        int rootUpdated = courseMapper.update(course, new LambdaUpdateWrapper<CourseEntity>()
+                .eq(CourseEntity::getId, course.getId())
+                .set(CourseEntity::getPreSubmitLifecycleStatus, null));
         if (rootUpdated == 0) {
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
                     "Course root changed concurrently: " + course.getId());
@@ -290,7 +303,7 @@ public class CourseAuditService {
     /**
      * 撤回（POST /course-audits/{id}/withdraw）：仅提交教师本人（submitted_by == 当前
      * userId，非本人 COURSE_ACCESS_DENIED 403）；PENDING→WITHDRAWN（含 withdrawn_at），
-     * 版本 WITHDRAWN 不可再审批；lifecycle 回到 DRAFT。
+     * 版本 WITHDRAWN 不可再审批；BUG-052：lifecycle 恢复提交前状态（无记录回落 DRAFT）。
      *
      * <p>任务 22 规格审查：撤回同时清空 course.draft_version_id（WITHDRAWN 不可编辑），
      * 编辑页经 GET draft 404 落入「从最近版本创建草稿」恢复路径；重建草稿的复制源包含
@@ -329,11 +342,20 @@ public class CourseAuditService {
                     "Course version is not pending review");
         }
 
-        course.setLifecycleStatus(LIFECYCLE_DRAFT);
+        // BUG-052 修复：恢复提交前生命周期（已发布课程旧版本继续在售），无记录回落 DRAFT。
+        course.setLifecycleStatus(restorePreSubmitLifecycle(course));
+        course.setPreSubmitLifecycleStatus(null);
         // 任务 22 规格审查：撤回后草稿指针清空（WITHDRAWN 版本不可编辑），编辑页走
         // 「从最近版本创建草稿」恢复路径（复制源含 WITHDRAWN，见 CourseVersionService）。
+        // BUG-053 修复：MyBatis-Plus 默认 updateStrategy=NOT_NULL，updateById 会把
+        // null 字段排除在 SET 之外，draft_version_id 清不掉（与 approve 的
+        // LambdaUpdateWrapper.set(..., null) 同坑）；显式 set(null) 一并清空
+        // 草稿指针与提交前生命周期。
         course.setDraftVersionId(null);
-        int rootUpdated = courseMapper.updateById(course);
+        int rootUpdated = courseMapper.update(course, new LambdaUpdateWrapper<CourseEntity>()
+                .eq(CourseEntity::getId, course.getId())
+                .set(CourseEntity::getDraftVersionId, null)
+                .set(CourseEntity::getPreSubmitLifecycleStatus, null));
         if (rootUpdated == 0) {
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
                     "Course root changed concurrently: " + course.getId());
@@ -402,5 +424,22 @@ public class CourseAuditService {
             throw new BusinessException(CourseErrorCode.COURSE_ACCESS_DENIED,
                     "Reviewer cannot review their own submission");
         }
+    }
+
+    /** 驳回/撤回可恢复的提交前生命周期白名单（其余值一律回落 DRAFT）。 */
+    private static final Set<String> RESTORABLE_LIFECYCLES = Set.of(
+            LIFECYCLE_DRAFT, LIFECYCLE_PUBLISHED, "OFFLINE");
+
+    /**
+     * BUG-052 修复：驳回/撤回时恢复提交前生命周期——已发布课程迭代被驳回/撤回后
+     * 旧版本继续在售（PUBLISHED），下架课程保持下架（OFFLINE）；无记录（历史数据
+     * 或首次提交）或值不在白名单时回落 DRAFT。
+     */
+    private static String restorePreSubmitLifecycle(CourseEntity course) {
+        String preSubmit = course.getPreSubmitLifecycleStatus();
+        if (preSubmit == null || !RESTORABLE_LIFECYCLES.contains(preSubmit)) {
+            return LIFECYCLE_DRAFT;
+        }
+        return preSubmit;
     }
 }

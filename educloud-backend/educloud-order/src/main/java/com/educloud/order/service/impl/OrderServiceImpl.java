@@ -19,7 +19,7 @@ import com.educloud.order.mapper.CartItemMapper;
 import com.educloud.order.mapper.TradeOrderItemMapper;
 import com.educloud.order.mapper.TradeOrderMapper;
 import com.educloud.order.messaging.OrderDelayProducer;
-import com.educloud.order.messaging.OrderEventPublisher;
+import com.educloud.order.messaging.OutboxEventWriter;
 import com.educloud.order.messaging.dto.OrderDelayMessage;
 import com.educloud.order.messaging.dto.OrderPaidEvent;
 import com.educloud.order.service.CartService;
@@ -29,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -55,10 +56,10 @@ public class OrderServiceImpl implements OrderService {
     private final IdempotencyService idempotencyService;
     private final IdentifierGenerator identifierGenerator;
     private final ObjectProvider<OrderDelayProducer> orderDelayProducerProvider;
-    private final ObjectProvider<OrderEventPublisher> orderEventPublisherProvider;
+    private final OutboxEventWriter outboxEventWriter;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional
     public OrderDetailResponse createOrder(Long studentId, OrderCreateRequest request, String headerIdempotencyToken) {
         String token = (headerIdempotencyToken != null && !headerIdempotencyToken.isBlank())
                 ? headerIdempotencyToken
@@ -69,6 +70,8 @@ public class OrderServiceImpl implements OrderService {
         List<CourseSalesSnapshotDto> coursesToBuy = new ArrayList<>();
         boolean isCartBuy = (request == null || request.getCourseId() == null);
 
+        // BUG-019 修复：Redis 幂等消费 + Feign 课程快照拉取/校验均在事务外，
+        // 慢 RPC 不再长期占用数据库连接；DB 写入收敛到下方编程式短事务。
         if (isCartBuy) {
             LambdaQueryWrapper<CartItemEntity> cartQuery = new LambdaQueryWrapper<CartItemEntity>()
                     .eq(CartItemEntity::getStudentId, studentId)
@@ -81,7 +84,6 @@ public class OrderServiceImpl implements OrderService {
                 CourseSalesSnapshotDto snapshot = fetchAndValidateCourse(item.getCourseId());
                 coursesToBuy.add(snapshot);
             }
-            cartService.clearCart(studentId, true);
         } else {
             CourseSalesSnapshotDto snapshot = fetchAndValidateCourse(request.getCourseId());
             coursesToBuy.add(snapshot);
@@ -96,7 +98,13 @@ public class OrderServiceImpl implements OrderService {
         List<TradeOrderItemEntity> orderItemEntities = new ArrayList<>(coursesToBuy.size());
 
         for (CourseSalesSnapshotDto course : coursesToBuy) {
-            BigDecimal price = course.getPrice() != null ? course.getPrice() : BigDecimal.ZERO;
+            // BUG-021 修复：金额合法性校验（非负、scale<=2），脏价格拒单不入库，
+            // 防止负金额/高精度截断订单驱动下游履约（资损级防护）。
+            BigDecimal price = course.getPrice();
+            if (price == null || price.signum() < 0 || price.scale() > 2) {
+                throw new OrderBizException(OrderErrorCode.COURSE_NOT_ON_SALE,
+                        "课程价格数据异常，无法下单: " + course.getId());
+            }
             totalAmount = totalAmount.add(price);
 
             TradeOrderItemEntity itemEntity = TradeOrderItemEntity.builder()
@@ -136,11 +144,20 @@ public class OrderServiceImpl implements OrderService {
                 .updatedAt(now)
                 .build();
 
-        tradeOrderMapper.insert(orderEntity);
-        for (TradeOrderItemEntity item : orderItemEntities) {
-            tradeOrderItemMapper.insert(item);
-        }
+        // BUG-019 修复：DB 写入（订单 + 明细 + 清购物车）收敛到短事务。
+        transactionTemplate.executeWithoutResult(status -> {
+            tradeOrderMapper.insert(orderEntity);
+            for (TradeOrderItemEntity itemEntity : orderItemEntities) {
+                tradeOrderItemMapper.insert(itemEntity);
+            }
+            if (isCartBuy) {
+                cartService.clearCart(studentId, true);
+            }
+        });
 
+        // BUG-018 修复：延时关单消息在事务提交后发送，消除事务回滚产生的
+        // 幽灵订单消息；发送失败由 OrderDelayProducer 记日志、
+        // ExpiredOrderSweeper 定时兑底关单，不再阻塞下单。
         OrderDelayProducer delayProducer = orderDelayProducerProvider.getIfAvailable();
         if (delayProducer != null) {
             delayProducer.sendDelayMessage(OrderDelayMessage.builder()
@@ -226,6 +243,11 @@ public class OrderServiceImpl implements OrderService {
         if (!OrderStatus.PENDING_PAYMENT.name().equals(order.getStatus())) {
             throw new OrderBizException(OrderErrorCode.ORDER_STATUS_INVALID);
         }
+        // BUG-016 修复：过期订单拒绝支付（延时关单消息丢失/MQ 积压时，支付侧
+        // 校验与 CAS SQL 的 expires_at 条件互为双保险，不再单点依赖关单消息）。
+        if (order.getExpiresAt() != null && order.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new OrderBizException(OrderErrorCode.ORDER_EXPIRED);
+        }
 
         LocalDateTime paidAt = LocalDateTime.now();
         int rows = tradeOrderMapper.updateStatusToPaidWithCas(
@@ -253,10 +275,10 @@ public class OrderServiceImpl implements OrderService {
                 .paidAt(paidAt)
                 .build();
 
-        OrderEventPublisher publisher = orderEventPublisherProvider.getIfAvailable();
-        if (publisher != null) {
-            publisher.publishOrderPaid(event);
-        }
+        // BUG-017 修复：已支付事件写入 outbox（与置 PAID 同事务提交），由
+        // OutboxRelay 提交后异步投递 MQ——发送失败不再被吞，付款后必开课。
+        // aggregateVersion 为 CAS 递增后的聚合版本（version+1）。
+        outboxEventWriter.appendOrderPaid(event, order.getVersion() + 1L);
 
         return toDetailResponse(order, items);
     }

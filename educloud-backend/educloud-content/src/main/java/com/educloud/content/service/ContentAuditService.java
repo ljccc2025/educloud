@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.educloud.common.api.PageResponse;
 import com.educloud.common.error.BusinessException;
+import com.educloud.common.error.CommonErrorCode;
 import com.educloud.content.dto.response.ContentAuditResponse;
 import com.educloud.content.entity.ContentAuditSubmissionEntity;
 import com.educloud.content.entity.ContentRevisionEntity;
@@ -87,11 +88,16 @@ public class ContentAuditService {
         targetRevision.setPublishedAt(now);
         revisionMapper.updateById(targetRevision);
 
-        // 3. Update course content root
+        // 3. Update course content root（BUG-006 修复：aggregateVersion 带有
+        // @Version，由 OptimisticLockerInnerInterceptor 自动递增，禁止手工 +1；
+        // updateById 返回 0 即版本冲突（并发审核同一内容根）→ 409 让调用方重试）。
+        // 拦截器会回写 entity 上的新版本号，后续事件发布拿到的是递增后的值。
         contentRoot.setPublishedRevisionId(targetRevision.getId());
-        contentRoot.setAggregateVersion(contentRoot.getAggregateVersion() + 1);
         contentRoot.setUpdatedAt(now);
-        contentMapper.updateById(contentRoot);
+        if (contentMapper.updateById(contentRoot) != 1) {
+            throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
+                    "Course content root was modified concurrently, please retry");
+        }
 
         // 4. Update audit submission
         submission.setStatus("APPROVED");
