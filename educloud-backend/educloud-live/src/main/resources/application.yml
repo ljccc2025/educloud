@@ -1,0 +1,68 @@
+server:
+  port: 8095
+
+spring:
+  application:
+    name: educloud-live
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 2000
+            read-timeout: 3000
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_LIVE_NACOS_USERNAME:${EDUCLOUD_ORDER_NACOS_USERNAME:educloud_order}}
+      password: ${EDUCLOUD_LIVE_NACOS_PASSWORD:${EDUCLOUD_ORDER_NACOS_PASSWORD:19a3b3adbef019a2a0a0b964b14011c33658cb2090d999cd}}
+      discovery:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_live?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${EDUCLOUD_LIVE_DB_USERNAME:${MYSQL_USERNAME:live_app}}
+    password: ${EDUCLOUD_LIVE_DB_PASSWORD:${EDUCLOUD_ORDER_DB_PASSWORD:b97ac137f154ee3561da13eb792c502f7e2a4c357ed7cf95}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_DEFAULT_USER:${RABBITMQ_USERNAME:guest}}
+    password: ${RABBITMQ_DEFAULT_PASS:${RABBITMQ_PASSWORD:guest}}
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:educloud}
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  server:
+    port: 8096
+
+educloud:
+  environment: ${EDUCLOUD_ENVIRONMENT:prod}
+  live:
+    environment: ${EDUCLOUD_ENVIRONMENT:prod}
+    jwt:
+      jwks-location: ${LIVE_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
+      issuer: ${EDUCLOUD_LIVE_JWT_ISSUER:https://issuer.educloud.local}
+      audience: ${EDUCLOUD_LIVE_JWT_AUDIENCE:educloud-api}
+    internal:
+      audience: ${EDUCLOUD_LIVE_INTERNAL_AUDIENCE:educloud-live}
+      allowed-client-ids: ${EDUCLOUD_LIVE_INTERNAL_ALLOWED_CLIENT_IDS:gateway,user-service,educloud-order,educloud-course,educloud-content,educloud-file}
+      secret-token: ${EDUCLOUD_LIVE_INTERNAL_SECRET:educloud-internal-secret}
+    stream:
+      provider-type: ${LIVE_STREAM_PROVIDER_TYPE:MOCK}
+      mock:
+        push-base-url: ${LIVE_STREAM_MOCK_PUSH_URL:rtmp://live-mock.educloud.cn/live}
+        play-flv-base-url: ${LIVE_STREAM_MOCK_FLV_URL:http://live-mock.educloud.cn/live}
+        play-hls-base-url: ${LIVE_STREAM_MOCK_HLS_URL:http://live-mock.educloud.cn/live}
+        play-webrtc-base-url: ${LIVE_STREAM_MOCK_WEBRTC_URL:webrtc://live-mock.educloud.cn/live}
+        secret-key: ${LIVE_STREAM_MOCK_SECRET_KEY:educloud-live-secret-key-2026}
+        token-expire-seconds: 86400
