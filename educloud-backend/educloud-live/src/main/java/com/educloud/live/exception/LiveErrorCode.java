@@ -15,7 +15,9 @@ public enum LiveErrorCode implements ErrorCode {
     LIVE_REPLAY_NOT_FOUND(404, 404903, "直播录制回放不存在"),
     LIVE_STREAM_PROVIDER_NOT_SUPPORTED(400, 400903, "不支持的流媒体供应商类型"),
     MOCK_STREAM_DISABLED(403, 403905, "当前生产环境禁用 Mock 模拟流媒体服务"),
-    FILE_GRANT_FAILED(500, 500901, "获取回放文件下载授权失败");
+    FILE_GRANT_FAILED(500, 500901, "获取回放文件下载授权失败"),
+    UNAUTHENTICATED(401, 401001, "用户未登录或令牌无效"),
+    FORBIDDEN(403, 403001, "无操作权限");
 
     private final int httpStatus;
     private final int businessCode;
