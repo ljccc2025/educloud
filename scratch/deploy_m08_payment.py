@@ -70,10 +70,26 @@ def upload_tree(sftp, ssh, local_dir, remote_dir):
     return count
 
 
+def connect_with_retry(max_attempts=5):
+    last_err = None
+    for i in range(max_attempts):
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.get_transport
+            ssh.connect(VM_HOST, port=22, username=VM_USER, password=VM_PASS,
+                        timeout=30, banner_timeout=30, auth_timeout=30)
+            print(f"[SSH] 连接成功（第 {i + 1} 次）")
+            return ssh
+        except Exception as e:
+            last_err = e
+            print(f"[SSH] 第 {i + 1} 次连接失败: {e}，5 秒后重试...")
+            time.sleep(5)
+    raise RuntimeError(f"SSH 连接失败: {last_err}")
+
+
 def main():
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(VM_HOST, port=22, username=VM_USER, password=VM_PASS, timeout=20)
+    ssh = connect_with_retry()
     sftp = ssh.open_sftp()
 
     # 1. 上传 modified 文件

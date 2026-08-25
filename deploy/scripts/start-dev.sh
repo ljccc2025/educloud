@@ -15,8 +15,12 @@ port_free() {
 
 wait_ready() {
   local url="$1" label="$2"
+  # 兼容性修复（M08）：order/payment 监控端仅暴露 /actuator/health（未启用 probes 时
+  # /readiness 为 404），就绪探测改为双地址轮询，任一可达即视为就绪。
+  local alt="${url%/readiness}"
   for _ in {1..60}; do
-    if curl --fail --silent --max-time 3 "$url" >/dev/null 2>&1; then
+    if curl --fail --silent --max-time 3 "$url" >/dev/null 2>&1 \
+       || curl --fail --silent --max-time 3 "$alt" >/dev/null 2>&1; then
       printf "%s: UP\n" "$label"
       return 0
     fi
@@ -93,6 +97,32 @@ else
 fi
 
 wait_ready "http://127.0.0.1:8081/actuator/health/readiness" "educloud-gateway"
+
+# 启动顺序修复（M08）：payment 必须先于 course/order 启动——
+# course.payment.refund.queue 与 order.payment.refund.queue 由 payment 声明，
+# 消费端被动声明队列缺失会直接启动失败。
+printf "[3.5/9] Starting educloud-payment...\n"
+if port_free 8093; then
+  SERVER_PORT=8093 PAYMENT_MANAGEMENT_PORT=8094 \
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_PAYMENT_DB_PASSWORD="${EDUCLOUD_PAYMENT_DB_PASSWORD:-0776b911c75c80efcb36c841c888e285a73e46c7ad721be0}" \
+  REDIS_HOST=127.0.0.1 REDIS_PORT="${REDIS_PORT:-6379}" REDIS_PASSWORD="${REDIS_PASSWORD:-}" \
+  RABBITMQ_HOST=127.0.0.1 RABBITMQ_PORT="${RABBITMQ_AMQP_PORT:-5672}" \
+  RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER:-educloud_local}" RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS:-14451aa84db1b5ac47576ea9058d287c8e5ef5cb58675f42}" \
+  RABBITMQ_DEFAULT_VHOST="${RABBITMQ_DEFAULT_VHOST:-educloud}" \
+  NACOS_SERVER_ADDR=127.0.0.1:"${NACOS_HTTP_PORT:-8848}" \
+  EDUCLOUD_PAYMENT_NACOS_USERNAME="${EDUCLOUD_PAYMENT_NACOS_USERNAME:-${NACOS_ADMIN_USERNAME:-nacos}}" EDUCLOUD_PAYMENT_NACOS_PASSWORD="${NACOS_PAYMENT_PASSWORD:-${NACOS_ADMIN_PASSWORD:-nacos}}" \
+  PAYMENT_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json \
+  EDUCLOUD_PAYMENT_JWT_ISSUER="${EDUCLOUD_PAYMENT_JWT_ISSUER:-https://issuer.educloud.local}" \
+  EDUCLOUD_PAYMENT_JWT_AUDIENCE="${EDUCLOUD_PAYMENT_JWT_AUDIENCE:-educloud-api}" \
+  EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
+  setsid nohup java -jar educloud-backend/educloud-payment/target/educloud-payment-1.0.0-SNAPSHOT.jar \
+    > /tmp/educloud-live/payment.log 2>&1 < /dev/null &
+  printf "  educloud-payment started (8093/8094)\n"
+else
+  printf "  educloud-payment already running\n"
+fi
+
+wait_ready "http://127.0.0.1:8094/actuator/health/readiness" "educloud-payment"
 
 printf "[4/6] Starting educloud-course...\n"
 if port_free 8089; then
@@ -203,29 +233,6 @@ else
 fi
 
 wait_ready "http://127.0.0.1:8092/actuator/health/readiness" "educloud-order"
-
-printf "[8/9] Starting educloud-payment...\n"
-if port_free 8093; then
-  SERVER_PORT=8093 PAYMENT_MANAGEMENT_PORT=8094 \
-  MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_PAYMENT_DB_PASSWORD="${EDUCLOUD_PAYMENT_DB_PASSWORD:-0776b911c75c80efcb36c841c888e285a73e46c7ad721be0}" \
-  REDIS_HOST=127.0.0.1 REDIS_PORT="${REDIS_PORT:-6379}" REDIS_PASSWORD="${REDIS_PASSWORD:-}" \
-  RABBITMQ_HOST=127.0.0.1 RABBITMQ_PORT="${RABBITMQ_AMQP_PORT:-5672}" \
-  RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER:-educloud_local}" RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS:-14451aa84db1b5ac47576ea9058d287c8e5ef5cb58675f42}" \
-  RABBITMQ_DEFAULT_VHOST="${RABBITMQ_DEFAULT_VHOST:-educloud}" \
-  NACOS_SERVER_ADDR=127.0.0.1:"${NACOS_HTTP_PORT:-8848}" \
-  EDUCLOUD_PAYMENT_NACOS_USERNAME="${EDUCLOUD_PAYMENT_NACOS_USERNAME:-${NACOS_ADMIN_USERNAME:-nacos}}" EDUCLOUD_PAYMENT_NACOS_PASSWORD="${NACOS_PAYMENT_PASSWORD:-${NACOS_ADMIN_PASSWORD:-nacos}}" \
-  PAYMENT_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json \
-  EDUCLOUD_PAYMENT_JWT_ISSUER="${EDUCLOUD_PAYMENT_JWT_ISSUER:-https://issuer.educloud.local}" \
-  EDUCLOUD_PAYMENT_JWT_AUDIENCE="${EDUCLOUD_PAYMENT_JWT_AUDIENCE:-educloud-api}" \
-  EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
-  setsid nohup java -jar educloud-backend/educloud-payment/target/educloud-payment-1.0.0-SNAPSHOT.jar \
-    > /tmp/educloud-live/payment.log 2>&1 < /dev/null &
-  printf "  educloud-payment started (8093/8094)\n"
-else
-  printf "  educloud-payment already running\n"
-fi
-
-wait_ready "http://127.0.0.1:8094/actuator/health/readiness" "educloud-payment"
 
 printf "[9/9] Starting frontend dev servers...\n"
 start_portal() {

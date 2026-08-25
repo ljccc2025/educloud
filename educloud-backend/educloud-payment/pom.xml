@@ -136,6 +136,15 @@
                         </exclude>
                     </excludes>
                 </configuration>
+                <!-- 打包修复（M08 部署）：缺失 repackage 执行会产出无 Main-Class 的瘦 jar，
+                     java -jar 启动报“没有主清单属性”；与 order 等模块保持一致。 -->
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
