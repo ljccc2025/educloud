@@ -198,6 +198,13 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentDetailResponse getPaymentDetail(Long userId, Long paymentOrderId) {
         PaymentOrderEntity paymentOrder = paymentOrderMapper.selectById(paymentOrderId);
         if (paymentOrder == null || paymentOrder.getDeleted() == 1) {
+            paymentOrder = paymentOrderMapper.selectOne(
+                    new LambdaQueryWrapper<PaymentOrderEntity>()
+                            .eq(PaymentOrderEntity::getOrderId, paymentOrderId)
+                            .eq(PaymentOrderEntity::getDeleted, 0)
+            );
+        }
+        if (paymentOrder == null || paymentOrder.getDeleted() == 1) {
             throw new PaymentBizException(PaymentErrorCode.PAYMENT_ORDER_NOT_FOUND, "支付单不存在");
         }
 
@@ -218,6 +225,13 @@ public class PaymentServiceImpl implements PaymentService {
 
         PaymentOrderEntity paymentOrder = paymentOrderMapper.selectById(paymentOrderId);
         if (paymentOrder == null || paymentOrder.getDeleted() == 1) {
+            paymentOrder = paymentOrderMapper.selectOne(
+                    new LambdaQueryWrapper<PaymentOrderEntity>()
+                            .eq(PaymentOrderEntity::getOrderId, paymentOrderId)
+                            .eq(PaymentOrderEntity::getDeleted, 0)
+            );
+        }
+        if (paymentOrder == null || paymentOrder.getDeleted() == 1) {
             throw new PaymentBizException(PaymentErrorCode.PAYMENT_ORDER_NOT_FOUND, "支付单不存在");
         }
 
@@ -234,9 +248,9 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        String channelTradeNo = "MOCK_TR_CONFIRM_" + paymentOrderId;
+        String channelTradeNo = "MOCK_TR_CONFIRM_" + paymentOrder.getId();
         int updated = paymentOrderMapper.updateStatusToSuccessCas(
-                paymentOrderId, PaymentStatus.SUCCESS, now, channelTradeNo, now);
+                paymentOrder.getId(), PaymentStatus.SUCCESS, now, channelTradeNo, now);
 
         if (updated == 0) {
             throw new PaymentBizException(PaymentErrorCode.DUPLICATE_PAYMENT, "支付单状态已变更或已过期");

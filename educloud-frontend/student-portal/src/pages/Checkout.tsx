@@ -188,7 +188,11 @@ export default function Checkout() {
 
       if (payment.status === 'SUCCESS') {
         const paid = await orderApi.getById(payableOrder.id, currentUser?.id);
-        if (paid?.status === 'PAID') finishPaidOrder(paid);
+        if (paid?.status === 'PAID') {
+          finishPaidOrder(paid);
+        } else {
+          setViewState('CONFIRMING');
+        }
       } else if (payment.status === 'CANCELLED') {
         setViewState('CANCELLED');
       } else if (payment.status === 'FAILED') {
