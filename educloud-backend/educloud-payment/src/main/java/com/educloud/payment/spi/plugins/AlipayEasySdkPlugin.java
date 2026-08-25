@@ -166,8 +166,13 @@ public class AlipayEasySdkPlugin implements PaymentChannelPlugin {
         if (sign == null || sign.isBlank()) {
             return false;
         }
-        // 若未配置真实生产公钥或在测试桩环境下，签名包含 test_valid_sign 则放行
+        String env = properties.environment();
+        boolean isProd = "prod".equalsIgnoreCase(env) || "production".equalsIgnoreCase(env);
         if (publicKeyStr == null || publicKeyStr.isBlank() || publicKeyStr.startsWith("MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...")) {
+            if (isProd) {
+                log.error("Alipay public key is not properly configured in production environment!");
+                return false;
+            }
             return "test_valid_sign".equals(sign) || sign.length() > 20;
         }
 

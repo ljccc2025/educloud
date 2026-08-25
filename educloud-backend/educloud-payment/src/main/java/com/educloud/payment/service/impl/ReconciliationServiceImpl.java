@@ -199,7 +199,9 @@ public class ReconciliationServiceImpl implements ReconciliationService {
 
     @Override
     public PageResponse<ReconciliationBatchResponse> listBatches(int page, int size) {
-        Page<ReconciliationBatchEntity> pageParam = new Page<>(Math.max(page, 1), Math.max(size, 1));
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Page<ReconciliationBatchEntity> pageParam = new Page<>(safePage, safeSize);
         Page<ReconciliationBatchEntity> resultPage = batchMapper.selectPage(
                 pageParam,
                 new LambdaQueryWrapper<ReconciliationBatchEntity>().orderByDesc(ReconciliationBatchEntity::getId));
@@ -208,12 +210,14 @@ public class ReconciliationServiceImpl implements ReconciliationService {
                 .map(this::toBatchResponse)
                 .toList();
 
-        return PageResponse.of(items, page, size, resultPage.getTotal());
+        return PageResponse.of(items, safePage, safeSize, resultPage.getTotal());
     }
 
     @Override
     public PageResponse<ReconciliationDiffResponse> listDiffs(Long batchId, int page, int size) {
-        Page<ReconciliationDiffEntity> pageParam = new Page<>(Math.max(page, 1), Math.max(size, 1));
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Page<ReconciliationDiffEntity> pageParam = new Page<>(safePage, safeSize);
         LambdaQueryWrapper<ReconciliationDiffEntity> query = new LambdaQueryWrapper<ReconciliationDiffEntity>()
                 .orderByDesc(ReconciliationDiffEntity::getId);
 
@@ -226,7 +230,7 @@ public class ReconciliationServiceImpl implements ReconciliationService {
                 .map(this::toDiffResponse)
                 .toList();
 
-        return PageResponse.of(items, page, size, resultPage.getTotal());
+        return PageResponse.of(items, safePage, safeSize, resultPage.getTotal());
     }
 
     private ReconciliationDiffEntity createDiff(

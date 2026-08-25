@@ -68,6 +68,11 @@ public class RefundServiceImpl implements RefundService {
             throw new PaymentBizException(PaymentErrorCode.REFUND_NOT_ALLOWED, "未找到已成功支付的订单，无法申请退款");
         }
 
+        if (userId != null && paymentOrder.getUserId() != null && !userId.equals(paymentOrder.getUserId())) {
+            throw new com.educloud.common.error.BusinessException(
+                    com.educloud.common.error.CommonErrorCode.ACCESS_DENIED, "无权对他人订单申请退款");
+        }
+
         List<PaymentRefundEntity> existingRefunds = refundMapper.selectList(
                 new LambdaQueryWrapper<PaymentRefundEntity>()
                         .eq(PaymentRefundEntity::getPaymentOrderId, paymentOrder.getId())
@@ -219,12 +224,20 @@ public class RefundServiceImpl implements RefundService {
 
     @Override
     public PageResponse<RefundDetailResponse> listRefunds(String status, int page, int size) {
-        Page<PaymentRefundEntity> pageParam = new Page<>(Math.max(page, 1), Math.max(size, 1));
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Page<PaymentRefundEntity> pageParam = new Page<>(safePage, safeSize);
         LambdaQueryWrapper<PaymentRefundEntity> query = new LambdaQueryWrapper<PaymentRefundEntity>()
                 .orderByDesc(PaymentRefundEntity::getId);
 
         if (status != null && !status.isBlank()) {
-            query.eq(PaymentRefundEntity::getStatus, RefundStatus.valueOf(status.trim().toUpperCase()));
+            try {
+                RefundStatus refundStatus = RefundStatus.valueOf(status.trim().toUpperCase());
+                query.eq(PaymentRefundEntity::getStatus, refundStatus);
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid refund status query parameter: {}", status);
+                return PageResponse.of(List.of(), safePage, safeSize, 0);
+            }
         }
 
         Page<PaymentRefundEntity> resultPage = refundMapper.selectPage(pageParam, query);
@@ -232,7 +245,7 @@ public class RefundServiceImpl implements RefundService {
                 .map(this::toDetailResponse)
                 .toList();
 
-        return PageResponse.of(items, page, size, resultPage.getTotal());
+        return PageResponse.of(items, safePage, safeSize, resultPage.getTotal());
     }
 
     private RefundDetailResponse toDetailResponse(PaymentRefundEntity entity) {

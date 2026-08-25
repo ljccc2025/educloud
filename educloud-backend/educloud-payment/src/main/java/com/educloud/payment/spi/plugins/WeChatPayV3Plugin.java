@@ -83,7 +83,14 @@ public class WeChatPayV3Plugin implements PaymentChannelPlugin {
                 String plaintext = decryptAeadGcm(apiV3Key, associatedData, nonce, ciphertext);
                 decryptedNode = OBJECT_MAPPER.readTree(plaintext);
             } else {
-                // 直接包含明文字段的测试模式
+                String env = properties.environment();
+                if ("prod".equalsIgnoreCase(env) || "production".equalsIgnoreCase(env)) {
+                    return CallbackVerifyResult.builder()
+                            .valid(false)
+                            .errorMessage("生产环境微信支付回调必须包含 resource 加密密文")
+                            .build();
+                }
+                // 本地/沙箱测试模式支持明文报文直通
                 decryptedNode = root;
             }
 

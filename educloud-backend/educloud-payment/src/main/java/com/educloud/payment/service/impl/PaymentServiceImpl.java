@@ -96,9 +96,12 @@ public class PaymentServiceImpl implements PaymentService {
             if (paymentOrder.getStatus() == PaymentStatus.SUCCESS) {
                 throw new PaymentBizException(PaymentErrorCode.DUPLICATE_PAYMENT, "该订单已支付成功，请勿重复支付");
             }
-            if (paymentOrder.getStatus() == PaymentStatus.PAYING && paymentOrder.getExpiresAt().isAfter(LocalDateTime.now())) {
-                paymentOrder.setChannelCode(request.getChannelCode());
-                paymentOrder.setTradeType(request.getTradeType() != null ? request.getTradeType() : TradeType.NATIVE);
+            paymentOrder.setChannelCode(request.getChannelCode());
+            paymentOrder.setTradeType(request.getTradeType() != null ? request.getTradeType() : TradeType.NATIVE);
+            paymentOrder.setStatus(PaymentStatus.PAYING);
+            paymentOrder.setAmountCents(amountCents);
+            if (orderSnapshot.getExpiresAt() != null) {
+                paymentOrder.setExpiresAt(orderSnapshot.getExpiresAt());
             }
         } else {
             paymentOrder = PaymentOrderEntity.builder()
@@ -179,6 +182,10 @@ public class PaymentServiceImpl implements PaymentService {
             throw new PaymentBizException(PaymentErrorCode.PAYMENT_ORDER_NOT_FOUND, "支付单不存在");
         }
 
+        if (userId != null && paymentOrder.getUserId() != null && !userId.equals(paymentOrder.getUserId())) {
+            throw new BusinessException(CommonErrorCode.ACCESS_DENIED, "无权查看他人支付单");
+        }
+
         return toDetailResponse(paymentOrder);
     }
 
@@ -193,6 +200,10 @@ public class PaymentServiceImpl implements PaymentService {
         PaymentOrderEntity paymentOrder = paymentOrderMapper.selectById(paymentOrderId);
         if (paymentOrder == null || paymentOrder.getDeleted() == 1) {
             throw new PaymentBizException(PaymentErrorCode.PAYMENT_ORDER_NOT_FOUND, "支付单不存在");
+        }
+
+        if (userId != null && paymentOrder.getUserId() != null && !userId.equals(paymentOrder.getUserId())) {
+            throw new BusinessException(CommonErrorCode.ACCESS_DENIED, "无权操作他人支付单");
         }
 
         if (paymentOrder.getChannelCode() != PaymentChannel.MOCK) {
