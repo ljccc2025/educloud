@@ -93,8 +93,10 @@ public class AlipayEasySdkPlugin implements PaymentChannelPlugin {
             String notifyId = params.getOrDefault("notify_id", "ALI_NOTIFY_" + System.currentTimeMillis());
 
             Long paymentOrderId = outTradeNoStr != null ? Long.parseLong(outTradeNoStr) : null;
+            // 金额修复（M08 审查）：元→分四舍五入后精确取整，避免 longValue() 静默截断。
             Long amountCents = totalAmountStr != null
-                    ? new BigDecimal(totalAmountStr).multiply(BigDecimal.valueOf(100)).longValue()
+                    ? new BigDecimal(totalAmountStr).multiply(BigDecimal.valueOf(100))
+                            .setScale(0, RoundingMode.HALF_UP).longValueExact()
                     : null;
 
             boolean signValid = verifyRsa2Sign(params, sign, properties.alipay() != null ? properties.alipay().alipayPublicKey() : null);
@@ -149,17 +151,9 @@ public class AlipayEasySdkPlugin implements PaymentChannelPlugin {
 
     @Override
     public List<ChannelBillItem> downloadBill(LocalDate date) {
-        List<ChannelBillItem> list = new ArrayList<>();
-        list.add(ChannelBillItem.builder()
-                .channelTradeNo("ALI_TR_BILL_" + date.format(DateTimeFormatter.BASIC_ISO_DATE) + "_01")
-                .paymentOrderId(9000000000000000801L)
-                .amountCents(19900L)
-                .feeCents(120L)
-                .status(PaymentStatus.SUCCESS)
-                .tradeType("ALIPAY_PAGE")
-                .tradeTime(date.atTime(14, 30, 0))
-                .build());
-        return list;
+        // 对账口径修复（M08 审查）：原固定桩单任意日期对账必出 CHANNEL_MORE 假差错。
+        // 沙箱无真实账单，返回空列表；接入真实渠道后下载并按交易日返回账单。
+        return List.of();
     }
 
     private boolean verifyRsa2Sign(Map<String, String> params, String sign, String publicKeyStr) {

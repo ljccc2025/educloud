@@ -1,5 +1,6 @@
 package com.educloud.payment.service;
 
+import com.educloud.payment.config.PaymentProperties;
 import com.educloud.payment.entity.PaymentCallbackLogEntity;
 import com.educloud.payment.entity.PaymentOrderEntity;
 import com.educloud.payment.entity.PaymentTransactionEntity;
@@ -64,7 +65,8 @@ class PaymentCallbackServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
 
-        PaymentChannelFactory channelFactory = new PaymentChannelFactory(List.of(new MockPaymentPlugin()));
+        PaymentChannelFactory channelFactory = new PaymentChannelFactory(List.of(
+                new MockPaymentPlugin(new PaymentProperties("local", null, null, null, null))));
         callbackService = new PaymentCallbackServiceImpl(
                 paymentOrderMapper,
                 paymentTransactionMapper,

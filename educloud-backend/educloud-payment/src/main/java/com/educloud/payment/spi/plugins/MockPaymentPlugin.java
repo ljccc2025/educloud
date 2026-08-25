@@ -1,5 +1,6 @@
 package com.educloud.payment.spi.plugins;
 
+import com.educloud.payment.config.PaymentProperties;
 import com.educloud.payment.enums.PaymentChannel;
 import com.educloud.payment.enums.PaymentStatus;
 import com.educloud.payment.enums.RefundStatus;
@@ -13,18 +14,24 @@ import com.educloud.payment.spi.model.UnifiedQueryResult;
 import com.educloud.payment.spi.model.UnifiedRefundResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
 public class MockPaymentPlugin implements PaymentChannelPlugin {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private final PaymentProperties properties;
+
+    private static boolean isProduction(String env) {
+        return "prod".equalsIgnoreCase(env) || "production".equalsIgnoreCase(env);
+    }
 
     @Override
     public PaymentChannel getChannel() {
@@ -49,6 +56,14 @@ public class MockPaymentPlugin implements PaymentChannelPlugin {
 
     @Override
     public CallbackVerifyResult verifyAndParseCallback(Map<String, String> headers, Map<String, String> params, String rawBody) {
+        // 安全修复（M08 审查）：MOCK 回调匿名可达且无签名，生产环境一律拒绝，
+        // 与 mockConfirmPayment 的环境门控对齐，堵住“MOCK 渠道零成本置支付成功”资损链。
+        if (isProduction(properties != null ? properties.environment() : null)) {
+            return CallbackVerifyResult.builder()
+                    .valid(false)
+                    .errorMessage("MOCK channel callback is disabled in production")
+                    .build();
+        }
         try {
             Long paymentOrderId = null;
             Long amountCents = null;
@@ -133,16 +148,9 @@ public class MockPaymentPlugin implements PaymentChannelPlugin {
 
     @Override
     public List<ChannelBillItem> downloadBill(LocalDate date) {
-        List<ChannelBillItem> list = new ArrayList<>();
-        list.add(ChannelBillItem.builder()
-                .channelTradeNo("MOCK_TR_BILL_001")
-                .paymentOrderId(9000000000000000801L)
-                .amountCents(19900L)
-                .feeCents(0L)
-                .status(PaymentStatus.SUCCESS)
-                .tradeType("MOCK")
-                .tradeTime(date.atTime(10, 0, 0))
-                .build());
-        return list;
+        // 对账口径修复（M08 审查）：原固定桩单（paymentOrderId=9000000000000000801）
+        // 任意日期对账必出 CHANNEL_MORE 假差错。沙箱无真实账单，返回空列表；
+        // 接入真实渠道后在此下载并按交易日返回账单。
+        return List.of();
     }
 }

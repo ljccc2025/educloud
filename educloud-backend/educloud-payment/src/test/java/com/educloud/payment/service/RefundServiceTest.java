@@ -1,5 +1,6 @@
 package com.educloud.payment.service;
 
+import com.educloud.payment.config.PaymentProperties;
 import com.educloud.payment.dto.request.RefundApplyRequest;
 import com.educloud.payment.dto.request.RefundAuditRequest;
 import com.educloud.payment.dto.response.RefundDetailResponse;
@@ -23,6 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 
@@ -31,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,13 +57,18 @@ class RefundServiceTest {
 
     @BeforeEach
     void setUp() {
-        PaymentChannelFactory channelFactory = new PaymentChannelFactory(List.of(new MockPaymentPlugin()));
+        PaymentChannelFactory channelFactory = new PaymentChannelFactory(List.of(
+                new MockPaymentPlugin(new PaymentProperties("local", null, null, null, null))));
+        // 事务修复（M08 审查）：auditRefund 拆为三段短事务，测试用同步执行的
+        // TransactionTemplate（mock 事务管理器：getTransaction/commit 均空实现）。
+        TransactionTemplate transactionTemplate = new TransactionTemplate(mock(PlatformTransactionManager.class));
         refundService = new RefundServiceImpl(
                 refundMapper,
                 paymentOrderMapper,
                 transactionMapper,
                 channelFactory,
-                outboxEventWriter
+                outboxEventWriter,
+                transactionTemplate
         );
     }
 
@@ -75,7 +84,7 @@ class RefundServiceTest {
                 .deleted(0)
                 .build();
 
-        when(paymentOrderMapper.selectById(2091998812345678901L)).thenReturn(paymentOrder);
+        when(paymentOrderMapper.selectOne(any())).thenReturn(paymentOrder);
         when(refundMapper.selectList(any())).thenReturn(List.of());
 
         RefundApplyRequest request = RefundApplyRequest.builder()
@@ -105,7 +114,7 @@ class RefundServiceTest {
                 .deleted(0)
                 .build();
 
-        when(paymentOrderMapper.selectById(2091998812345678901L)).thenReturn(paymentOrder);
+        when(paymentOrderMapper.selectOne(any())).thenReturn(paymentOrder);
         when(refundMapper.selectList(any())).thenReturn(List.of(
                 PaymentRefundEntity.builder().refundAmountCents(10000L).status(RefundStatus.SUCCESS).build()
         ));
@@ -143,7 +152,9 @@ class RefundServiceTest {
                 .build();
 
         when(refundMapper.selectById(2091999912345678902L)).thenReturn(refund);
-        when(paymentOrderMapper.selectById(2091998812345678901L)).thenReturn(paymentOrder);
+        // 审核通过前加锁复验：selectOne（FOR UPDATE）返回支付单，其余退款单为空。
+        when(paymentOrderMapper.selectOne(any())).thenReturn(paymentOrder);
+        when(refundMapper.selectList(any())).thenReturn(List.of());
         when(refundMapper.updateStatusCas(eq(2091999912345678902L), eq(RefundStatus.PROCESSING), eq(RefundStatus.SUCCESS), any(), any()))
                 .thenReturn(1);
 

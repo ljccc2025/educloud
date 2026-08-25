@@ -59,6 +59,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -128,7 +130,7 @@ class PaymentFlowIntegrationTest {
                 new PaymentProperties.WechatProperties("appId", "mchId", "abcdef0123456789abcdef0123456789", "serial", "key.pem", "http://notify")
         );
 
-        MockPaymentPlugin mockPlugin = new MockPaymentPlugin();
+        MockPaymentPlugin mockPlugin = new MockPaymentPlugin(properties);
         AlipayEasySdkPlugin alipayPlugin = new AlipayEasySdkPlugin(properties);
         WeChatPayV3Plugin wechatPlugin = new WeChatPayV3Plugin(properties);
 
@@ -163,7 +165,9 @@ class PaymentFlowIntegrationTest {
                 paymentOrderMapper,
                 paymentTransactionMapper,
                 channelFactory,
-                outboxEventWriter
+                outboxEventWriter,
+                // 事务修复（M08 审查）：auditRefund 三段短事务，测试用同步执行模板。
+                new TransactionTemplate(org.mockito.Mockito.mock(PlatformTransactionManager.class))
         );
 
         reconciliationService = new ReconciliationServiceImpl(
@@ -267,7 +271,7 @@ class PaymentFlowIntegrationTest {
                 .deleted(0)
                 .build();
 
-        when(paymentOrderMapper.selectById(2091998812345678901L)).thenReturn(paymentOrder);
+        when(paymentOrderMapper.selectOne(any())).thenReturn(paymentOrder);
         when(refundMapper.selectList(any())).thenReturn(List.of());
 
         // 1. 申请退款

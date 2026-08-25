@@ -19,6 +19,7 @@ import com.educloud.payment.spi.PaymentChannelPlugin;
 import com.educloud.payment.spi.model.CallbackVerifyResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,7 +74,16 @@ public class PaymentCallbackServiceImpl implements PaymentCallbackService {
                 .processedStatus("PENDING")
                 .createdAt(LocalDateTime.now())
                 .build();
-        callbackLogMapper.insert(callbackLog);
+        try {
+            callbackLogMapper.insert(callbackLog);
+        } catch (DuplicateKeyException dup) {
+            // 可靠性修复（M08 审查）：渠道重发同一 notify_id 时 uk_channel_notify 冲突。
+            // 若直接报 500，渠道会持续重试（支付宝最长 24h）；首次处理结果已落日志，
+            // 支付单状态跃迁由 CAS 保证幂等，此处直接 ACK 成功。
+            redisTemplate.delete(lockKey);
+            log.info("Duplicate callback notification ACKed without reprocessing: channel={}, notifyId={}", channel, notifyId);
+            return verifyResult.getResponseMessage() != null ? verifyResult.getResponseMessage() : "success";
+        }
 
         try {
             if (!verifyResult.isValid()) {

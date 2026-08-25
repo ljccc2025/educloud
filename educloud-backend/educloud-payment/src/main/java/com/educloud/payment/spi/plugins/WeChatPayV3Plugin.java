@@ -152,37 +152,24 @@ public class WeChatPayV3Plugin implements PaymentChannelPlugin {
 
     @Override
     public List<ChannelBillItem> downloadBill(LocalDate date) {
-        List<ChannelBillItem> list = new ArrayList<>();
-        list.add(ChannelBillItem.builder()
-                .channelTradeNo("WX_TR_BILL_" + date.format(DateTimeFormatter.BASIC_ISO_DATE) + "_01")
-                .paymentOrderId(9000000000000000801L)
-                .amountCents(19900L)
-                .feeCents(120L)
-                .status(PaymentStatus.SUCCESS)
-                .tradeType("WECHAT_NATIVE")
-                .tradeTime(date.atTime(15, 0, 0))
-                .build());
-        return list;
+        // 对账口径修复（M08 审查）：原固定桩单任意日期对账必出 CHANNEL_MORE 假差错。
+        // 沙箱无真实账单，返回空列表；接入真实渠道后下载并按交易日返回账单。
+        return List.of();
     }
 
     private String decryptAeadGcm(String key, String associatedData, String nonce, String ciphertext) throws Exception {
-        try {
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
-            GCMParameterSpec spec = new GCMParameterSpec(128, nonce.getBytes(StandardCharsets.UTF_8));
-            cipher.init(Cipher.DECRYPT_MODE, keySpec, spec);
-            if (associatedData != null && !associatedData.isBlank()) {
-                cipher.updateAAD(associatedData.getBytes(StandardCharsets.UTF_8));
-            }
-            byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode(ciphertext));
-            return new String(decrypted, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            // 如果测试数据本身就是明文 JSON base64
-            try {
-                return new String(Base64.getDecoder().decode(ciphertext), StandardCharsets.UTF_8);
-            } catch (Exception ignored) {
-                return ciphertext;
-            }
+        // 安全修复（M08 审查）：删除原“解密失败→Base64 直解→原文直返”两级兜底。
+        // 兜底会把攻击者伪造的 Base64(明文 JSON) 直接当作合法回调解析，
+        // 导致任意支付单可被零成本置为 SUCCESS（资损）。解密失败一律上抛，
+        // 由外层 catch 判定验签失败（fail-closed）。
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, nonce.getBytes(StandardCharsets.UTF_8));
+        cipher.init(Cipher.DECRYPT_MODE, keySpec, spec);
+        if (associatedData != null && !associatedData.isBlank()) {
+            cipher.updateAAD(associatedData.getBytes(StandardCharsets.UTF_8));
         }
+        byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode(ciphertext));
+        return new String(decrypted, StandardCharsets.UTF_8);
     }
 }

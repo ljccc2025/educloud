@@ -1,5 +1,6 @@
 package com.educloud.payment.spi;
 
+import com.educloud.payment.config.PaymentProperties;
 import com.educloud.payment.enums.PaymentChannel;
 import com.educloud.payment.enums.PaymentStatus;
 import com.educloud.payment.enums.RefundStatus;
@@ -20,12 +21,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MockPaymentPluginTest {
 
-    private final MockPaymentPlugin plugin = new MockPaymentPlugin();
+    private final PaymentProperties localProps = new PaymentProperties(
+            "local", null, null, null, null
+    );
+
+    private final MockPaymentPlugin plugin = new MockPaymentPlugin(localProps);
 
     @Test
     void initiatePayment_returnsMockDetails() {
@@ -83,8 +89,19 @@ class MockPaymentPluginTest {
         assertTrue(queryResult.isSuccess());
         assertEquals(PaymentStatus.SUCCESS, queryResult.getStatus());
 
+        // 对账口径修复：沙箱无真实账单，桩单移除后返回空列表。
         List<ChannelBillItem> bills = plugin.downloadBill(LocalDate.now());
         assertNotNull(bills);
-        assertEquals(1, bills.size());
+        assertTrue(bills.isEmpty());
+    }
+
+    @Test
+    void verifyAndParseCallback_prodEnv_rejected() {
+        // 安全修复（M08 审查）：生产环境 MOCK 回调一律验签失败。
+        MockPaymentPlugin prodPlugin = new MockPaymentPlugin(
+                new PaymentProperties("prod", null, null, null, null));
+        String json = "{\"paymentOrderId\":2091998812345678901,\"amountCents\":19900}";
+        CallbackVerifyResult result = prodPlugin.verifyAndParseCallback(Map.of(), Map.of(), json);
+        assertFalse(result.isValid());
     }
 }

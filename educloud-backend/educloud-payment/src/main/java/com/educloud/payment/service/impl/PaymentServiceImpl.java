@@ -29,10 +29,12 @@ import com.educloud.payment.spi.model.PaymentContext;
 import com.educloud.payment.spi.model.UnifiedPayResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -54,6 +56,12 @@ public class PaymentServiceImpl implements PaymentService {
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(request.getOrderId(), "orderId");
         Objects.requireNonNull(request.getChannelCode(), "channelCode");
+
+        // 安全修复（M08 审查）：生产环境拒绝 MOCK 渠道下单，与 mockConfirmPayment
+        // 及 MOCK 回调门控对齐，堵住“MOCK 渠道零成本置支付成功”资损链。
+        if (request.getChannelCode() == PaymentChannel.MOCK && isProduction(properties.environment())) {
+            throw new PaymentBizException(PaymentErrorCode.MOCK_PAY_DISABLED, "生产环境禁用 Mock 支付渠道");
+        }
 
         String internalSecret = properties.internal() != null ? properties.internal().secretToken() : null;
         ApiResponse<OrderPayableSnapshotResponse> orderSnapshotResp;
@@ -82,29 +90,20 @@ public class PaymentServiceImpl implements PaymentService {
             throw new BusinessException(CommonErrorCode.ACCESS_DENIED, "无权支付他人订单");
         }
 
+        // 金额修复（M08 审查）：元→分四舍五入后精确取整，避免 longValue() 静默截断。
         long amountCents = orderSnapshot.getPayableAmount()
                 .multiply(BigDecimal.valueOf(100))
-                .longValue();
+                .setScale(0, RoundingMode.HALF_UP)
+                .longValueExact();
 
-        PaymentOrderEntity paymentOrder = paymentOrderMapper.selectOne(
-                new LambdaQueryWrapper<PaymentOrderEntity>()
-                        .eq(PaymentOrderEntity::getOrderId, request.getOrderId())
-                        .eq(PaymentOrderEntity::getDeleted, 0)
-                        .last("LIMIT 1"));
+        LambdaQueryWrapper<PaymentOrderEntity> orderQuery = new LambdaQueryWrapper<PaymentOrderEntity>()
+                .eq(PaymentOrderEntity::getOrderId, request.getOrderId())
+                .eq(PaymentOrderEntity::getDeleted, 0)
+                .last("LIMIT 1");
+        PaymentOrderEntity paymentOrder = paymentOrderMapper.selectOne(orderQuery);
 
-        if (paymentOrder != null) {
-            if (paymentOrder.getStatus() == PaymentStatus.SUCCESS) {
-                throw new PaymentBizException(PaymentErrorCode.DUPLICATE_PAYMENT, "该订单已支付成功，请勿重复支付");
-            }
-            paymentOrder.setChannelCode(request.getChannelCode());
-            paymentOrder.setTradeType(request.getTradeType() != null ? request.getTradeType() : TradeType.NATIVE);
-            paymentOrder.setStatus(PaymentStatus.PAYING);
-            paymentOrder.setAmountCents(amountCents);
-            if (orderSnapshot.getExpiresAt() != null) {
-                paymentOrder.setExpiresAt(orderSnapshot.getExpiresAt());
-            }
-        } else {
-            paymentOrder = PaymentOrderEntity.builder()
+        if (paymentOrder == null) {
+            PaymentOrderEntity candidate = PaymentOrderEntity.builder()
                     .id(IdWorker.getId())
                     .orderId(request.getOrderId())
                     .userId(userId != null ? userId : orderSnapshot.getStudentId())
@@ -119,7 +118,27 @@ public class PaymentServiceImpl implements PaymentService {
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
-            paymentOrderMapper.insert(paymentOrder);
+            try {
+                paymentOrderMapper.insert(candidate);
+                paymentOrder = candidate;
+            } catch (DuplicateKeyException dup) {
+                // 并发提单冲突（uk_order_id）：复用既有支付单，避免同一订单双支付单重复扣款。
+                paymentOrder = paymentOrderMapper.selectOne(orderQuery);
+                if (paymentOrder == null) {
+                    throw new PaymentBizException(PaymentErrorCode.PAYMENT_ORDER_NOT_FOUND, "支付单创建并发冲突，请重试");
+                }
+            }
+        }
+
+        if (paymentOrder.getStatus() == PaymentStatus.SUCCESS) {
+            throw new PaymentBizException(PaymentErrorCode.DUPLICATE_PAYMENT, "该订单已支付成功，请勿重复支付");
+        }
+        paymentOrder.setChannelCode(request.getChannelCode());
+        paymentOrder.setTradeType(request.getTradeType() != null ? request.getTradeType() : TradeType.NATIVE);
+        paymentOrder.setStatus(PaymentStatus.PAYING);
+        paymentOrder.setAmountCents(amountCents);
+        if (orderSnapshot.getExpiresAt() != null) {
+            paymentOrder.setExpiresAt(orderSnapshot.getExpiresAt());
         }
 
         PaymentChannelPlugin plugin = channelFactory.getPlugin(request.getChannelCode());
@@ -260,6 +279,10 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public PaymentOrderEntity getById(Long paymentOrderId) {
         return paymentOrderMapper.selectById(paymentOrderId);
+    }
+
+    private static boolean isProduction(String env) {
+        return "prod".equalsIgnoreCase(env) || "production".equalsIgnoreCase(env);
     }
 
     private PaymentDetailResponse toDetailResponse(PaymentOrderEntity entity) {

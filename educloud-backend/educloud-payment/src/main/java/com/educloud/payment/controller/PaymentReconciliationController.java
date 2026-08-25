@@ -11,6 +11,7 @@ import com.educloud.payment.security.JwtSecurityUtils;
 import com.educloud.payment.service.ReconciliationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +24,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/admin/payments/reconciliation")
+// 安全修复（M08 审查）：对账端点原先仅 anyRequest().authenticated()，
+// 任意学员可触发对账并把差错单 IGNORE 掉；现按 V008 权限码方法级鉴权。
+@PreAuthorize("hasAuthority('reconciliation:admin')")
 @RequiredArgsConstructor
 public class PaymentReconciliationController {
 
@@ -31,7 +35,6 @@ public class PaymentReconciliationController {
 
     @PostMapping("/trigger")
     public ApiResponse<ReconciliationBatchResponse> triggerReconciliation(
-            @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ReconcileTriggerRequest request) {
         ReconciliationBatchResponse response = reconciliationService.runReconciliation(
                 request.getReconcileDate(), request.getChannelCode());
@@ -60,7 +63,8 @@ public class PaymentReconciliationController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable("id") Long id,
             @Valid @RequestBody ReconcileDiffResolveRequest request) {
-        Long adminUserId = jwt != null ? JwtSecurityUtils.userId(jwt) : 1L;
+        // 类级 @PreAuthorize 已保证 jwt 非空，不再默认 1L 兑底。
+        Long adminUserId = JwtSecurityUtils.userId(jwt);
         ReconciliationDiffResponse response = reconciliationService.resolveDiff(adminUserId, id, request);
         return responses.success(response);
     }

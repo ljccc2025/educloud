@@ -68,7 +68,7 @@ class PaymentServiceTest {
                 null,
                 null
         );
-        channelFactory = new PaymentChannelFactory(List.of(new MockPaymentPlugin()));
+        channelFactory = new PaymentChannelFactory(List.of(new MockPaymentPlugin(properties)));
         paymentService = new PaymentServiceImpl(
                 paymentOrderMapper,
                 paymentTransactionMapper,
@@ -172,5 +172,24 @@ class PaymentServiceTest {
         );
 
         assertThrows(PaymentBizException.class, () -> prodService.mockConfirmPayment(2091648316809035778L, 2091998812345678901L));
+    }
+
+    @Test
+    void createCashierPayment_prodEnv_mockChannel_rejected() {
+        // 安全修复（M08 审查）：生产环境收银台禁用 MOCK 渠道。
+        PaymentProperties prodProps = new PaymentProperties(
+                "prod", null, null, null, null
+        );
+        PaymentServiceImpl prodService = new PaymentServiceImpl(
+                paymentOrderMapper, paymentTransactionMapper, channelFactory, outboxEventWriter, orderClient, prodProps
+        );
+
+        CashierPayRequest request = CashierPayRequest.builder()
+                .orderId(2091895618182258690L)
+                .channelCode(PaymentChannel.MOCK)
+                .build();
+
+        assertThrows(PaymentBizException.class,
+                () -> prodService.createCashierPayment(2091648316809035778L, request));
     }
 }

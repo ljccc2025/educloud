@@ -73,11 +73,14 @@ public class ReconciliationServiceImpl implements ReconciliationService {
                 .build();
         batchMapper.insert(batch);
 
+        // 口径修复（M08 审查）：渠道账单按“交易成功时间”组织，本地圈选改按 paid_at
+        // 成功时间窗 + SUCCESS 状态，与渠道口径对齐，消除跨日单造成的每日假差错。
         List<PaymentOrderEntity> localOrders = paymentOrderMapper.selectList(
                 new LambdaQueryWrapper<PaymentOrderEntity>()
                         .eq(PaymentOrderEntity::getChannelCode, channel)
-                        .ge(PaymentOrderEntity::getCreatedAt, start)
-                        .le(PaymentOrderEntity::getCreatedAt, end)
+                        .eq(PaymentOrderEntity::getStatus, PaymentStatus.SUCCESS)
+                        .ge(PaymentOrderEntity::getPaidAt, start)
+                        .le(PaymentOrderEntity::getPaidAt, end)
                         .eq(PaymentOrderEntity::getDeleted, 0));
 
         PaymentChannelPlugin plugin = channelFactory.getPlugin(channel);

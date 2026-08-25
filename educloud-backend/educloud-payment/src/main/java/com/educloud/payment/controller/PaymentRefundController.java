@@ -10,6 +10,7 @@ import com.educloud.payment.security.JwtSecurityUtils;
 import com.educloud.payment.service.RefundService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,17 +38,22 @@ public class PaymentRefundController {
         return responses.success(response);
     }
 
+    // 安全修复（M08 审查）：退款审核/管理端点原先仅 anyRequest().authenticated()，
+    // 任意学员可自申请自审批退款（垂直越权 + 资损）；现按 V008 权限码方法级鉴权。
     @PostMapping("/admin/payments/refunds/{id}/audit")
+    @PreAuthorize("hasAuthority('refund:admin')")
     public ApiResponse<RefundDetailResponse> auditRefund(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable("id") Long id,
             @Valid @RequestBody RefundAuditRequest request) {
-        Long adminUserId = jwt != null ? JwtSecurityUtils.userId(jwt) : 1L;
+        // @PreAuthorize 已保证 jwt 非空，不再默认 1L 兑底。
+        Long adminUserId = JwtSecurityUtils.userId(jwt);
         RefundDetailResponse response = refundService.auditRefund(adminUserId, id, request);
         return responses.success(response);
     }
 
     @GetMapping("/admin/payments/refunds")
+    @PreAuthorize("hasAuthority('refund:admin')")
     public ApiResponse<PageResponse<RefundDetailResponse>> listRefunds(
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "page", defaultValue = "1") int page,
@@ -57,6 +63,7 @@ public class PaymentRefundController {
     }
 
     @GetMapping("/admin/payments/refunds/{id}")
+    @PreAuthorize("hasAuthority('refund:admin')")
     public ApiResponse<RefundDetailResponse> getRefundDetail(@PathVariable("id") Long id) {
         RefundDetailResponse response = refundService.getRefundDetail(id);
         return responses.success(response);

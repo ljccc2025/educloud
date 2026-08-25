@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS `payment_order` (
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (`id`),
-    KEY `idx_order_id` (`order_id`),
+    UNIQUE KEY `uk_order_id` (`order_id`),
     KEY `idx_user_status` (`user_id`, `status`),
     KEY `idx_channel_trade_no` (`channel_trade_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='支付主单表';
