@@ -21,6 +21,7 @@
         <module>educloud-content</module>
         <module>educloud-order</module>
         <module>educloud-payment</module>
+        <module>educloud-live</module>
     </modules>
 
     <properties>
