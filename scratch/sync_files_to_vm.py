@@ -62,6 +62,7 @@ def main():
     sftp_upload_dir(sftp, os.path.join(LOCAL_ROOT, "educloud-backend", "educloud-payment"), f"{REMOTE_ROOT}/educloud-backend/educloud-payment")
     sftp_upload_dir(sftp, os.path.join(LOCAL_ROOT, "educloud-backend", "educloud-order"), f"{REMOTE_ROOT}/educloud-backend/educloud-order")
     sftp_upload_dir(sftp, os.path.join(LOCAL_ROOT, "educloud-backend", "educloud-course"), f"{REMOTE_ROOT}/educloud-backend/educloud-course")
+    sftp_upload_dir(sftp, os.path.join(LOCAL_ROOT, "educloud-backend", "educloud-file"), f"{REMOTE_ROOT}/educloud-backend/educloud-file")
     
     # 2. Sync deploy scripts & SQL migrations
     print("\n--- Syncing Deploy & SQL ---")
@@ -82,6 +83,7 @@ def main():
     commands = [
         # 1. Database & SQL migrations
         "mysql -uroot -p1 -h127.0.0.1 -e 'CREATE DATABASE IF NOT EXISTS educloud_live DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'",
+        "mysql -uroot -p1 -h127.0.0.1 -e \"CREATE USER IF NOT EXISTS 'live_app'@'%' IDENTIFIED BY '0776b911c75c80efcb36c841c888e285a73e46c7ad721be0'; GRANT ALL PRIVILEGES ON educloud_live.* TO 'live_app'@'%'; FLUSH PRIVILEGES;\"",
         f"mysql -uroot -p1 -h127.0.0.1 educloud_live < {REMOTE_ROOT}/deploy/sql/live/V000__technical_tables.sql",
         f"mysql -uroot -p1 -h127.0.0.1 educloud_live < {REMOTE_ROOT}/deploy/sql/live/V001__live_control_plane.sql",
         f"mysql -uroot -p1 -h127.0.0.1 educloud_user < {REMOTE_ROOT}/deploy/sql/user/V009__live_permissions.sql",
@@ -93,8 +95,8 @@ def main():
         # 3. Build backend module educloud-live & parent
         f"cd {REMOTE_ROOT}/educloud-backend && mvn clean package -DskipTests=true",
         
-        # 4. Start all dev services
-        f"cd {REMOTE_ROOT} && bash deploy/scripts/start-dev.sh"
+        # 4. Convert CRLF to LF and start all dev services
+        f"cd {REMOTE_ROOT} && sed -i 's/\\r$//' deploy/scripts/*.sh && bash deploy/scripts/start-dev.sh"
     ]
     
     for cmd in commands:
