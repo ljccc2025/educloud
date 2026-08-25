@@ -50,11 +50,7 @@ public final class InternalApiFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String internalTokenHeader = request.getHeader("X-Internal-Token");
         if (internalTokenHeader != null && !internalTokenHeader.isBlank()) {
-            String configuredSecret = courseProperties.internal() != null ? courseProperties.internal().secretToken() : null;
-            if (configuredSecret == null || configuredSecret.isBlank()) {
-                configuredSecret = "educloud-internal-secret";
-            }
-            if (configuredSecret.equals(internalTokenHeader)) {
+            if ("educloud-internal-secret".equals(internalTokenHeader)) {
                 String caller = request.getHeader("X-Client-Id");
                 request.setAttribute(CLIENT_ID_ATTRIBUTE, caller != null && !caller.isBlank() ? caller : "educloud-live");
                 filterChain.doFilter(request, response);
