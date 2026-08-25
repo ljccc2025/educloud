@@ -2,11 +2,27 @@
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
 
-**目标：** 构建并交付 EduCloud 直播互动中心微服务 `educloud-live`（端口 8095/8096），完成直播间全生命周期管理（创建/开启/下播/取消）、Stream Provider SPI 插件化推拉流控制面、60s 一次性 WebSocket Ticket 握手鉴权与原子核销、基于 Spring WebSocket + Redis Pub/Sub 的实时课堂互动（弹幕/点赞/举手/白板信令/全员禁言/消息撤回）、在线人数与出勤时长统计、回放自动归档与受控 File 授权点播，以及全链路 E2E 自动化测试。
+**目标：** 构建并交付 EduCloud 直播互动中心微服务 `educloud-live`（端口 8095/8096），完成直播间全生命周期管理（创建/开启/下播/取消）、Stream Provider SPI 插件化推拉流控制面（含沙箱 Mock 与生产环境门控）、60s 一次性 WebSocket Ticket 握手鉴权与 Redis `GETDEL` 原子核销、基于 Spring WebSocket + Redis Pub/Sub 的实时课堂互动（弹幕/点赞/举手/白板信令/全员禁言/消息撤回）、在线人数与出勤时长统计、回放自动归档与受控 File 授权点播，以及对齐 M08 经验的 `repackage` 可执行 Jar 打包与全链路 E2E 自动化测试。
 
 **架构：** 基于 Spring Boot 3.2.5 + MyBatis-Plus + Nacos + Redis + RabbitMQ 双端口微服务架构；业务数据存储在独立逻辑库 `educloud_live`；基于统一 SPI（`LiveStreamProvider`）实现流媒体供应商解耦；基于 Spring 原生 WebSocket (`TextWebSocketHandler`) + Redis Pub/Sub 实现多实例房间消息跨节点广播；基于 Redis `GETDEL` 实现短效 Ticket 安全握手防重放；联动 `educloud-course` 校验选课权益，联动 `educloud-file` 获取安全签名播放 URL。
 
 **技术栈：** Java 17, Spring Boot 3.2.5, Spring Cloud Alibaba (Nacos), MyBatis-Plus 3.5.12, MySQL 8.0, Redis, Spring WebSocket (`spring-boot-starter-websocket`), OpenFeign, React 18, TypeScript, Tailwind CSS, Vite.
+
+---
+
+## 继承与吸纳 M08 支付中心核心经验
+
+1. **可执行 Fat Jar 打包规范（`repackage`）**：
+   - `educloud-live/pom.xml` 必须显式配置 `spring-boot-maven-plugin` 的 `<goal>repackage</goal>` 执行目标，确保输出含有 `Main-Class` 的完整引导 Jar，杜绝虚拟机部署时出现“没有主清单属性”报错。
+2. **Mock 插件生产环境门控防护**：
+   - `MockLiveStreamProvider` 严格判断 `EDUCLOUD_ENVIRONMENT` 与 Spring Profile，当处于 `prod` 生产环境且未显式开启沙箱模式时，拦截 Mock 推拉流地址生成并抛出明确的未配置提供方异常。
+3. **外部 RPC 调用与本地事务边界隔离**：
+   - 调用 `CourseClient`（选课校验）与 `FileClient`（回放签名）等远程 Feign 接口时，必须移出 MySQL 本地数据库事务，避免远程网络 I/O 长期占用数据库连接池引发连接耗尽。
+4. **IDOR 水平越权与 CAS 状态流转**：
+   - 所有单据/直播间操作严格比对 `userId` 与 `teacher_id` / `sender_id`；
+   - 开播（`CREATED ➔ LIVING`）与下播（`LIVING ➔ ENDED`）必须采用带版本号或原状态前置条件的原子 CAS 更新。
+5. **部署脚本自愈与探针顺序**：
+   - 虚拟机 `start-dev.sh` 按照拓扑顺序拉起 `educloud-live`，绑定 `SERVER_PORT=8095` 与 `LIVE_MANAGEMENT_PORT=8096`，通过 `/actuator/health/readiness` 探针自愈阻塞直到服务完全就绪。
 
 ---
 
@@ -16,7 +32,7 @@
 educloud-backend/
 ├── pom.xml                                                 # 注册 educloud-live 模块
 └── educloud-live/
-    ├── pom.xml                                             # 模块依赖 (Web, WebSocket, Security, Redis, Feign, MyBatis-Plus)
+    ├── pom.xml                                             # 模块依赖 (Web, WebSocket, Security, Redis, Feign, MyBatis-Plus, repackage)
     └── src/
         ├── main/
         │   ├── java/com/educloud/live/
@@ -57,7 +73,7 @@ educloud-backend/
         │   │   │   ├── LiveStreamProviderFactory.java      # 插件工厂
         │   │   │   ├── model/                              # LiveStreamPushUrl, LiveStreamPlayUrls, StreamStatus
         │   │   │   └── plugins/
-        │   │   │       └── MockLiveStreamProvider.java     # 本地自闭环沙箱推拉流插件
+        │   │   │       └── MockLiveStreamProvider.java     # 本地自闭环沙箱推拉流插件 (带生产门控)
         │   │   └── websocket/                              # WebSocket 长连接与广播体系
         │   │       ├── LiveWebSocketHandler.java           # 长连接生命周期与消息处理
         │   │       ├── LiveWebSocketInterceptor.java       # Ticket 握手拦截与鉴权
@@ -87,9 +103,9 @@ deploy/sql/user/
 - 创建：`deploy/sql/user/V009__live_permissions.sql`
 - 修改：`educloud-backend/pom.xml:20-30`（注册 `<module>educloud-live</module>`）
 
-- [ ] **步骤 1：编写技术表与基础数据 Flyway 脚本**
+- [ ] **步骤 1：编写技术表与基础数据 Flyway 脚本（雪花 ID 分配序列）**
 - [ ] **步骤 2：编写直播控制面五大核心表结构脚本（`V001__live_control_plane.sql`）**
-- [ ] **步骤 3：编写权限注入脚本（`V009__live_permissions.sql`）为管理员、教师、学生赋予对应 `live:*` 权限**
+- [ ] **步骤 3：编写权限注入脚本（`V009__live_permissions.sql`）为管理员、教师、学生赋予对应 `live:*` 权限（141~145）**
 - [ ] **步骤 4：在根工程 `pom.xml` 中注册 `educloud-live` 模块**
 - [ ] **步骤 5：Commit**
 
@@ -116,7 +132,7 @@ git commit -m "feat(live): add live control plane database migration scripts and
 - 创建：`educloud-backend/educloud-live/src/main/java/com/educloud/live/exception/LiveException.java`
 - 创建：`educloud-backend/educloud-live/src/main/java/com/educloud/live/exception/GlobalExceptionHandler.java`
 
-- [ ] **步骤 1：配置 `educloud-live/pom.xml` 包含 WebSocket、Web、Security、Redis、Feign、MyBatis-Plus 依赖**
+- [ ] **步骤 1：配置 `educloud-live/pom.xml` 包含 WebSocket、Web、Security、Redis、Feign、MyBatis-Plus 依赖，并配置 `spring-boot-maven-plugin` 的 `repackage` 目标**
 - [ ] **步骤 2：编写 `application.yml`，设置 `server.port: 8095`、`management.server.port: 8096`、MySQL、Redis、Nacos 配置**
 - [ ] **步骤 3：编写 `LiveApplication.java` 启动类，配置 `@EnableDiscoveryClient`、`@EnableFeignClients`**
 - [ ] **步骤 4：编写 `SecurityConfig.java`，加载 JWKS、放行 `/actuator/health/**` 与内部接口、校验 `live:*` 权限**
@@ -162,7 +178,7 @@ git commit -m "feat(live): add domain entities, enums and mybatis-plus mappers"
 
 ---
 
-### 任务 4：Stream Provider SPI 插件化推拉流控制面
+### 任务 4：Stream Provider SPI 插件化推拉流控制面（含生产门控）
 
 **文件：**
 - 创建：`educloud-backend/educloud-live/src/main/java/com/educloud/live/spi/model/LiveStreamPushUrl.java`
@@ -173,16 +189,16 @@ git commit -m "feat(live): add domain entities, enums and mybatis-plus mappers"
 - 创建：`educloud-backend/educloud-live/src/main/java/com/educloud/live/spi/plugins/MockLiveStreamProvider.java`
 - 测试：`educloud-backend/educloud-live/src/test/java/com/educloud/live/spi/LiveStreamProviderTest.java`
 
-- [ ] **步骤 1：编写 `LiveStreamProviderTest` 失败的单测（验证 Mock 插件生成合规签名与推拉流地址）**
+- [ ] **步骤 1：编写 `LiveStreamProviderTest` 失败的单测（验证 Mock 插件生成合规签名与推拉流地址、测试生产环境门控拦截）**
 - [ ] **步骤 2：运行测试验证失败**
-- [ ] **步骤 3：编写 SPI 接口 `LiveStreamProvider` 与 `MockLiveStreamProvider` 实现**
+- [ ] **步骤 3：编写 SPI 接口 `LiveStreamProvider` 与 `MockLiveStreamProvider` 实现（带生产门控与防盗链 MD5 计算）**
 - [ ] **步骤 4：编写 `LiveStreamProviderFactory` 工厂，按类型自动路由**
 - [ ] **步骤 5：运行测试验证通过**
 - [ ] **步骤 6：Commit**
 
 ```bash
 git add educloud-backend/educloud-live/src/main/java/com/educloud/live/spi/ educloud-backend/educloud-live/src/test/java/com/educloud/live/spi/
-git commit -m "feat(live): implement stream provider SPI and mock sandbox plugin"
+git commit -m "feat(live): implement stream provider SPI and mock sandbox plugin with prod gating"
 ```
 
 ---
@@ -196,7 +212,7 @@ git commit -m "feat(live): implement stream provider SPI and mock sandbox plugin
 
 - [ ] **步骤 1：编写 `LiveLifecycleServiceTest` 失败的单测（覆盖创建、IDOR 教师归属拦截、开播 CAS 状态变更、生成推流地址、下播结课归档）**
 - [ ] **步骤 2：运行测试验证失败**
-- [ ] **步骤 3：编写 `LiveLifecycleServiceImpl` 实现创建、修改、开播、下播、状态机校验逻辑**
+- [ ] **步骤 3：编写 `LiveLifecycleServiceImpl` 实现创建、修改、开播、下播、状态机校验逻辑，确保外部调用隔离在事务外**
 - [ ] **步骤 4：运行测试验证通过**
 - [ ] **步骤 5：Commit**
 
@@ -218,7 +234,7 @@ git commit -m "feat(live): implement live lifecycle service with strict CAS stat
 
 - [ ] **步骤 1：编写 `LiveTicketServiceTest` 失败单测（测试未选课拦截、有效选课签发 60s Ticket、Redis GETDEL 原子核销、防重放）**
 - [ ] **步骤 2：运行测试验证失败**
-- [ ] **步骤 3：实现 `CourseClient` Feign 契约与 `LiveTicketServiceImpl`**
+- [ ] **步骤 3：实现 `CourseClient` Feign 契约与 `LiveTicketServiceImpl`（外部 Feign 调用置于事务外）**
 - [ ] **步骤 4：运行测试验证通过**
 - [ ] **步骤 5：Commit**
 
@@ -309,8 +325,8 @@ git commit -m "feat(live): implement live REST controllers with full parameter a
 
 - [ ] **步骤 1：编写 `LiveFlowIntegrationTest.java` 覆盖开播 ➔ 选课校验 ➔ Ticket 签发 ➔ WS 握手 ➔ 实时互动 ➔ 下播 ➔ 回放签名 7 大阶段**
 - [ ] **步骤 2：在全量微服务（10 个模块）上执行 `mvn clean test`，确认 100% BUILD SUCCESS**
-- [ ] **步骤 3：在 `deploy/scripts/start-dev.sh` 中注册 `educloud-live` 启动逻辑并适配 8096 就绪探针**
-- [ ] **步骤 4：编写并运行 `scratch/test_live_e2e.py`**
+- [ ] **步骤 3：在 `deploy/scripts/start-dev.sh` 中注册 `educloud-live` 启动逻辑（8095/8096 端口与环境变量）并适配 8096 就绪探针**
+- [ ] **步骤 4：编写并运行 `scratch/test_live_e2e.py` 验证全链路闭环**
 - [ ] **步骤 5：Commit**
 
 ```bash
@@ -325,3 +341,4 @@ git commit -m "test(live): add end-to-end integration test and update start-dev 
 1. **规格覆盖度：** 直播间生命周期、Stream Provider SPI、60s 一次性 Ticket、Spring WebSocket + Redis Pub/Sub、录制回放 File 授权、8095/8096 双端口全部有对应任务覆盖。
 2. **占位符扫描：** 无任何 TODO、TBD 或未完成代码步骤。
 3. **类型与接口一致性：** `LiveRoomEntity`、`LiveSessionEntity`、`LiveMessageEntity`、`LiveReplayEntity`、`LiveStreamProvider`、`LiveTicketService` 命名全链路严格一致。
+4. **M08 经验吸收：** `pom.xml` 显式声明 `repackage` 目标、Mock 生产环境门控、外部 Feign 隔离在事务外、`start-dev.sh` 端口与就绪探针适配。
