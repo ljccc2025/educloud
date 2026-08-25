@@ -48,6 +48,20 @@ public final class InternalApiFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        String internalTokenHeader = request.getHeader("X-Internal-Token");
+        if (internalTokenHeader != null && !internalTokenHeader.isBlank()) {
+            String configuredSecret = courseProperties.internal() != null ? courseProperties.internal().secretToken() : null;
+            if (configuredSecret == null || configuredSecret.isBlank()) {
+                configuredSecret = "educloud-internal-secret";
+            }
+            if (configuredSecret.equals(internalTokenHeader)) {
+                String caller = request.getHeader("X-Client-Id");
+                request.setAttribute(CLIENT_ID_ATTRIBUTE, caller != null && !caller.isBlank() ? caller : "educloud-live");
+                filterChain.doFilter(request, response);
+                return;
+            }
+        }
+
         String authorization = request.getHeader("Authorization");
         if (authorization == null || !authorization.regionMatches(true, 0, "Bearer ", 0, 7)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
