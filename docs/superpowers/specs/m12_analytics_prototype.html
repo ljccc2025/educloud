@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduCloud Analytics Dashboard · Booker UI</title>
+  <title>EduCloud 学习分析与指标看板 · Booker 极简设计风格</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -19,7 +19,7 @@
               100: '#dbeafe',
               400: '#60a5fa',
               500: '#3b82f6',
-              600: '#2563eb', // Booker Royal Blue
+              600: '#2563eb', // Booker 皇家蓝
               700: '#1d4ed8',
               900: '#1e3a8a',
             },
@@ -61,7 +61,7 @@
       background: #FFFFFF;
       border: 1px solid #EAEFF5;
       border-radius: 1.25rem;
-      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.02);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.02);
       transition: all 0.2s ease;
     }
     .card-clean:hover {
@@ -69,13 +69,30 @@
       box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
     }
 
+    /* 宽敞型 KPI 指标卡 */
+    .kpi-card {
+      background: #FFFFFF;
+      border: 1px solid #EAEFF5;
+      border-radius: 1.25rem;
+      padding: 1.25rem 1.5rem;
+      min-height: 5.25rem;
+      display: flex;
+      align-items: center;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.02);
+    }
+    .kpi-card:hover {
+      border-color: #CBD5E1;
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+    }
+
     /* 胶囊垂直长条 */
     .capsule-track {
       background-color: #EDF2F7;
       border-radius: 9999px;
       position: relative;
-      width: 10px;
-      height: 140px;
+      width: 12px;
+      height: 145px;
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
@@ -92,7 +109,7 @@
     }
   </style>
 </head>
-<body class="w-full min-h-screen bg-white flex flex-col justify-between antialiased">
+<body class="w-full min-h-screen bg-white flex flex-col justify-between antialiased selection:bg-brand-600 selection:text-white">
 
   <!-- ========================================================================= -->
   <!-- 全屏铺满三栏工作台布局 (Full Viewport 3-Column Layout)                     -->
@@ -100,7 +117,7 @@
   <div class="w-full min-h-screen flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
 
     <!-- ======================================================================= -->
-    <!-- 1. 左侧导航边栏 (Left Sidebar: 64 宽，无多余外边距)                     -->
+    <!-- 1. 左侧导航边栏 (全中文导航)                                            -->
     <!-- ======================================================================= -->
     <aside class="w-full lg:w-64 bg-white p-6 lg:p-7 flex flex-col justify-between shrink-0">
       <div class="space-y-8">
@@ -110,50 +127,53 @@
           <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
             <i data-lucide="book-open" class="w-5 h-5"></i>
           </div>
-          <span class="text-2xl font-black tracking-tight text-slate-900">booker</span>
+          <div class="flex items-baseline space-x-1.5">
+            <span class="text-2xl font-black tracking-tight text-slate-900">EduCloud</span>
+            <span class="text-[11px] font-bold text-brand-600 tracking-wide">智学</span>
+          </div>
         </div>
 
-        <!-- 菜单列表 -->
+        <!-- 菜单列表 (全中文) -->
         <nav class="space-y-1.5 text-xs font-semibold">
           
           <button onclick="selectMenu(this)" class="nav-item w-full flex items-center space-x-3.5 px-3.5 py-3 rounded-2xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
             <i data-lucide="layout-grid" class="w-4 h-4 text-slate-400"></i>
-            <span>Dashboard</span>
+            <span>概览看板</span>
           </button>
 
           <button onclick="selectMenu(this)" class="nav-item w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
             <div class="flex items-center space-x-3.5">
               <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
-              <span>Community</span>
+              <span>学习社区</span>
             </div>
             <span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">2</span>
           </button>
 
           <button onclick="selectMenu(this)" class="nav-item w-full flex items-center space-x-3.5 px-3.5 py-3 rounded-2xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
             <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
-            <span>Events</span>
+            <span>教学日程</span>
           </button>
 
-          <!-- 激活态 Analytics (参考图浅蓝胶囊 + Royal Blue 高亮) -->
+          <!-- 激活态 数据分析 (参考图浅蓝胶囊 + 皇家蓝高亮) -->
           <button onclick="selectMenu(this)" class="nav-item active-nav w-full flex items-center space-x-3.5 px-3.5 py-3 rounded-2xl text-brand-600 font-bold bg-brand-50/70 transition-all">
             <i data-lucide="bar-chart-2" class="w-4 h-4 text-brand-600"></i>
-            <span>Analytics</span>
+            <span>数据分析</span>
           </button>
 
           <button onclick="selectMenu(this)" class="nav-item w-full flex items-center space-x-3.5 px-3.5 py-3 rounded-2xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
-            <i data-lucide="message-square" class="w-4 h-4 text-slate-400"></i>
-            <span>Help center</span>
+            <i data-lucide="help-circle" class="w-4 h-4 text-slate-400"></i>
+            <span>帮助中心</span>
           </button>
 
-          <!-- Settings (参考图样式) -->
+          <!-- 系统设置 -->
           <button onclick="selectMenu(this)" class="nav-item w-full flex items-center space-x-3.5 px-3.5 py-3 rounded-2xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
             <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
-            <span>Settings</span>
+            <span>系统设置</span>
           </button>
         </nav>
       </div>
 
-      <!-- 底部浅色/深色模式切换胶囊 (参考图完全一致) -->
+      <!-- 底部浅色/深色模式切换胶囊 -->
       <div class="pt-8 px-1">
         <div class="inline-flex items-center p-1 bg-slate-100/90 rounded-full border border-slate-200/80">
           <button class="w-7 h-7 rounded-full bg-white shadow-xs text-slate-800 flex items-center justify-center transition-transform hover:scale-105">
@@ -167,138 +187,148 @@
     </aside>
 
     <!-- ======================================================================= -->
-    <!-- 2. 中间主分析工作画板 (Middle Main Analytics Board: 响应式撑满)          -->
+    <!-- 2. 中间主分析工作画板 (空间舒适、修复紧绷、全中文展示)                  -->
     <!-- ======================================================================= -->
     <main class="flex-1 bg-white p-6 lg:p-8 space-y-6 overflow-y-auto">
 
-      <!-- 顶部标头 (Title + Date + Actions) -->
+      <!-- 顶部标头 (标题 + 中文日期 + 操作按钮) -->
       <div class="flex items-center justify-between pb-1">
         <div>
-          <h1 class="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">Analytics Dashboard</h1>
-          <p class="text-xs text-slate-400 font-medium mt-1">April 30, Thursday</p>
+          <h1 class="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">学习数据分析看板</h1>
+          <p class="text-xs text-slate-400 font-medium mt-1">2026年4月30日 星期四</p>
         </div>
         <div class="flex items-center space-x-2.5">
-          <button class="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all">
+          <button class="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all" title="更多操作">
             <i data-lucide="more-horizontal" class="w-4 h-4"></i>
           </button>
-          <button class="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 relative transition-all">
+          <button class="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 relative transition-all" title="系统消息">
             <i data-lucide="bell" class="w-4 h-4"></i>
             <span class="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2 border-2 border-white"></span>
           </button>
         </div>
       </div>
 
-      <!-- 第一排：3 个经典黑色纯圆图标 KPI 指标卡片 -->
+      <!-- 第一排：3 个宽敞透气的经典黑色纯圆图标 KPI 指标卡片 (彻底修复紧绷挤压) -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
         
-        <!-- 卡片 1: Overall Engagement -->
-        <div class="card-clean p-4.5 flex items-center space-x-4">
-          <div class="w-11 h-11 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-sm">
-            <i data-lucide="bar-chart" class="w-4 h-4"></i>
+        <!-- 卡片 1: 综合学习时长 -->
+        <div class="kpi-card space-x-4">
+          <div class="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <i data-lucide="bar-chart" class="w-5 h-5"></i>
           </div>
-          <div>
-            <p class="text-[11px] text-slate-400 font-medium leading-none">Overall Engagement</p>
-            <p class="text-lg lg:text-xl font-bold text-slate-900 mt-1.5">18h <span class="text-xs text-slate-400 font-normal">/ Weekly</span></p>
-          </div>
-        </div>
-
-        <!-- 卡片 2: Points Score -->
-        <div class="card-clean p-4.5 flex items-center space-x-4">
-          <div class="w-11 h-11 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-sm">
-            <i data-lucide="star" class="w-4 h-4"></i>
-          </div>
-          <div>
-            <p class="text-[11px] text-slate-400 font-medium leading-none">Points Score</p>
-            <p class="text-lg lg:text-xl font-bold text-slate-900 mt-1.5">3,430</p>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-slate-400 font-medium truncate">综合学习时长</p>
+            <div class="flex items-baseline space-x-1.5 mt-1">
+              <span class="text-2xl font-black text-slate-900 tracking-tight">18h</span>
+              <span class="text-xs text-slate-400 font-medium">/ 本周</span>
+            </div>
           </div>
         </div>
 
-        <!-- 卡片 3: Rank Score -->
-        <div class="card-clean p-4.5 flex items-center space-x-4">
-          <div class="w-11 h-11 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-sm">
-            <i data-lucide="users-2" class="w-4 h-4"></i>
+        <!-- 卡片 2: 积分总累计 -->
+        <div class="kpi-card space-x-4">
+          <div class="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <i data-lucide="star" class="w-5 h-5"></i>
           </div>
-          <div>
-            <p class="text-[11px] text-slate-400 font-medium leading-none">Rank Score</p>
-            <p class="text-lg lg:text-xl font-bold text-slate-900 mt-1.5">135</p>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-slate-400 font-medium truncate">积分总累计</p>
+            <div class="mt-1">
+              <span class="text-2xl font-black text-slate-900 tracking-tight">3,430</span>
+              <span class="text-xs text-slate-400 font-medium ml-1">分</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 卡片 3: 全站综合排名 -->
+        <div class="kpi-card space-x-4">
+          <div class="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <i data-lucide="users-2" class="w-5 h-5"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-slate-400 font-medium truncate">全站综合排名</p>
+            <div class="mt-1 flex items-baseline space-x-1">
+              <span class="text-xs text-slate-400 font-medium">第</span>
+              <span class="text-2xl font-black text-slate-900 tracking-tight">135</span>
+              <span class="text-xs text-slate-400 font-medium">名</span>
+            </div>
           </div>
         </div>
 
       </div>
 
-      <!-- 第二排：Activity Hours 胶囊立柱图 + Performance 优雅双曲线 -->
+      <!-- 第二排：学习活跃时长 (胶囊立柱图) + 综合表现 (优雅双曲线) -->
       <div class="grid grid-cols-1 xl:grid-cols-12 gap-5">
         
-        <!-- Activity Hours (占 7 列) -->
+        <!-- 学习活跃时长 (占 7 列) -->
         <div class="card-clean p-6 xl:col-span-7 flex flex-col justify-between">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-bold text-slate-900">Activity Hours</h2>
+            <h2 class="text-sm font-bold text-slate-900">学习活跃时长</h2>
             <div class="flex items-center text-xs text-slate-600 font-semibold px-2.5 py-1 bg-slate-50 border border-slate-200/80 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
-              <span>Weekly</span>
+              <span>按周查看</span>
               <i data-lucide="chevron-down" class="w-3.5 h-3.5 ml-1 text-slate-400"></i>
             </div>
           </div>
 
           <div class="flex items-end justify-between gap-6 pt-2">
-            <!-- 胶囊柱状图区域 (S M T W T F S) -->
-            <div class="flex-1 flex items-end justify-between gap-3">
-              <!-- S -->
+            <!-- 胶囊柱状图区域 (周日 到 周六) -->
+            <div class="flex-1 flex items-end justify-between gap-3 px-2">
+              <!-- 周日 (S) -->
               <div class="flex flex-col items-center gap-2.5">
                 <div class="capsule-track"><div class="capsule-fill" style="height: 65%;"></div></div>
-                <span class="text-[11px] text-slate-400 font-semibold">S</span>
+                <span class="text-xs text-slate-400 font-medium">日</span>
               </div>
-              <!-- M -->
+              <!-- 周一 (M) -->
               <div class="flex flex-col items-center gap-2.5">
                 <div class="capsule-track"><div class="capsule-fill" style="height: 85%;"></div></div>
-                <span class="text-[11px] text-slate-400 font-semibold">M</span>
+                <span class="text-xs text-slate-400 font-medium">一</span>
               </div>
-              <!-- T -->
+              <!-- 周二 (T) -->
               <div class="flex flex-col items-center gap-2.5">
                 <div class="capsule-track"><div class="capsule-fill" style="height: 75%;"></div></div>
-                <span class="text-[11px] text-slate-400 font-semibold">T</span>
+                <span class="text-xs text-slate-400 font-medium">二</span>
               </div>
-              <!-- W -->
+              <!-- 周三 (W) -->
               <div class="flex flex-col items-center gap-2.5">
                 <div class="capsule-track"><div class="capsule-fill" style="height: 40%;"></div></div>
-                <span class="text-[11px] text-slate-400 font-semibold">W</span>
+                <span class="text-xs text-slate-400 font-medium">三</span>
               </div>
-              <!-- T (当前激活天，Royal Blue 突出) -->
+              <!-- 周四 (T - 当前激活天，皇家蓝突出) -->
               <div class="flex flex-col items-center gap-2.5">
                 <div class="capsule-track"><div class="capsule-fill" style="height: 95%;"></div></div>
-                <span class="text-[11px] text-brand-600 font-extrabold">T</span>
+                <span class="text-xs text-brand-600 font-extrabold">四</span>
               </div>
-              <!-- F -->
+              <!-- 周五 (F) -->
               <div class="flex flex-col items-center gap-2.5">
                 <div class="capsule-track"><div class="capsule-fill" style="height: 55%;"></div></div>
-                <span class="text-[11px] text-slate-400 font-semibold">F</span>
+                <span class="text-xs text-slate-400 font-medium">五</span>
               </div>
-              <!-- S -->
+              <!-- 周六 (S) -->
               <div class="flex flex-col items-center gap-2.5">
                 <div class="capsule-track"><div class="capsule-fill" style="height: 80%;"></div></div>
-                <span class="text-[11px] text-slate-400 font-semibold">S</span>
+                <span class="text-xs text-slate-400 font-medium">六</span>
               </div>
             </div>
 
             <!-- 右侧指标清单 + 薄荷绿胶囊徽章 -->
-            <div class="w-36 space-y-4 border-l border-slate-100 pl-5 text-xs">
+            <div class="w-40 space-y-4 border-l border-slate-100 pl-5 text-xs">
               <div>
-                <p class="text-[11px] text-slate-400 font-medium">Time spent</p>
+                <p class="text-[11px] text-slate-400 font-medium">累计学习用时</p>
                 <div class="flex items-center justify-between mt-0.5">
-                  <span class="font-extrabold text-slate-900 text-base">28</span>
+                  <span class="font-extrabold text-slate-900 text-base">28 <span class="text-[11px] font-normal text-slate-400">小时</span></span>
                   <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-extrabold">143%</span>
                 </div>
               </div>
               <div>
-                <p class="text-[11px] text-slate-400 font-medium">Lessons taken</p>
+                <p class="text-[11px] text-slate-400 font-medium">已学完课时</p>
                 <div class="flex items-center justify-between mt-0.5">
-                  <span class="font-extrabold text-slate-900 text-base">50</span>
+                  <span class="font-extrabold text-slate-900 text-base">50 <span class="text-[11px] font-normal text-slate-400">节</span></span>
                   <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-extrabold">84%</span>
                 </div>
               </div>
               <div>
-                <p class="text-[11px] text-slate-400 font-medium">Exams passed</p>
+                <p class="text-[11px] text-slate-400 font-medium">通过考试场次</p>
                 <div class="flex items-center justify-between mt-0.5">
-                  <span class="font-extrabold text-slate-900 text-base">10</span>
+                  <span class="font-extrabold text-slate-900 text-base">10 <span class="text-[11px] font-normal text-slate-400">次</span></span>
                   <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-extrabold">100%</span>
                 </div>
               </div>
@@ -306,10 +336,10 @@
           </div>
         </div>
 
-        <!-- Performance 优雅双曲线 (占 5 列) -->
+        <!-- 综合表现折线图 (占 5 列) -->
         <div class="card-clean p-6 xl:col-span-5 flex flex-col justify-between">
           <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-bold text-slate-900">Performance</h2>
+            <h2 class="text-sm font-bold text-slate-900">学业综合表现</h2>
           </div>
 
           <!-- SVG 平滑双曲线图 -->
@@ -331,24 +361,24 @@
             </svg>
           </div>
 
-          <div class="flex justify-between text-[10px] text-slate-400 px-1 font-medium">
-            <span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span><span class="text-brand-600 font-extrabold">Apr</span><span>May</span>
+          <div class="flex justify-between text-[11px] text-slate-400 px-1 font-medium">
+            <span>11月</span><span>12月</span><span>1月</span><span>2月</span><span>3月</span><span class="text-brand-600 font-extrabold">4月</span><span>5月</span>
           </div>
 
           <div class="mt-4 pt-3.5 border-t border-slate-100 flex items-center space-x-3">
             <span class="text-lg font-black text-slate-900">30%</span>
-            <p class="text-[11px] text-slate-400 leading-tight">Your productivity is 30% higher compare to last month</p>
+            <p class="text-[11px] text-slate-400 leading-tight">您的综合学习效率较上月同期提升了 30%</p>
           </div>
         </div>
 
       </div>
 
-      <!-- 第三排：Enrolled Classes 彩色彩条列表 + Overall Activity 统计卡 -->
+      <!-- 第三排：已选修课程 (彩色彩条列表) + 互动与大纲进度 -->
       <div class="grid grid-cols-1 xl:grid-cols-12 gap-5">
         
-        <!-- Enrolled Classes (占 7 列) -->
+        <!-- 已选修课程 (占 7 列) -->
         <div class="card-clean p-6 xl:col-span-7">
-          <h2 class="text-sm font-bold text-slate-900 mb-4">Enrolled Classes</h2>
+          <h2 class="text-sm font-bold text-slate-900 mb-4">已选修课程</h2>
           
           <div class="space-y-3">
             <!-- 课程 1 (Purple) -->
@@ -356,8 +386,8 @@
               <div class="flex items-center space-x-3.5">
                 <span class="w-1 h-6 rounded-full bg-purple-500"></span>
                 <div>
-                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">After Effects CC Masterclass</p>
-                  <p class="text-[10px] text-slate-400 font-medium">10:30 - 11:30</p>
+                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">After Effects CC 影视特效大师课</p>
+                  <p class="text-[10px] text-slate-400 font-medium">今日 10:30 - 11:30</p>
                 </div>
               </div>
               <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors"></i>
@@ -368,8 +398,8 @@
               <div class="flex items-center space-x-3.5">
                 <span class="w-1 h-6 rounded-full bg-emerald-500"></span>
                 <div>
-                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">Design from A to Z</p>
-                  <p class="text-[10px] text-slate-400 font-medium">09:00 - 10:00</p>
+                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">全链路 UI/UX 设计从零到精通</p>
+                  <p class="text-[10px] text-slate-400 font-medium">今日 09:00 - 10:00</p>
                 </div>
               </div>
               <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors"></i>
@@ -380,8 +410,8 @@
               <div class="flex items-center space-x-3.5">
                 <span class="w-1 h-6 rounded-full bg-pink-500"></span>
                 <div>
-                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">Graphic Design Bootcamp</p>
-                  <p class="text-[10px] text-slate-400 font-medium">14:00 - 15:25</p>
+                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">现代平面与视觉设计实战特训</p>
+                  <p class="text-[10px] text-slate-400 font-medium">今日 14:00 - 15:25</p>
                 </div>
               </div>
               <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors"></i>
@@ -392,8 +422,8 @@
               <div class="flex items-center space-x-3.5">
                 <span class="w-1 h-6 rounded-full bg-blue-500"></span>
                 <div>
-                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">The Ultimate Guide to Usability</p>
-                  <p class="text-[10px] text-slate-400 font-medium">14:00 - 15:25</p>
+                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">Web 前端高阶工程化与架构设计</p>
+                  <p class="text-[10px] text-slate-400 font-medium">今日 14:00 - 15:25</p>
                 </div>
               </div>
               <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors"></i>
@@ -404,8 +434,8 @@
               <div class="flex items-center space-x-3.5">
                 <span class="w-1 h-6 rounded-full bg-amber-500"></span>
                 <div>
-                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">UI/UX Design Essential Training</p>
-                  <p class="text-[10px] text-slate-400 font-medium">12:00 - 13:00</p>
+                  <p class="text-xs font-bold text-slate-900 group-hover:text-brand-600 transition-colors">Spring Cloud 微服务全链路治理实战</p>
+                  <p class="text-[10px] text-slate-400 font-medium">今日 12:00 - 13:00</p>
                 </div>
               </div>
               <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 transition-colors"></i>
@@ -413,16 +443,16 @@
           </div>
         </div>
 
-        <!-- Overall Activity (占 5 列) -->
+        <!-- 互动与大纲进度 (占 5 列) -->
         <div class="card-clean p-6 xl:col-span-5 flex flex-col justify-between">
-          <h2 class="text-sm font-bold text-slate-900 mb-2">Overall Activity</h2>
+          <h2 class="text-sm font-bold text-slate-900 mb-2">互动与学习进度</h2>
 
           <div class="space-y-4">
-            <!-- Questions Activity -->
+            <!-- 提问活跃度 -->
             <div class="flex items-center justify-between">
               <div>
-                <p class="text-sm font-extrabold text-slate-900">18,12%</p>
-                <p class="text-[10px] text-slate-400 font-medium">Questions</p>
+                <p class="text-sm font-extrabold text-slate-900">18.12%</p>
+                <p class="text-[10px] text-slate-400 font-medium">提问活跃度</p>
               </div>
               <!-- 迷你青色条形波形图 -->
               <div class="flex items-end space-x-1.5 h-7">
@@ -434,11 +464,11 @@
               </div>
             </div>
 
-            <!-- Answers Activity -->
+            <!-- 答疑互动率 -->
             <div class="flex items-center justify-between">
               <div>
-                <p class="text-sm font-extrabold text-slate-900">56,22%</p>
-                <p class="text-[10px] text-slate-400 font-medium">Answers</p>
+                <p class="text-sm font-extrabold text-slate-900">56.22%</p>
+                <p class="text-[10px] text-slate-400 font-medium">答疑互动率</p>
               </div>
               <!-- 迷你蓝色条形波形图 -->
               <div class="flex items-end space-x-1.5 h-7">
@@ -451,7 +481,7 @@
             </div>
           </div>
 
-          <!-- Syllabus Status 环形进度 -->
+          <!-- 课程大纲完成进度 -->
           <div class="mt-4 pt-3.5 border-t border-slate-100 flex items-center space-x-4">
             <div class="relative w-12 h-12 flex items-center justify-center">
               <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
@@ -461,8 +491,8 @@
               <span class="absolute text-[11px] font-extrabold text-slate-900">75%</span>
             </div>
             <div>
-              <p class="text-[11px] text-slate-400 font-medium">Syllabus Status</p>
-              <p class="text-xs font-extrabold text-slate-900">75/100</p>
+              <p class="text-[11px] text-slate-400 font-medium">课程大纲完成度</p>
+              <p class="text-xs font-extrabold text-slate-900">75 / 100 课时</p>
             </div>
           </div>
         </div>
@@ -472,83 +502,83 @@
     </main>
 
     <!-- ======================================================================= -->
-    <!-- 3. 右侧辅助侧边栏 (Right Sidebar: 72 宽，撑满视口高度)                 -->
+    <!-- 3. 右侧辅助侧边栏 (全中文日程与待办)                                    -->
     <!-- ======================================================================= -->
     <aside class="w-full lg:w-80 bg-white p-6 lg:p-7 space-y-6 shrink-0">
       
-      <!-- 全圆角搜索框 (Search) -->
+      <!-- 全圆角搜索框 (中文占位符) -->
       <div class="relative">
         <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2"></i>
-        <input type="text" placeholder="Search" class="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all">
+        <input type="text" placeholder="搜索课程、日程或任务..." class="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all">
       </div>
 
-      <!-- Upcoming Events 时间网格 -->
+      <!-- 近期日程安排 (Upcoming Events) -->
       <div class="card-clean p-5">
-        <h2 class="text-sm font-bold text-slate-900 mb-4">Upcoming Events</h2>
+        <h2 class="text-sm font-bold text-slate-900 mb-4">近期日程安排</h2>
 
         <div class="text-[10px] text-slate-400 space-y-3.5">
           <!-- 刻度线 -->
-          <div class="flex justify-between pl-6 text-[9px] font-bold border-b border-slate-100 pb-1.5 text-slate-300">
+          <div class="flex justify-between pl-8 text-[9px] font-bold border-b border-slate-100 pb-1.5 text-slate-300">
             <span>09:00</span><span>10:00</span><span>11:00</span><span>12:00</span><span>13:00</span>
           </div>
 
           <div class="space-y-2.5 relative font-medium">
-            <!-- Sun -->
+            <!-- 周日 -->
             <div class="flex items-center text-xs">
-              <span class="w-6 text-[10px] text-slate-400">Sun</span>
+              <span class="w-8 text-[11px] text-slate-400">周日</span>
               <div class="flex-1 pl-2">
-                <span class="inline-block px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-medium">• Team Meetup</span>
+                <span class="inline-block px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-medium">• 团队技术周会</span>
               </div>
             </div>
 
-            <!-- Mon -->
+            <!-- 周一 -->
             <div class="flex items-center text-xs">
-              <span class="w-6 text-[10px] text-slate-400">Mon</span>
+              <span class="w-8 text-[11px] text-slate-400">周一</span>
               <div class="flex-1 pl-8">
-                <span class="inline-block px-3 py-1 rounded-full bg-slate-900 text-white text-[10px] font-semibold">• Retrospective</span>
+                <span class="inline-block px-3 py-1 rounded-full bg-slate-900 text-white text-[10px] font-semibold">• 敏捷复盘总结会</span>
               </div>
             </div>
 
-            <!-- Tue (当前选中高亮日) -->
+            <!-- 周二 (当前选中高亮日) -->
             <div class="flex items-center text-xs">
-              <span class="w-6 text-[10px] text-brand-600 font-extrabold">Tue</span>
-              <div class="flex-1 pl-5">
-                <span class="inline-block px-3 py-1 rounded-full bg-brand-600 text-white text-[10px] font-bold shadow-xs">• Illustration</span>
+              <span class="w-8 text-[11px] text-brand-600 font-extrabold">周二</span>
+              <div class="flex-1 pl-4">
+                <span class="inline-block px-3 py-1 rounded-full bg-brand-600 text-white text-[10px] font-bold shadow-xs">• 插画与视觉评审</span>
               </div>
             </div>
 
-            <!-- Wed -->
+            <!-- 周三 -->
             <div class="flex items-center text-xs">
-              <span class="w-6 text-[10px] text-slate-400">Wed</span>
+              <span class="w-8 text-[11px] text-slate-400">周三</span>
               <div class="flex-1"></div>
             </div>
 
-            <!-- Thu -->
+            <!-- 周四 -->
             <div class="flex items-center text-xs">
-              <span class="w-6 text-[10px] text-slate-400">Thu</span>
-              <div class="flex-1 pl-12">
-                <span class="inline-block px-3 py-1 rounded-full bg-blue-200 text-blue-900 text-[10px] font-bold">• Writing Report</span>
+              <span class="w-8 text-[11px] text-slate-400">周四</span>
+              <div class="flex-1 pl-10">
+                <span class="inline-block px-3 py-1 rounded-full bg-blue-200 text-blue-900 text-[10px] font-bold">• 撰写项目结项报告</span>
               </div>
             </div>
 
-            <!-- Fri -->
+            <!-- 周五 -->
             <div class="flex items-center text-xs">
-              <span class="w-6 text-[10px] text-slate-400">Fri</span>
+              <span class="w-8 text-[11px] text-slate-400">周五</span>
               <div class="flex-1"></div>
             </div>
 
-            <!-- Sat -->
+            <!-- 周六 -->
             <div class="flex items-center text-xs">
-              <span class="w-6 text-[10px] text-slate-400">Sat</span>
+              <span class="w-8 text-[11px] text-slate-400">周六</span>
               <div class="flex-1"></div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Assignments 任务清单 -->
+      <!-- 待办任务清单 (Assignments) -->
       <div class="card-clean p-5">
-        <h2 class="text-sm font-bold text-slate-900 mb-3.5">Assignments</h2>
+        <h2 class="text-sm font-bold text-slate-900 mb-3.5">待办任务清单</h2>
 
         <div class="space-y-3 text-xs">
           <!-- 3 个已完成 (蓝色圆形打勾 + 删除线) -->
@@ -556,54 +586,54 @@
             <span class="w-4 h-4 rounded-full bg-brand-600 text-white flex items-center justify-center shrink-0">
               <i data-lucide="check" class="w-2.5 h-2.5"></i>
             </span>
-            <span class="text-[11px] font-medium">Onboarding document</span>
+            <span class="text-[11px] font-medium">入门指引文档阅读</span>
           </div>
 
           <div class="flex items-center space-x-2.5 text-slate-400 line-through">
             <span class="w-4 h-4 rounded-full bg-brand-600 text-white flex items-center justify-center shrink-0">
               <i data-lucide="check" class="w-2.5 h-2.5"></i>
             </span>
-            <span class="text-[11px] font-medium">Upload document</span>
+            <span class="text-[11px] font-medium">提交开题与作业文档</span>
           </div>
 
           <div class="flex items-center space-x-2.5 text-slate-400 line-through">
             <span class="w-4 h-4 rounded-full bg-brand-600 text-white flex items-center justify-center shrink-0">
               <i data-lucide="check" class="w-2.5 h-2.5"></i>
             </span>
-            <span class="text-[11px] font-medium">Send call invitation</span>
+            <span class="text-[11px] font-medium">发送答辩会议邀请</span>
           </div>
 
           <!-- 3 个未完成 (灰色圆角方块 + 截止日期标签) -->
           <div class="flex items-start space-x-2.5 pt-1">
             <span class="w-4 h-4 rounded-md border border-slate-300 shrink-0 mt-0.5"></span>
             <div>
-              <p class="font-bold text-slate-900 text-xs leading-none">Design critique</p>
-              <p class="text-[10px] text-rose-500 font-bold mt-1">🚩 May 1 · Due tomorrow</p>
+              <p class="font-bold text-slate-900 text-xs leading-none">视觉交互方案评审</p>
+              <p class="text-[10px] text-rose-500 font-bold mt-1">🚩 5月1日 · 明天截止</p>
             </div>
           </div>
 
           <div class="flex items-start space-x-2.5 pt-1">
             <span class="w-4 h-4 rounded-md border border-slate-300 shrink-0 mt-0.5"></span>
             <div>
-              <p class="font-bold text-slate-900 text-xs leading-none">Create User Journey</p>
-              <p class="text-[10px] text-amber-600 font-bold mt-1">🚩 May 2 · Due in 2 days</p>
+              <p class="font-bold text-slate-900 text-xs leading-none">绘制学员旅程路径图</p>
+              <p class="text-[10px] text-amber-600 font-bold mt-1">🚩 5月2日 · 2天后截止</p>
             </div>
           </div>
 
           <div class="flex items-start space-x-2.5 pt-1">
             <span class="w-4 h-4 rounded-md border border-slate-300 shrink-0 mt-0.5"></span>
             <div>
-              <p class="font-bold text-slate-900 text-xs leading-none">Test new ideas</p>
-              <p class="text-[10px] text-slate-400 font-bold mt-1">🚩 May 8</p>
+              <p class="font-bold text-slate-900 text-xs leading-none">验证全新模块交互原型</p>
+              <p class="text-[10px] text-slate-400 font-bold mt-1">🚩 5月8日</p>
             </div>
           </div>
         </div>
 
-        <!-- 底部完成度薄荷绿徽章 (3/6 Complete) -->
+        <!-- 底部完成度薄荷绿徽章 (已完成 3/6 项任务) -->
         <div class="mt-4 pt-3.5 border-t border-slate-100">
           <span class="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-extrabold">
             <i data-lucide="check-circle" class="w-3 h-3 mr-1"></i>
-            3/6 Complete
+            已完成 3/6 项任务
           </span>
         </div>
       </div>
