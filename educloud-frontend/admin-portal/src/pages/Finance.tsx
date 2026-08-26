@@ -257,26 +257,26 @@ export default function Finance() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <FinanceStat
               label="总收入"
-              value={stats ? `¥${stats.totalRevenue.toLocaleString('zh-CN')}` : '—'}
+              value={stats ? `¥${(stats.totalRevenue ?? stats.totalGmv ?? 0).toLocaleString('zh-CN')}` : '—'}
               icon={CircleDollarSign}
               delay="animation-delay-100"
             />
             <FinanceStat
               label="本月收入"
-              value={stats ? `¥${stats.monthlyRevenue.toLocaleString('zh-CN')}` : '—'}
+              value={stats ? `¥${(stats.monthlyRevenue ?? stats.totalGmv ?? 0).toLocaleString('zh-CN')}` : '—'}
               trend="+23.8%"
               icon={TrendingUp}
               delay="animation-delay-200"
             />
             <FinanceStat
               label="退款金额"
-              value={stats ? `¥${stats.refundAmount.toLocaleString('zh-CN')}` : '—'}
+              value={stats ? `¥${(stats.refundAmount ?? stats.totalRefund ?? 0).toLocaleString('zh-CN')}` : '—'}
               icon={RefreshCw}
               delay="animation-delay-300"
             />
             <FinanceStat
               label="待结算"
-              value={stats ? `¥${stats.pendingSettlement.toLocaleString('zh-CN')}` : '—'}
+              value={stats ? `¥${(stats.pendingSettlement ?? 0).toLocaleString('zh-CN')}` : '—'}
               icon={Clock}
               delay="animation-delay-500"
             />

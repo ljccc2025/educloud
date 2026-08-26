@@ -147,12 +147,16 @@ export interface AuditLog {
 
 // 财务统计
 export interface FinanceStats {
-  totalRevenue: number;
-  monthlyRevenue: number;
-  refundAmount: number;
-  pendingSettlement: number;
-  transactionCount: number;
-  avgOrderValue: number;
+  totalRevenue?: number;
+  totalGmv?: number;
+  monthlyRevenue?: number;
+  refundAmount?: number;
+  totalRefund?: number;
+  pendingSettlement?: number;
+  transactionCount?: number;
+  avgOrderValue?: number;
+  avgOrderAmount?: number;
+  refundRate?: number;
 }
 
 // 月度收入
