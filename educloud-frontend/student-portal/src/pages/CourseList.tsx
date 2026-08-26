@@ -440,13 +440,13 @@ export default function CourseList() {
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="搜索课程名称、描述、讲师、标签..."
-            className="w-full pl-11 pr-10 py-3 bg-white border border-ink-200 text-ink-800 text-sm placeholder:text-ink-400 focus:outline-none focus:border-indigo-800 transition-colors"
+            className="w-full min-h-[50px] pl-11 pr-10 py-3 bg-white border border-ink-200 rounded-xl text-ink-800 text-sm placeholder:text-ink-400 focus:outline-none focus:border-indigo-800 focus:ring-1 focus:ring-indigo-800 transition-all duration-200 shadow-sm"
           />
           {search && (
             <button
               type="button"
               onClick={() => handleSearchChange('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-400 hover:text-ink-700"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-ink-400 hover:text-ink-700 rounded-lg transition-colors"
               title="清除关键词"
             >
               <X size={16} />
