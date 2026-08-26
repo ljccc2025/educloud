@@ -71,18 +71,31 @@ public class CourseVersionService {
         this.fileClient = Objects.requireNonNull(fileClient, "fileClient");
     }
 
-    /** 当前草稿（GET /teacher/courses/{id}/draft）：归属校验后返回 course.draft_version_id；无草稿 404。 */
+    /** 当前草稿或有效版本（GET /teacher/courses/{id}/draft）：归属校验后返回当前草稿或已发布/有效版本。 */
     public CourseDraftResponse getCurrentDraft(Long courseId, Long teacherId) {
         CourseEntity course = requireCourse(courseId);
         teacherAccessGuard.requireAccess(courseId, teacherId);
-        if (course.getDraftVersionId() == null) {
-            throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND,
-                    "Course has no draft version: " + courseId);
+        Long versionIdToLoad = course.getDraftVersionId();
+        if (versionIdToLoad == null) {
+            versionIdToLoad = course.getPublishedVersionId();
         }
-        CourseVersionEntity draft = versionMapper.selectById(course.getDraftVersionId());
+        if (versionIdToLoad == null) {
+            CourseVersionEntity latest = versionMapper.selectOne(new LambdaQueryWrapper<CourseVersionEntity>()
+                    .eq(CourseVersionEntity::getCourseId, courseId)
+                    .orderByDesc(CourseVersionEntity::getVersionNo)
+                    .last("LIMIT 1"));
+            if (latest != null) {
+                versionIdToLoad = latest.getId();
+            }
+        }
+        if (versionIdToLoad == null) {
+            throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND,
+                    "Course has no draft or published version: " + courseId);
+        }
+        CourseVersionEntity draft = versionMapper.selectById(versionIdToLoad);
         if (draft == null) {
             throw new BusinessException(CourseErrorCode.COURSE_NOT_FOUND,
-                    "Course has no draft version: " + courseId);
+                    "Course version not found: " + versionIdToLoad);
         }
         return response(course, draft, teacherId);
     }
@@ -143,6 +156,13 @@ public class CourseVersionService {
         try {
             versionMapper.insert(draft);
         } catch (DuplicateKeyException exception) {
+            CourseEntity reloaded = courseMapper.selectById(courseId);
+            if (reloaded != null && reloaded.getDraftVersionId() != null) {
+                CourseVersionEntity existing = versionMapper.selectById(reloaded.getDraftVersionId());
+                if (existing != null && STATUS_DRAFT.equals(existing.getVersionStatus())) {
+                    return response(reloaded, existing, teacherId);
+                }
+            }
             throw new BusinessException(CourseErrorCode.VERSION_NOT_DRAFT,
                     "Draft version was created concurrently for course: " + courseId,
                     null, exception);
@@ -151,6 +171,13 @@ public class CourseVersionService {
         course.setDraftVersionId(draft.getId());
         int updated = courseMapper.updateById(course);
         if (updated == 0) {
+            CourseEntity reloaded = courseMapper.selectById(courseId);
+            if (reloaded != null && reloaded.getDraftVersionId() != null) {
+                CourseVersionEntity existing = versionMapper.selectById(reloaded.getDraftVersionId());
+                if (existing != null && STATUS_DRAFT.equals(existing.getVersionStatus())) {
+                    return response(reloaded, existing, teacherId);
+                }
+            }
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
                     "Course root changed concurrently: " + courseId);
         }

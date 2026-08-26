@@ -37,6 +37,7 @@ const versionBanner: Record<
   PENDING_REVIEW: { text: '已提交审核（只读）', cls: 'badge-indigo' },
   REJECTED: { text: '审核未通过，可复制为新草稿', cls: 'badge-red' },
   WITHDRAWN: { text: '已撤回（只读），可复制为新草稿', cls: 'badge-red' },
+  PUBLISHED: { text: '已发布版本（可复制为新草稿继续编辑）', cls: 'badge-green' },
 };
 
 export default function CourseEdit() {
@@ -58,22 +59,39 @@ export default function CourseEdit() {
   const [activeTab, setActiveTab] = useState<Tab>('basic');
   const [retryTick, setRetryTick] = useState(0);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const loadingCourseIdRef = useRef<string | null>(null);
 
   const loadDraft = useCallback(async () => {
-    if (isNew) return;
+    if (isNew || !id) return;
+    if (loadingCourseIdRef.current === id) return;
+    loadingCourseIdRef.current = id;
     setLoading(true);
     setError(null);
     try {
-      const [cats, d] = await Promise.all([
-        teacherCourseApi.getCategories(),
-        teacherCourseApi.getDraft(id as string),
-      ]);
+      const cats = await teacherCourseApi.getCategories();
       setCategories(cats);
-      setDraft(d);
-      setNotice(null);
+
+      let draftData: CourseDraft | null = null;
+      try {
+        draftData = await teacherCourseApi.getDraft(id);
+      } catch (err) {
+        // 如果当前课程没有活动草稿（如已发布/已驳回/已撤回），自动从已有版本无缝复制或创建新草稿
+        try {
+          draftData = await teacherCourseApi.createDraft(id);
+          setNotice(`已为您基于当前版本创建草稿 v${draftData.versionNo}，可直接编辑与修改`);
+        } catch (copyErr) {
+          throw err;
+        }
+      }
+
+      setDraft(draftData);
+      if (draftData?.coverUrl) {
+        setCoverPreview(draftData.coverUrl);
+      }
     } catch (e) {
       setError(apiErrorText(e));
     } finally {
+      loadingCourseIdRef.current = null;
       setLoading(false);
     }
   }, [id, isNew]);
@@ -215,11 +233,15 @@ export default function CourseEdit() {
 
   if (!isNew && error && !draft) {
     return (
-      <div className="card-editorial p-12 text-center space-y-4">
-        <AlertCircle className="w-12 h-12 mx-auto text-red-300" />
-        <p className="text-ink-600">课程草稿加载失败</p>
-        <p className="text-sm text-ink-400">{error}</p>
-        <div className="flex items-center justify-center gap-3">
+      <div className="card-editorial p-12 text-center space-y-4 max-w-xl mx-auto my-12">
+        <AlertCircle className="w-12 h-12 mx-auto text-amber-500" />
+        <h3 className="text-lg font-bold text-ink-800">暂无待编辑草稿</h3>
+        <p className="text-sm text-ink-500">
+          {error.includes('不存在') || error.includes('not found') || error.includes('no draft')
+            ? '该课程当前处于已发布/非草稿状态，点击下方按钮即可基于最新版本创建新版本草稿继续编辑。'
+            : error}
+        </p>
+        <div className="flex items-center justify-center gap-3 pt-2">
           <button type="button" onClick={() => setRetryTick((tick) => tick + 1)} className="btn-outline">
             <RefreshCw className="w-4 h-4" />
             重新加载
@@ -244,7 +266,7 @@ export default function CourseEdit() {
               className="btn-primary"
             >
               <CopyPlus className="w-4 h-4" />
-              {copying ? '创建中…' : '从最近版本创建草稿（已发布/驳回/已撤回）'}
+              {copying ? '创建中…' : '从最近版本创建新草稿'}
             </button>
           )}
         </div>
