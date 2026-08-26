@@ -160,6 +160,18 @@
     content: '';
     @apply absolute -bottom-1 left-0 right-0 h-0.5 bg-amber-600;
   }
+
+  /* 搜索结果与联想词高亮样式 */
+  em.search-highlight,
+  .search-highlight em,
+  .search-highlight {
+    font-style: normal;
+    color: #4338ca;
+    font-weight: 600;
+    background-color: #e0e7ff;
+    padding: 0.05em 0.25em;
+    border-radius: 3px;
+  }
 }
 
 @layer utilities {

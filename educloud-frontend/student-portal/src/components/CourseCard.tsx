@@ -10,6 +10,10 @@ const levelLabel: Record<string, string> = {
   ADVANCED: '高级',
 };
 
+function stripHtml(text: string): string {
+  return text ? text.replace(/<[^>]*>/g, '') : '';
+}
+
 export default function CourseCard({ course, index = 0 }: { course: Course; index?: number }) {
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -17,11 +21,12 @@ export default function CourseCard({ course, index = 0 }: { course: Course; inde
     setImageFailed(false);
   }, [course.coverUrl, course.title]);
 
+  const rawTitle = stripHtml(course.title);
   const isFree = Number(course.price) === 0;
   // 严格匹配课程主题的高清封面
-  const coverSrc = imageFailed || !course.coverUrl ? getCourseCover(course.title, index) : course.coverUrl;
+  const coverSrc = imageFailed || !course.coverUrl ? getCourseCover(rawTitle, index) : course.coverUrl;
   // 名师信息与头衔
-  const teacher = getCourseTeacher(course.title, course.teacherName);
+  const teacher = getCourseTeacher(rawTitle, course.teacherName);
 
   return (
     <Link
@@ -33,7 +38,7 @@ export default function CourseCard({ course, index = 0 }: { course: Course; inde
       <div className="relative aspect-[16/10] overflow-hidden rounded-t-2xl bg-ink-900">
         <img
           src={coverSrc}
-          alt={course.title}
+          alt={rawTitle}
           loading="lazy"
           onError={() => setImageFailed(true)}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
@@ -58,7 +63,11 @@ export default function CourseCard({ course, index = 0 }: { course: Course; inde
           </span>
         </div>
         <h3 className="font-display text-base sm:text-lg font-bold text-ink-900 leading-snug mb-2 line-clamp-2 group-hover:text-indigo-800 transition-colors">
-          {course.title}
+          {course.title.includes('<') ? (
+            <span dangerouslySetInnerHTML={{ __html: course.title }} />
+          ) : (
+            course.title
+          )}
         </h3>
 
         {/* Teacher & Enrolled Count */}

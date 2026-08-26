@@ -32,6 +32,7 @@ const navItems = [
   { to: '/content-audit', label: '内容审核', icon: FileCheck2 },
   { to: '/orders', label: '订单管理', icon: ShoppingBag },
   { to: '/finance', label: '财务管理', icon: Wallet },
+  { to: '/search-engine', label: '搜索运维', icon: Search },
   { to: '/config', label: '系统配置', icon: Settings },
   { to: '/logs', label: '操作日志', icon: ScrollText },
 ];

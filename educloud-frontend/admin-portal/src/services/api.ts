@@ -1,5 +1,7 @@
 import dayjs from 'dayjs';
 import { http, TOKEN_KEY, type ApiEnvelope } from './http';
+import { searchAdminApi } from './searchAdminApi';
+export { searchAdminApi };
 import type {
   User,
   Course,

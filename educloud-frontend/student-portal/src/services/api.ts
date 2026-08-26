@@ -6,6 +6,7 @@ import type {
   CategoryShowcase, CartResponse, PaginatedResponse,
 } from '../types';
 import { courseApi } from './courseApi';
+import { searchApi } from './searchApi';
 
 // ---------- helpers ----------
 const delay = <T>(data: T, ms = 300): Promise<T> =>
@@ -234,7 +235,7 @@ export const homeStats: HomeStats = {
 };
 
 // ---------- API ----------
-export { courseApi };
+export { courseApi, searchApi };
 
 export const liveApi = {
   getRooms: (): Promise<LiveRoom[]> => delay(liveRooms),

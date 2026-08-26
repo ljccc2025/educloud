@@ -13,6 +13,7 @@ const OrderManage = lazy(() => import('./pages/OrderManage'));
 const Finance = lazy(() => import('./pages/Finance'));
 const SystemConfig = lazy(() => import('./pages/SystemConfig'));
 const Logs = lazy(() => import('./pages/Logs'));
+const SearchAdmin = lazy(() => import('./pages/SearchAdmin'));
 
 function LoadingFallback() {
   return (
@@ -119,6 +120,14 @@ export default function App() {
             element={
               <Suspense fallback={<LoadingFallback />}>
                 <Finance />
+              </Suspense>
+            }
+          />
+          <Route
+            path="search-engine"
+            element={
+              <Suspense fallback={<LoadingFallback />}>
+                <SearchAdmin />
               </Suspense>
             }
           />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   GraduationCap, Search, Bell, ShoppingCart, Menu, X, User,
@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../features/engagement/useNotificationStore';
+import { searchApi, type SuggestItem } from '../services/searchApi';
+import SuggestDropdown from './search/SuggestDropdown';
 
 import { cn } from '../utils/cn';
 
@@ -34,6 +36,13 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [scrolled, setScrolled] = useState(false);
+  const [suggestions, setSuggestions] = useState<SuggestItem[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  const desktopSearchRef = useRef<HTMLDivElement>(null);
+  const mobileSearchRef = useRef<HTMLDivElement>(null);
   const rafId = useRef<number>(0);
 
   useEffect(() => {
@@ -55,9 +64,93 @@ export default function Navbar() {
     };
   }, []);
 
+  // 300ms 防抖搜索建议
+  useEffect(() => {
+    const query = search.trim();
+    if (!query) {
+      setSuggestions([]);
+      setSuggestLoading(false);
+      setActiveIndex(-1);
+      return;
+    }
+
+    setSuggestLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const resp = await searchApi.fetchSearchSuggestions(query, 8);
+        setSuggestions(resp.suggestions || []);
+        setActiveIndex(-1);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSuggestLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // 点击外部关闭联想下拉
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        desktopSearchRef.current &&
+        !desktopSearchRef.current.contains(target) &&
+        mobileSearchRef.current &&
+        !mobileSearchRef.current.contains(target)
+      ) {
+        setSuggestOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectSuggest = useCallback((item: SuggestItem) => {
+    setSuggestOpen(false);
+    setMenuOpen(false);
+    if (item.type === 'COURSE' && item.targetId) {
+      navigate(`/courses/${item.targetId}`);
+    } else {
+      setSearch(item.text);
+      navigate(`/courses?keyword=${encodeURIComponent(item.text)}`);
+    }
+  }, [navigate]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!suggestOpen) {
+      if (e.key === 'ArrowDown' && suggestions.length > 0) {
+        setSuggestOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+    } else if (e.key === 'Enter') {
+      if (activeIndex >= 0 && suggestions[activeIndex]) {
+        e.preventDefault();
+        handleSelectSuggest(suggestions[activeIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setSuggestOpen(false);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (activeIndex >= 0 && suggestions[activeIndex]) {
+      handleSelectSuggest(suggestions[activeIndex]);
+      return;
+    }
     if (search.trim()) {
+      setSuggestOpen(false);
       navigate(`/courses?keyword=${encodeURIComponent(search.trim())}`);
       setMenuOpen(false);
     }
@@ -84,7 +177,7 @@ export default function Navbar() {
         data-navbar-surface
         className={cn(
           // Base layout
-          'relative mx-auto w-full overflow-hidden',
+          'relative mx-auto w-full overflow-visible',
           'transition-[max-width,border-radius,height,background-color,box-shadow,padding] duration-[520ms] ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none',
           // Pill state (top)
           !scrolled && [
@@ -152,16 +245,38 @@ export default function Navbar() {
           </nav>
 
           {/* Search */}
-          <form onSubmit={handleSearch} className="hidden xl:flex relative flex-1 max-w-[15rem] ml-auto">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索课程..."
-              className="w-full pl-9 pr-4 py-2 text-sm bg-white/80 dark:bg-ink-800/60 border border-ink-200 dark:border-ink-700 text-ink-800 dark:text-ink-100 placeholder:text-ink-400 dark:placeholder:text-ink-500 rounded-full focus:border-indigo-800 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-800/20 dark:focus:ring-indigo-400/20 focus:outline-none transition-all"
+          <div ref={desktopSearchRef} className="hidden xl:block relative flex-1 max-w-[17rem] ml-auto">
+            <form onSubmit={handleSearch} className="relative w-full">
+              <button
+                type="submit"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+                title="搜索"
+              >
+                <Search size={16} />
+              </button>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setSuggestOpen(true);
+                }}
+                onFocus={() => {
+                  if (search.trim()) setSuggestOpen(true);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="搜索课程..."
+                className="w-full pl-9 pr-4 py-2 text-sm bg-white/80 dark:bg-ink-800/60 border border-ink-200 dark:border-ink-700 text-ink-800 dark:text-ink-100 placeholder:text-ink-400 dark:placeholder:text-ink-500 rounded-full focus:border-indigo-800 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-800/20 dark:focus:ring-indigo-400/20 focus:outline-none transition-all"
+              />
+            </form>
+            <SuggestDropdown
+              visible={suggestOpen && !!search.trim()}
+              loading={suggestLoading}
+              suggestions={suggestions}
+              activeIndex={activeIndex}
+              onSelect={handleSelectSuggest}
             />
-          </form>
+          </div>
 
           {/* Right actions */}
           <div className="flex items-center gap-1 ml-auto md:ml-0">
@@ -222,16 +337,38 @@ export default function Navbar() {
       {menuOpen && (
         <div className="lg:hidden mt-2 mx-4 rounded-2xl border border-ink-100 dark:border-ink-800 bg-white dark:bg-ink-900 shadow-xl shadow-ink-900/10 dark:shadow-black/30 overflow-hidden animate-fade-in">
           <div className="px-4 py-4 space-y-1">
-            <form onSubmit={handleSearch} className="relative mb-3 md:hidden">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索课程..."
-                className="w-full pl-9 pr-4 py-2.5 text-sm bg-ink-50 dark:bg-ink-800 border border-ink-200 dark:border-ink-700 text-ink-800 dark:text-ink-100 rounded-xl focus:border-indigo-800 focus:outline-none"
+            <div ref={mobileSearchRef} className="relative mb-3 md:hidden">
+              <form onSubmit={handleSearch} className="relative w-full">
+                <button
+                  type="submit"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-indigo-800 transition-colors"
+                  title="搜索"
+                >
+                  <Search size={16} />
+                </button>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setSuggestOpen(true);
+                  }}
+                  onFocus={() => {
+                    if (search.trim()) setSuggestOpen(true);
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="搜索课程..."
+                  className="w-full pl-9 pr-4 py-2.5 text-sm bg-ink-50 dark:bg-ink-800 border border-ink-200 dark:border-ink-700 text-ink-800 dark:text-ink-100 rounded-xl focus:border-indigo-800 focus:outline-none"
+                />
+              </form>
+              <SuggestDropdown
+                visible={suggestOpen && !!search.trim()}
+                loading={suggestLoading}
+                suggestions={suggestions}
+                activeIndex={activeIndex}
+                onSelect={handleSelectSuggest}
               />
-            </form>
+            </div>
             {[
               { to: '/', label: '首页', icon: GraduationCap, end: true },
               { to: '/courses', label: '课程中心', icon: BookOpen },
