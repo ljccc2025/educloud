@@ -73,8 +73,8 @@ educloud:
       index-prefix: ${SEARCH_INDEX_PREFIX:educloud_course_v}
     jwt:
       jwks-location: ${SEARCH_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
-      issuer: ${EDUCLOUD_SEARCH_JWT_ISSUER:https://issuer.educloud.local}
-      audience: ${EDUCLOUD_SEARCH_JWT_AUDIENCE:educloud-api}
+      issuer: ${EDUCLOUD_SEARCH_JWT_ISSUER:educloud-auth}
+      audience: ${EDUCLOUD_SEARCH_JWT_AUDIENCE:educloud-web}
     internal:
       audience: ${EDUCLOUD_SEARCH_INTERNAL_AUDIENCE:educloud-search}
       allowed-client-ids: ${EDUCLOUD_SEARCH_INTERNAL_ALLOWED_CLIENT_IDS:gateway,user-service,educloud-order,educloud-course,educloud-content,educloud-file,educloud-payment,educloud-live,educloud-notification}

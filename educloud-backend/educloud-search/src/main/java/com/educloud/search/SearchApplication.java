@@ -11,7 +11,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableDiscoveryClient
 @EnableFeignClients
 @EnableScheduling
-@MapperScan("com.educloud.search.mapper")
 public class SearchApplication {
 
     public static void main(String[] args) {
