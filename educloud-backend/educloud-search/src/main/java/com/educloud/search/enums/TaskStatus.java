@@ -1,17 +1,19 @@
 package com.educloud.search.enums;
 
 import com.baomidou.mybatisplus.annotation.EnumValue;
+import com.fasterxml.jackson.annotation.JsonValue;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
+@Getter
+@RequiredArgsConstructor
 public enum TaskStatus {
-    @EnumValue
-    PENDING,
+    PENDING("PENDING"),
+    RUNNING("RUNNING"),
+    SUCCESS("SUCCESS"),
+    FAILED("FAILED");
 
     @EnumValue
-    RUNNING,
-
-    @EnumValue
-    SUCCESS,
-
-    @EnumValue
-    FAILED
+    @JsonValue
+    private final String value;
 }

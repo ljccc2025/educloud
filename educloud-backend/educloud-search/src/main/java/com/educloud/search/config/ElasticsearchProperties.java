@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
  * Elasticsearch 客户端与索引配置属性
  */
 @Data
-@Component
 @ConfigurationProperties(prefix = "educloud.search.elasticsearch")
 public class ElasticsearchProperties {
 

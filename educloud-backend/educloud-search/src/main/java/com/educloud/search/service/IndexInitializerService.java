@@ -51,18 +51,18 @@ public class IndexInitializerService implements ApplicationRunner {
                 return true;
             }
 
-            log.info("Alias [{}] not found. Creating physical index [{}] from schema [{}]...", aliasName, initialIndexName, SCHEMA_PATH);
-            ClassPathResource resource = new ClassPathResource(SCHEMA_PATH);
-            if (!resource.exists()) {
-                log.error("Elasticsearch schema resource [{}] not found in classpath!", SCHEMA_PATH);
-                return false;
+            BooleanResponse indexExists = elasticsearchClient.indices().exists(e -> e.index(initialIndexName));
+            if (!Boolean.TRUE.equals(indexExists.value())) {
+                log.info("Physical index [{}] does not exist. Creating from schema [{}]...", initialIndexName, SCHEMA_PATH);
+                try (InputStream input = openSchemaStream()) {
+                    elasticsearchClient.indices().create(c -> c.index(initialIndexName).withJson(input));
+                }
+                log.info("Physical index [{}] created successfully.", initialIndexName);
+            } else {
+                log.info("Physical index [{}] already exists.", initialIndexName);
             }
 
-            try (InputStream input = resource.getInputStream()) {
-                elasticsearchClient.indices().create(c -> c.index(initialIndexName).withJson(input));
-            }
-
-            log.info("Physical index [{}] created successfully. Binding alias [{}]...", initialIndexName, aliasName);
+            log.info("Binding alias [{}] to physical index [{}]...", aliasName, initialIndexName);
             elasticsearchClient.indices().putAlias(a -> a.index(initialIndexName).name(aliasName));
 
             log.info("Successfully bound alias [{}] to index [{}].", aliasName, initialIndexName);
@@ -72,5 +72,20 @@ public class IndexInitializerService implements ApplicationRunner {
                     initialIndexName, aliasName, e.getMessage());
             return false;
         }
+    }
+
+    private InputStream openSchemaStream() throws Exception {
+        InputStream is = getClass().getClassLoader().getResourceAsStream(SCHEMA_PATH);
+        if (is == null) {
+            is = getClass().getResourceAsStream("/" + SCHEMA_PATH);
+        }
+        if (is == null) {
+            ClassPathResource resource = new ClassPathResource(SCHEMA_PATH);
+            is = resource.getInputStream();
+        }
+        if (is == null) {
+            throw new IllegalStateException("Elasticsearch schema resource not found at " + SCHEMA_PATH);
+        }
+        return is;
     }
 }

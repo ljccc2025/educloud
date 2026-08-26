@@ -33,6 +33,7 @@ final class PathPatternAccessPolicy implements AccessPolicy {
             "/api/v1/courses/{courseId}/chapters",
             "/api/v1/coursewares/{coursewareId}/download-url",
             "/api/v1/search/courses",
+            "/api/v1/search/suggest",
             "/api/v1/recommendations/courses",
             "/ws/v1/live/**");
     // M03: logout 与 register/login/refresh 同为匿名可达（User 服务内做会话撤销）。

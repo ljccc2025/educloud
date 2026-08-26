@@ -124,7 +124,8 @@ class GatewayRouteContractTest {
         assertThat(pathArguments(route("file-core"))).containsExactly(
                 "/api/v1/files/**", "/api/v1/file-upload-sessions/**");
         assertThat(pathArguments(route("notification-core"))).containsExactly(
-                "/api/v1/notifications/**", "/api/v1/notification-channels/**");
+                "/api/v1/notifications/**", "/api/v1/notification-channels/**",
+                "/api/v1/admin/notifications/**");
         assertThat(pathArguments(route("analytics-core"))).containsExactly(
                 "/api/v1/analytics/**", "/api/v1/audit-events/**");
         assertThat(pathArguments(route("search-core"))).containsExactly("/api/v1/search/**");

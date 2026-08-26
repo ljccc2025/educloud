@@ -124,7 +124,7 @@ public class SecurityConfig {
                 }
             }
 
-            // 3. roles claims (e.g. "ADMIN" -> "ROLE_ADMIN", "ADMIN")
+            // 3. roles claims (e.g. "ADMIN" -> "ROLE_ADMIN", "SYSTEM_ADMIN" -> "ROLE_SYSTEM_ADMIN", "ROLE_ADMIN")
             Object roles = jwt.getClaim("roles");
             if (roles instanceof Collection<?> coll) {
                 for (Object item : coll) {
@@ -134,7 +134,21 @@ public class SecurityConfig {
                             authorities.add(new SimpleGrantedAuthority("ROLE_" + trimmed));
                         }
                         authorities.add(new SimpleGrantedAuthority(trimmed));
+                        if ("SYSTEM_ADMIN".equalsIgnoreCase(trimmed) || "ROLE_SYSTEM_ADMIN".equalsIgnoreCase(trimmed)) {
+                            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                            authorities.add(new SimpleGrantedAuthority("ADMIN"));
+                        }
                     }
+                }
+            }
+
+            // 4. userType claim (e.g. "ADMIN" -> "ROLE_ADMIN")
+            Object userType = jwt.getClaim("userType");
+            if (userType instanceof String ut && !ut.isBlank()) {
+                String trimmed = ut.trim();
+                if ("ADMIN".equalsIgnoreCase(trimmed)) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                    authorities.add(new SimpleGrantedAuthority("ADMIN"));
                 }
             }
 

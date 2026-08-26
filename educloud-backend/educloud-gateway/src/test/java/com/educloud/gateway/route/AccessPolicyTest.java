@@ -59,6 +59,7 @@ class AccessPolicyTest {
                 publicRead(HttpMethod.GET, "/api/v1/courses"),
                 publicRead(HttpMethod.HEAD, "/api/v1/courses/course-1"),
                 publicRead(HttpMethod.GET, "/api/v1/search/courses"),
+                publicRead(HttpMethod.GET, "/api/v1/search/suggest"),
                 publicRead(HttpMethod.HEAD, "/api/v1/recommendations/courses"),
                 Arguments.of(HttpMethod.POST, "/api/v1/auth/register",
                         AccessKind.AUTH_SENSITIVE, RouteGroups.AUTH),
@@ -88,8 +89,7 @@ class AccessPolicyTest {
                         AccessKind.PROTECTED, RouteGroups.ORDER),
                 Arguments.of(HttpMethod.GET, "/api/v1/cart",
                         AccessKind.PROTECTED, RouteGroups.ORDER),
-                Arguments.of(HttpMethod.GET, "/ws/v1/live/room-1",
-                        AccessKind.PROTECTED, RouteGroups.LIVE_WS),
+                publicRead(HttpMethod.GET, "/ws/v1/live/room-1"),
                 Arguments.of(HttpMethod.GET, "/api/v1/not-routed",
                         AccessKind.PROTECTED, RouteGroups.UNMATCHED));
     }

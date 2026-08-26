@@ -44,7 +44,7 @@ public class SearchAdminController {
      * @return 初始任务进度对象
      */
     @PostMapping("/rebuild-index")
-    @PreAuthorize("hasAuthority('search:rebuild') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('search:rebuild') or hasRole('ADMIN') or hasRole('SYSTEM_ADMIN') or hasAuthority('ROLE_ADMIN')")
     public ApiResponse<IndexTaskProgressResponse> rebuildIndex(
             @AuthenticationPrincipal Jwt jwt,
             HttpServletRequest request) {
@@ -60,7 +60,7 @@ public class SearchAdminController {
      * @return 任务进度详情
      */
     @GetMapping("/tasks/{taskNo}")
-    @PreAuthorize("hasAuthority('search:rebuild') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('search:rebuild') or hasRole('ADMIN') or hasRole('SYSTEM_ADMIN') or hasAuthority('ROLE_ADMIN')")
     public ApiResponse<IndexTaskProgressResponse> getTaskProgress(
             @PathVariable("taskNo") String taskNo) {
         IndexTaskProgressResponse progress = indexRebuildService.getTaskProgress(taskNo);
@@ -74,7 +74,7 @@ public class SearchAdminController {
      * @return 任务列表（按创建时间倒序排列）
      */
     @GetMapping("/tasks")
-    @PreAuthorize("hasAuthority('search:rebuild') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('search:rebuild') or hasRole('ADMIN') or hasRole('SYSTEM_ADMIN') or hasAuthority('ROLE_ADMIN')")
     public ApiResponse<List<IndexTaskProgressResponse>> listRecentTasks(
             @RequestParam(value = "limit", required = false, defaultValue = "20")
             @Min(value = 1, message = "查询条数最小为 1")

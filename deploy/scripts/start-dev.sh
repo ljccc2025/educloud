@@ -256,7 +256,7 @@ fi
 
 wait_ready "http://127.0.0.1:8096/actuator/health/readiness" "educloud-live"
 
-printf "[9/10] Starting educloud-notification...\n"
+printf "[9/11] Starting educloud-notification...\n"
 if port_free 8097; then
   SERVER_PORT=8097 NOTIFICATION_MANAGEMENT_PORT=8098 \
   MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_NOTIFICATION_DB_PASSWORD="${EDUCLOUD_NOTIFICATION_DB_PASSWORD:-${EDUCLOUD_ORDER_DB_PASSWORD:-b97ac137f154ee3561da13eb792c502f7e2a4c357ed7cf95}}" \
@@ -279,7 +279,31 @@ fi
 
 wait_ready "http://127.0.0.1:8098/actuator/health/readiness" "educloud-notification"
 
-printf "[10/10] Starting frontend dev servers...\n"
+printf "[10/11] Starting educloud-search...\n"
+if port_free 8099; then
+  SERVER_PORT=8099 SEARCH_MANAGEMENT_PORT=8100 \
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_SEARCH_DB_PASSWORD="${EDUCLOUD_SEARCH_DB_PASSWORD:-${EDUCLOUD_ORDER_DB_PASSWORD:-b97ac137f154ee3561da13eb792c502f7e2a4c357ed7cf95}}" \
+  REDIS_HOST=127.0.0.1 REDIS_PORT="${REDIS_PORT:-6379}" REDIS_PASSWORD="${REDIS_PASSWORD:-}" \
+  RABBITMQ_HOST=127.0.0.1 RABBITMQ_PORT="${RABBITMQ_AMQP_PORT:-5672}" \
+  RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER:-educloud_local}" RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS:-14451aa84db1b5ac47576ea9058d287c8e5ef5cb58675f42}" \
+  RABBITMQ_DEFAULT_VHOST="${RABBITMQ_DEFAULT_VHOST:-educloud}" \
+  NACOS_SERVER_ADDR=127.0.0.1:"${NACOS_HTTP_PORT:-8848}" \
+  EDUCLOUD_SEARCH_NACOS_USERNAME="${EDUCLOUD_SEARCH_NACOS_USERNAME:-${NACOS_ADMIN_USERNAME:-nacos}}" EDUCLOUD_SEARCH_NACOS_PASSWORD="${NACOS_SEARCH_PASSWORD:-${NACOS_ADMIN_PASSWORD:-nacos}}" \
+  ELASTICSEARCH_HOST=127.0.0.1 ELASTICSEARCH_PORT=9200 \
+  SEARCH_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json \
+  EDUCLOUD_SEARCH_JWT_ISSUER="${EDUCLOUD_SEARCH_JWT_ISSUER:-https://issuer.educloud.local}" \
+  EDUCLOUD_SEARCH_JWT_AUDIENCE="${EDUCLOUD_SEARCH_JWT_AUDIENCE:-educloud-api}" \
+  EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
+  setsid nohup java -jar educloud-backend/educloud-search/target/educloud-search-1.0.0-SNAPSHOT.jar \
+    > /tmp/educloud-live/search.log 2>&1 < /dev/null &
+  printf "  educloud-search started (8099/8100)\n"
+else
+  printf "  educloud-search already running\n"
+fi
+
+wait_ready "http://127.0.0.1:8100/actuator/health/readiness" "educloud-search"
+
+printf "[11/11] Starting frontend dev servers...\n"
 start_portal() {
   local dir="$1" port="$2"
   if port_free "$port"; then
@@ -307,4 +331,5 @@ printf "  Order:        http://192.168.100.136:8091  (management 8092)\n"
 printf "  Payment:      http://192.168.100.136:8093  (management 8094)\n"
 printf "  Live:         http://192.168.100.136:8095  (management 8096)\n"
 printf "  Notification: http://192.168.100.136:8097  (management 8098)\n"
-printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content,order,payment,live,notification}.log, /tmp/vm-vite-*.log\n"
+printf "  Search:       http://192.168.100.136:8099  (management 8100)\n"
+printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content,order,payment,live,notification,search}.log, /tmp/vm-vite-*.log\n"

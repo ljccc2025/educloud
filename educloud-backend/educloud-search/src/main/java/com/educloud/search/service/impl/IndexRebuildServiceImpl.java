@@ -102,11 +102,7 @@ public class IndexRebuildServiceImpl implements IndexRebuildService {
         try {
             // 1. 基于 course-v1.json 创建全新的物理索引
             log.info("Task [{}]: Creating new physical index [{}] from schema [{}]...", taskNo, newIndexName, SCHEMA_PATH);
-            ClassPathResource resource = new ClassPathResource(SCHEMA_PATH);
-            if (!resource.exists()) {
-                throw new IllegalStateException("Elasticsearch schema resource not found at " + SCHEMA_PATH);
-            }
-            try (InputStream is = resource.getInputStream()) {
+            try (InputStream is = openSchemaStream()) {
                 elasticsearchClient.indices().create(c -> c.index(newIndexName).withJson(is));
             }
             log.info("Task [{}]: Physical index [{}] created successfully.", taskNo, newIndexName);
@@ -227,5 +223,20 @@ public class IndexRebuildServiceImpl implements IndexRebuildService {
             return Collections.emptyList();
         }
         return list.stream().map(IndexTaskProgressResponse::fromEntity).toList();
+    }
+
+    private InputStream openSchemaStream() throws Exception {
+        InputStream is = getClass().getClassLoader().getResourceAsStream(SCHEMA_PATH);
+        if (is == null) {
+            is = getClass().getResourceAsStream("/" + SCHEMA_PATH);
+        }
+        if (is == null) {
+            ClassPathResource resource = new ClassPathResource(SCHEMA_PATH);
+            is = resource.getInputStream();
+        }
+        if (is == null) {
+            throw new IllegalStateException("Elasticsearch schema resource not found at " + SCHEMA_PATH);
+        }
+        return is;
     }
 }

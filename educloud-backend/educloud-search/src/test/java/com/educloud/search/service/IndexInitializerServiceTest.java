@@ -65,6 +65,7 @@ class IndexInitializerServiceTest {
         when(elasticsearchClient.indices()).thenReturn(indicesClient);
         BooleanResponse falseResponse = new BooleanResponse(false);
         when(indicesClient.existsAlias(any(Function.class))).thenReturn(falseResponse);
+        when(indicesClient.exists(any(Function.class))).thenReturn(new BooleanResponse(false));
 
         CreateIndexResponse createResponse = mock(CreateIndexResponse.class);
         when(indicesClient.create(any(Function.class))).thenReturn(createResponse);
