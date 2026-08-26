@@ -17,7 +17,7 @@ import { api } from '../services/api';
 import type { AnalyticsStats, Activity, LiveRoom } from '../types';
 import dayjs from 'dayjs';
 
-const activityIcons: Record<Activity['type'], typeof BookOpen> = {
+const activityIcons: Record<string, typeof BookOpen> = {
   enrollment: UserPlus,
   submission: ClipboardList,
   live: Radio,
@@ -41,7 +41,7 @@ export default function Dashboard() {
   const statCards = [
     { label: '课程总数', value: stats?.totalCourses ?? 0, icon: BookOpen, suffix: '门', accent: 'text-indigo-600' },
     { label: '学员总数', value: stats?.totalStudents.toLocaleString() ?? 0, icon: Users, suffix: '人', accent: 'text-amber-600' },
-    { label: '本月收入', value: stats ? `¥${stats.monthlyRevenue.toLocaleString()}` : '¥0', icon: CircleDollarSign, suffix: '', accent: 'text-green-600' },
+    { label: '本月收入', value: stats ? `¥${(stats.monthlyRevenue ?? stats.totalRevenue ?? 0).toLocaleString()}` : '¥0', icon: CircleDollarSign, suffix: '', accent: 'text-green-600' },
     { label: '待批改作业', value: stats?.pendingGrading ?? 0, icon: ClipboardList, suffix: '份', accent: 'text-red-600' },
   ];
 
@@ -99,7 +99,7 @@ export default function Dashboard() {
           </div>
           <div className="space-y-1">
             {activities.map((act) => {
-              const Icon = activityIcons[act.type];
+              const Icon = activityIcons[act.type || 'system'] || BookOpen;
               return (
                 <div
                   key={act.id}

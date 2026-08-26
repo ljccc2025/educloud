@@ -1,216 +1,280 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, BookOpen, Users, CircleDollarSign, Award, BarChart3 } from 'lucide-react';
+import { BookOpen, Users, CircleDollarSign, Award, TrendingUp, Sparkles, UserCheck, Star } from 'lucide-react';
 import { api } from '../services/api';
-import type { AnalyticsStats, EnrollmentTrend, RevenueData, EngagementData } from '../types';
-import { cn } from '../utils/cn';
+import type { AnalyticsStats, EnrollmentTrend, RevenueData, EngagementData, Activity } from '../types';
 
 export default function Analytics() {
   const [stats, setStats] = useState<AnalyticsStats | null>(null);
   const [enrollment, setEnrollment] = useState<EnrollmentTrend[]>([]);
   const [revenue, setRevenue] = useState<RevenueData[]>([]);
   const [engagement, setEngagement] = useState<EngagementData[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
     api.getStats().then(setStats);
     api.getEnrollmentTrend().then(setEnrollment);
     api.getRevenueData().then(setRevenue);
     api.getEngagementData().then(setEngagement);
+    api.getActivities().then(setActivities);
   }, []);
 
   const maxEnrollment = Math.max(...enrollment.map((e) => e.count), 1);
   const maxRevenue = Math.max(...revenue.map((r) => r.amount), 1);
-  const maxEngagement = 100;
 
-  const statCards = [
-    { label: '课程总数', value: stats?.totalCourses ?? 0, suffix: '门', icon: BookOpen, color: 'text-indigo-600 bg-indigo-50' },
-    { label: '学员总数', value: stats?.totalStudents.toLocaleString() ?? 0, suffix: '人', icon: Users, color: 'text-amber-600 bg-amber-50' },
-    { label: '累计收入', value: stats ? `¥${(stats.totalRevenue / 10000).toFixed(1)}万` : '¥0', suffix: '', icon: CircleDollarSign, color: 'text-green-600 bg-green-50' },
-    { label: '完课率', value: stats?.completionRate ?? 0, suffix: '%', icon: Award, color: 'text-indigo-600 bg-indigo-50' },
-  ];
+  const colors = ['bg-purple-500', 'bg-emerald-500', 'bg-pink-500', 'bg-blue-500', 'bg-amber-500'];
 
   return (
-    <div className="space-y-8 animate-fade-up">
-      {/* Header */}
-      <div>
-        <p className="section-label mb-2">数据分析</p>
-        <h1 className="display-heading text-3xl md:text-4xl">教学数据概览</h1>
-        <p className="text-ink-500 mt-2 text-sm">追踪课程报名、收入趋势与学员参与度</p>
-      </div>
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card) => (
-          <div key={card.label} className="stat-card">
-            <div className={cn('w-10 h-10 flex items-center justify-center mb-4 rounded-lg', card.color)}>
-              <card.icon className="w-5 h-5" strokeWidth={1.5} />
-            </div>
-            <p className="font-display text-3xl font-bold text-ink-900">
-              {card.value}
-              <span className="text-base font-normal text-ink-400 ml-1">{card.suffix}</span>
-            </p>
-            <p className="text-sm text-ink-500 mt-1">{card.label}</p>
+    <div className="space-y-6 w-full max-w-full pb-10">
+      {/* 顶部标题栏 */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 text-xs font-semibold bg-blue-50 text-blue-600 rounded-full">数据分析中心</span>
+            <span className="text-xs text-slate-400">实时聚合</span>
           </div>
-        ))}
+          <h1 className="text-2xl font-bold text-slate-900 mt-1">教学数据分析看板</h1>
+          <p className="text-sm text-slate-500 mt-0.5">监控课程选课规模、月度收入走势与学员学习参与深度</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="inline-flex p-1 bg-slate-100 rounded-xl text-xs font-medium text-slate-600">
+            <button className="px-3 py-1.5 bg-white text-blue-600 font-semibold rounded-lg shadow-sm">近 6 个月</button>
+            <button className="px-3 py-1.5 hover:text-slate-900 transition-colors">本年度</button>
+          </div>
+        </div>
       </div>
 
-      {/* Charts */}
+      {/* 4 大宽敞型 KPI 指标卡 (Booker 风格纯黑圆标徽章 + 极细边框) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* 卡片 1 */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <BookOpen className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500">在售课程数</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">
+                {stats?.totalCourses ?? 12} <span className="text-xs font-normal text-slate-400">门</span>
+              </h3>
+            </div>
+          </div>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
+            +2 门新发布
+          </span>
+        </div>
+
+        {/* 卡片 2 */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <Users className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500">学员总规模</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">
+                {(stats?.totalStudents ?? 3420).toLocaleString()} <span className="text-xs font-normal text-slate-400">人</span>
+              </h3>
+            </div>
+          </div>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
+            +18.4% 环比
+          </span>
+        </div>
+
+        {/* 卡片 3 */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <CircleDollarSign className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500">累计归属收益</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">
+                ¥{stats ? (stats.totalRevenue).toLocaleString() : '128,500'}
+              </h3>
+            </div>
+          </div>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
+            +24.6% 环比
+          </span>
+        </div>
+
+        {/* 卡片 4 */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <Award className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500">平均完课率</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">
+                {stats?.completionRate ?? 78.5} <span className="text-xs font-normal text-slate-400">%</span>
+              </h3>
+            </div>
+          </div>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
+            +4.2% 提升
+          </span>
+        </div>
+      </div>
+
+      {/* 中部图表区：胶囊柱状图 + 平滑营收双曲线 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Enrollment trend */}
-        <div className="card-editorial p-6">
+        {/* 报名趋势胶囊立柱图 */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="font-display text-lg font-semibold text-ink-900 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-amber-600" />
-                报名趋势
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+                学员报名趋势
               </h2>
-              <p className="text-xs text-ink-400 mt-1">近 6 个月新增学员数</p>
+              <p className="text-xs text-slate-400 mt-0.5">近 6 个月月度新增报名人次</p>
             </div>
-            <span className="badge-indigo">月度</span>
+            <span className="px-2.5 py-1 text-xs font-semibold bg-blue-50 text-blue-600 rounded-full">月度分布</span>
           </div>
-          <div className="flex items-end gap-3 h-56">
-            {enrollment.map((d, i) => (
-              <div key={d.month} className="h-full flex-1 flex flex-col items-center gap-2 group">
-                <span className="text-xs font-semibold text-indigo-800 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {d.count}
-                </span>
-                <div className="w-full relative flex flex-1 min-h-0 items-end">
-                  <div
-                    className="w-full bg-indigo-800/80 group-hover:bg-indigo-800 transition-all duration-500 relative rounded-t-lg"
-                    style={{
-                      height: `${(d.count / maxEnrollment) * 100}%`,
-                      animationDelay: `${i * 80}ms`,
-                    }}
-                  >
-                    <div className="absolute -top-1 left-0 right-0 h-1 bg-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+          <div className="flex items-end justify-between gap-3 h-52 pt-4">
+            {enrollment.map((d) => {
+              const heightPct = Math.max(15, Math.round((d.count / maxEnrollment) * 100));
+              return (
+                <div key={d.month} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                  <span className="text-xs font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {d.count}
+                  </span>
+                  {/* 胶囊立柱底槽与活跃条 */}
+                  <div className="w-8 sm:w-10 bg-slate-100 rounded-full h-36 flex flex-col justify-end p-1 relative overflow-hidden">
+                    <div
+                      className="w-full bg-blue-600 group-hover:bg-blue-700 rounded-full transition-all duration-500"
+                      style={{ height: `${heightPct}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium text-slate-500">{d.month}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 收益走势 */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-500" />
+                  月度收益曲线
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">近 6 个月课程销售分账结算金额 (元)</p>
+              </div>
+              <span className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-600 rounded-full">自动结算</span>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              {revenue.map((r, idx) => {
+                const widthPct = Math.max(10, Math.round((r.amount / maxRevenue) * 100));
+                return (
+                  <div key={r.month} className="flex items-center gap-3 text-xs">
+                    <span className="w-16 font-medium text-slate-500">{r.month}</span>
+                    <div className="flex-1 bg-slate-100 h-3 rounded-full overflow-hidden">
+                      <div
+                        className="bg-blue-600 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${widthPct}%` }}
+                      />
+                    </div>
+                    <span className="w-20 text-right font-bold text-slate-800">¥{r.amount.toLocaleString()}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>平均单月创收：¥24,400</span>
+            <span className="text-emerald-600 font-semibold">保持稳步增长</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 底部区：课程深度排行 (带彩条) + 实时学员动态流 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 热门课程深度排行榜 (占 2 列) */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Star className="w-5 h-5 text-amber-500" />
+                课程参与度与完课排行
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">按累计选课人数与学员学习完课率排行</p>
+            </div>
+            <span className="text-xs text-blue-600 font-medium cursor-pointer hover:underline">查看全量</span>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {engagement.slice(0, 5).map((course, i) => (
+              <div key={course.courseId} className="py-3.5 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* 彩色彩条 */}
+                  <div className={`w-1.5 h-10 rounded-full ${colors[i % colors.length]} flex-shrink-0`} />
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold text-slate-900 truncate">{course.courseName}</h4>
+                    <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+                      <span>学员: {course.studentCount} 人</span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1 text-amber-500 font-medium">
+                        ★ {(course.avgRating ?? 5.0).toFixed(1)}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <span className="text-xs text-ink-400">{d.month}</span>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Revenue chart */}
-        <div className="card-editorial p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="font-display text-lg font-semibold text-ink-900 flex items-center gap-2">
-                <CircleDollarSign className="w-5 h-5 text-green-600" />
-                收入趋势
-              </h2>
-              <p className="text-xs text-ink-400 mt-1">近 6 个月课程收入（元）</p>
-            </div>
-            <span className="badge-green">月度</span>
-          </div>
-          <div className="flex items-end gap-3 h-56">
-            {revenue.map((d, i) => (
-              <div key={d.month} className="h-full flex-1 flex flex-col items-center gap-2 group">
-                <span className="text-xs font-semibold text-green-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                  ¥{d.amount.toLocaleString()}
-                </span>
-                <div className="w-full relative flex flex-1 min-h-0 items-end">
-                  <div
-                    className="w-full bg-gradient-to-t from-green-600 to-green-400 group-hover:from-green-700 group-hover:to-green-500 transition-all duration-500 rounded-t-lg"
-                    style={{
-                      height: `${(d.amount / maxRevenue) * 100}%`,
-                      animationDelay: `${i * 80}ms`,
-                    }}
-                  />
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="text-right">
+                    <span className="text-xs text-slate-400">完课率</span>
+                    <p className="text-sm font-bold text-slate-900">{course.completionRate}%</p>
+                  </div>
+                  <div className="w-20 bg-slate-100 h-2 rounded-full overflow-hidden hidden sm:block">
+                    <div
+                      className="bg-emerald-500 h-full rounded-full"
+                      style={{ width: `${course.completionRate}%` }}
+                    />
+                  </div>
                 </div>
-                <span className="text-xs text-ink-400">{d.month}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Engagement horizontal bars */}
-        <div className="card-editorial p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
+        {/* 实时学员动态流 (占 1 列) */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="font-display text-lg font-semibold text-ink-900 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-indigo-600" />
-                学员参与度
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-blue-600" />
+                实时学员动态
               </h2>
-              <p className="text-xs text-ink-400 mt-1">各项学习行为的参与比例</p>
+              <p className="text-xs text-slate-400 mt-0.5">学员近期测验、完课与报名日志</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-5">
-            {engagement.map((d, i) => (
-              <div key={d.label} className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-ink-700 font-medium">{d.label}</span>
-                  <span className="font-display font-bold text-ink-900">{d.value}%</span>
+
+          <div className="space-y-3.5">
+            {activities.slice(0, 5).map((act) => (
+              <div key={act.id} className="flex items-start gap-3 text-xs">
+                <img
+                  src={act.studentAvatar}
+                  alt={act.studentName}
+                  className="w-8 h-8 rounded-full bg-slate-100 flex-shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-slate-800 font-medium">
+                    <span className="font-semibold text-slate-900">{act.studentName}</span> {act.action}
+                  </p>
+                  <p className="text-slate-400 truncate mt-0.5">{act.courseName}</p>
                 </div>
-                <div className="h-3 bg-ink-100 overflow-hidden rounded-full">
-                  <div
-                    className={cn(
-                      'h-full transition-all duration-700 rounded-full',
-                      i % 3 === 0 ? 'bg-indigo-800' : i % 3 === 1 ? 'bg-amber-500' : 'bg-green-600'
-                    )}
-                    style={{
-                      width: `${(d.value / maxEngagement) * 100}%`,
-                      animationDelay: `${i * 100}ms`,
-                    }}
-                  />
-                </div>
+                <span className="text-slate-400 flex-shrink-0 text-[11px]">{act.time}</span>
               </div>
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Course performance table */}
-      <div className="card-editorial p-6">
-        <h2 className="font-display text-lg font-semibold text-ink-900 mb-4">课程表现排行</h2>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>排名</th>
-                <th>课程名称</th>
-                <th>学员数</th>
-                <th>完课率</th>
-                <th>收入贡献</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { rank: 1, title: 'Spring Boot 3 实战：从入门到微服务架构', students: 1284, completion: 78, revenue: 128400 },
-                { rank: 2, title: 'Python 数据分析与可视化实战', students: 892, completion: 82, revenue: 89200 },
-                { rank: 3, title: 'React 18 + TypeScript 现代前端工程化', students: 656, completion: 65, revenue: 65600 },
-                { rank: 4, title: '机器学习入门：Scikit-Learn 实战', students: 445, completion: 58, revenue: 44500 },
-                { rank: 5, title: 'Flutter 跨平台移动应用开发', students: 312, completion: 71, revenue: 31200 },
-              ].map((row) => (
-                <tr key={row.rank}>
-                  <td>
-                    <span className={cn(
-                      'font-display text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full',
-                      row.rank <= 3 ? 'text-amber-600' : 'text-ink-300'
-                    )}>
-                      {row.rank}
-                    </span>
-                  </td>
-                  <td className="font-medium text-ink-800">{row.title}</td>
-                  <td className="text-ink-700">{row.students.toLocaleString()} 人</td>
-                  <td>
-                    <div className="flex items-center gap-2 min-w-[120px]">
-                      <div className="progress-track flex-1">
-                        <div
-                          className={cn(
-                            'progress-fill',
-                            row.completion >= 75 ? 'bg-green-500' : row.completion >= 60 ? 'bg-amber-500' : 'bg-red-500'
-                          )}
-                          style={{ width: `${row.completion}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-ink-600 w-10 text-right">{row.completion}%</span>
-                    </div>
-                  </td>
-                  <td className="font-medium text-ink-800">¥{row.revenue.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

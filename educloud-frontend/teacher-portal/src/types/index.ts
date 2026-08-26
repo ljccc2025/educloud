@@ -131,16 +131,20 @@ export interface Exam {
 
 export interface Activity {
   id: string;
-  type: 'enrollment' | 'submission' | 'live' | 'comment' | 'system';
-  content: string;
+  type?: 'enrollment' | 'submission' | 'live' | 'comment' | 'system';
+  content?: string;
   time: string;
+  studentName?: string;
+  studentAvatar?: string;
+  action?: string;
+  courseName?: string;
 }
 
 export interface AnalyticsStats {
   totalCourses: number;
   totalStudents: number;
-  monthlyRevenue: number;
-  pendingGrading: number;
+  monthlyRevenue?: number;
+  pendingGrading?: number;
   totalRevenue: number;
   completionRate: number;
 }
@@ -156,8 +160,13 @@ export interface RevenueData {
 }
 
 export interface EngagementData {
-  label: string;
-  value: number;
+  label?: string;
+  value?: number;
+  courseId?: string;
+  courseName?: string;
+  studentCount?: number;
+  avgRating?: number;
+  completionRate?: number;
 }
 
 // ---------- 课程真实 API 类型（M05 任务 22：教师课程管理与封面上传） ----------

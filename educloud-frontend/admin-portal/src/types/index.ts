@@ -167,24 +167,31 @@ export interface DashboardStats {
   totalUsers: number;
   totalCourses: number;
   totalRevenue: number;
-  onlineUsers: number;
-  userGrowth: number;
-  courseGrowth: number;
-  revenueGrowth: number;
-  onlineGrowth: number;
+  onlineUsers?: number;
+  activeLives?: number;
+  userGrowth?: number;
+  userGrowthRate?: number;
+  courseGrowth?: number;
+  courseGrowthRate?: number;
+  revenueGrowth?: number;
+  revenueGrowthRate?: number;
+  onlineGrowth?: number;
 }
 
 // 用户增长数据点
 export interface UserGrowthPoint {
   date: string;
   users: number;
-  newUsers: number;
+  courses?: number;
+  newUsers?: number;
 }
 
 // 分类统计
 export interface CategoryStat {
   name: string;
-  count: number;
+  count?: number;
+  value?: number;
+  percentage?: number;
 }
 
 // 订单状态统计

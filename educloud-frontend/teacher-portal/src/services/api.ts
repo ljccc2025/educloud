@@ -831,10 +831,81 @@ export const api = {
     return delay(newExam);
   },
 
-  // Dashboard
-  getActivities: () => delay(mockActivities),
-  getStats: () => delay(mockStats),
-  getEnrollmentTrend: () => delay(enrollmentTrend),
-  getRevenueData: () => delay(revenueData),
-  getEngagementData: () => delay(engagementData),
+  // Dashboard & Analytics
+  getActivities: async (): Promise<Activity[]> => {
+    try {
+      const resp = await http.get<ApiEnvelope<any[]>>('/analytics/teacher/activities');
+      if (resp.data?.data) {
+        return resp.data.data.map((item) => ({
+          id: item.id || `act-${Math.random()}`,
+          studentName: item.studentName || '学员',
+          studentAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.studentName}&backgroundColor=c7d2fe`,
+          action: item.action || '进行了学习操作',
+          courseName: item.courseName || '微服务实战',
+          time: item.timeAgo || '刚刚',
+        }));
+      }
+    } catch (e) {
+      console.warn('Backend analytics API not reachable, falling back to mock:', e);
+    }
+    return delay(mockActivities);
+  },
+
+  getStats: async (): Promise<AnalyticsStats> => {
+    try {
+      const resp = await http.get<ApiEnvelope<AnalyticsStats>>('/analytics/teacher/stats');
+      if (resp.data?.data) return resp.data.data;
+    } catch (e) {
+      console.warn('Backend analytics API not reachable, falling back to mock:', e);
+    }
+    return delay(mockStats);
+  },
+
+  getEnrollmentTrend: async (): Promise<EnrollmentTrend[]> => {
+    try {
+      const resp = await http.get<ApiEnvelope<any[]>>('/analytics/teacher/trend/enrollment');
+      if (resp.data?.data) {
+        return resp.data.data.map((item) => ({
+          month: item.month,
+          count: item.enrollments ?? item.count ?? 0,
+        }));
+      }
+    } catch (e) {
+      console.warn('Backend analytics API not reachable, falling back to mock:', e);
+    }
+    return delay(enrollmentTrend);
+  },
+
+  getRevenueData: async (): Promise<RevenueData[]> => {
+    try {
+      const resp = await http.get<ApiEnvelope<any[]>>('/analytics/teacher/trend/revenue');
+      if (resp.data?.data) {
+        return resp.data.data.map((item) => ({
+          month: item.month,
+          amount: item.revenue ?? item.amount ?? 0,
+        }));
+      }
+    } catch (e) {
+      console.warn('Backend analytics API not reachable, falling back to mock:', e);
+    }
+    return delay(revenueData);
+  },
+
+  getEngagementData: async (): Promise<EngagementData[]> => {
+    try {
+      const resp = await http.get<ApiEnvelope<any[]>>('/analytics/teacher/engagement');
+      if (resp.data?.data) {
+        return resp.data.data.map((item) => ({
+          courseId: item.courseId,
+          courseName: item.courseTitle ?? item.courseName,
+          completionRate: item.completionRate ?? 0,
+          avgRating: item.avgRating ?? 5.0,
+          studentCount: item.totalEnrollments ?? item.studentCount ?? 0,
+        }));
+      }
+    } catch (e) {
+      console.warn('Backend analytics API not reachable, falling back to mock:', e);
+    }
+    return delay(engagementData);
+  },
 };

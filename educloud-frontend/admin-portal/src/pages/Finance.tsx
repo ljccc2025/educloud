@@ -25,6 +25,7 @@ import {
 import DataTable, { type Column } from '../components/DataTable';
 import { financeApi } from '../services/api';
 import { paymentAdminApi, type RefundDetail, type ReconciliationBatch, type ReconciliationDiff } from '../services/paymentAdminApi';
+import { analyticsAdminApi } from '../services/analyticsAdminApi';
 import type { FinanceStats, MonthlyRevenue, Order } from '../types';
 import { useChartColors } from '../hooks/useChartColors';
 
@@ -56,15 +57,23 @@ export default function Finance() {
   const [resolveRemark, setResolveRemark] = useState('');
 
   const loadOverview = () => {
-    void Promise.all([
-      financeApi.getStats(),
-      financeApi.getMonthlyRevenue(),
-      financeApi.getTransactions(),
-    ]).then(([s, m, t]) => {
-      setStats(s);
-      setMonthly(m);
-      setTransactions(t);
+    analyticsAdminApi.getFinanceOverview().then((res) => {
+      if (res?.stats) setStats(res.stats);
+      if (res?.monthly) setMonthly(res.monthly);
+    }).catch((e) => {
+      console.warn('Failed to load finance overview from analytics backend, using fallback:', e);
+      void Promise.all([
+        financeApi.getStats(),
+        financeApi.getMonthlyRevenue(),
+        financeApi.getTransactions(),
+      ]).then(([s, m, t]) => {
+        setStats(s);
+        setMonthly(m);
+        setTransactions(t);
+      });
     });
+
+    financeApi.getTransactions().then(setTransactions).catch(console.warn);
   };
 
   const loadRefunds = async () => {
@@ -714,17 +723,21 @@ function FinanceStat({
   delay?: string;
 }) {
   return (
-    <div className={`stat-card animate-fade-up opacity-0 ${delay ?? ''}`}>
-      <div className="flex items-start justify-between mb-4">
-        <span className="text-xs font-medium uppercase tracking-widest text-ink-400">{label}</span>
-        <span className="flex items-center justify-center w-9 h-9 bg-brand-500/10 text-brand-500 dark:text-brand-400">
-          <Icon size={18} />
+    <div className={`bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between ${delay ?? ''}`}>
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+          <Icon className="w-6 h-6" />
+        </div>
+        <div>
+          <p className="text-xs font-medium text-slate-500">{label}</p>
+          <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{value}</h3>
+        </div>
+      </div>
+      {trend && (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
+          {trend}
         </span>
-      </div>
-      <div className="font-display text-2xl md:text-3xl font-bold text-ink-900 leading-none mb-2">
-        {value}
-      </div>
-      {trend && <span className="text-sm text-green-500 dark:text-green-400 font-medium">{trend} 较上月</span>}
+      )}
     </div>
   );
 }
