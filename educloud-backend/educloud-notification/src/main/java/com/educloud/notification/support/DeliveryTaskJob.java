@@ -36,6 +36,12 @@ public class DeliveryTaskJob {
 
         log.debug("[DeliveryTaskJob] Processing {} pending delivery tasks", pendingTasks.size());
         for (DeliveryTaskEntity task : pendingTasks) {
+            // CAS 认领：多实例部署时防止同一任务被重复发送（重复邮件）；
+            // 实例崩溃残留的 SENDING 任务超过 5 分钟可被重新认领
+            int claimed = deliveryTaskMapper.claimTask(task.getId(), now);
+            if (claimed == 0) {
+                continue;
+            }
             processSingleTask(task, now);
         }
     }
@@ -91,6 +97,7 @@ public class DeliveryTaskJob {
         } else {
             // 指数退避: 1次重试 +1m, 2次重试 +5m, 3次重试 +15m
             long delayMinutes = (long) Math.pow(2, newRetryCount);
+            task.setStatus(DeliveryStatus.PENDING);
             task.setNextRetryAt(now.plusMinutes(delayMinutes));
             log.warn("[DeliveryTaskJob] Task {} failed (retry {}/{}), next attempt at {}",
                     task.getId(), newRetryCount, maxRetries, task.getNextRetryAt());

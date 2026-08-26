@@ -87,8 +87,11 @@ public class IndexSyncServiceImpl implements IndexSyncService {
                 log.info("Successfully deleted/offlined course document [{}] from ES alias [{}]", courseId, aliasName);
                 recordInbox(messageId, eventType, aggregateType, courseId, eventVersion, serializePayload(event), "PROCESSED", null);
             } catch (Exception e) {
-                log.warn("Exception while deleting course document [{}] from ES: {}", courseId, e.getMessage());
-                recordInbox(messageId, eventType, aggregateType, courseId, eventVersion, serializePayload(event), "PROCESSED", null);
+                // 删除失败必须走重试/死信：标记 FAILED 并抛异常，由消费者 NACK 路由到 DLQ，
+                // 避免下架/删除课程残留在 ES 索引中被搜索到（曾静默标 PROCESSED 导致一致性问题）
+                log.error("Failed to delete course document [{}] from ES: {}", courseId, e.getMessage(), e);
+                recordInbox(messageId, eventType, aggregateType, courseId, eventVersion, serializePayload(event), "FAILED", e.getMessage());
+                throw new RuntimeException("Elasticsearch delete failed for course " + courseId, e);
             }
         } else {
             // 发布或更新：组装/更新文档并写入 ES

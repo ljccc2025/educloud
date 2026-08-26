@@ -1,5 +1,6 @@
 package com.educloud.payment.service;
 
+import com.educloud.common.api.ApiResponse;
 import com.educloud.payment.config.PaymentProperties;
 import com.educloud.payment.entity.PaymentCallbackLogEntity;
 import com.educloud.payment.entity.PaymentOrderEntity;
@@ -8,6 +9,8 @@ import com.educloud.payment.enums.PaymentChannel;
 import com.educloud.payment.enums.PaymentStatus;
 import com.educloud.payment.exception.PaymentBizException;
 import com.educloud.payment.exception.PaymentErrorCode;
+import com.educloud.payment.feign.OrderClient;
+import com.educloud.payment.feign.dto.OrderPayableSnapshotResponse;
 import com.educloud.payment.mapper.PaymentCallbackLogMapper;
 import com.educloud.payment.mapper.PaymentOrderMapper;
 import com.educloud.payment.mapper.PaymentTransactionMapper;
@@ -22,7 +25,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -58,23 +64,45 @@ class PaymentCallbackServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private OrderClient orderClient;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     private PaymentCallbackServiceImpl callbackService;
+
+    private static final PaymentProperties LOCAL_PROPERTIES = new PaymentProperties("local", null, null, null, null);
 
     @BeforeEach
     void setUp() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
 
         PaymentChannelFactory channelFactory = new PaymentChannelFactory(List.of(
-                new MockPaymentPlugin(new PaymentProperties("local", null, null, null, null))));
+                new MockPaymentPlugin(LOCAL_PROPERTIES)));
         callbackService = new PaymentCallbackServiceImpl(
                 paymentOrderMapper,
                 paymentTransactionMapper,
                 callbackLogMapper,
                 channelFactory,
                 outboxEventWriter,
-                redisTemplate
+                redisTemplate,
+                orderClient,
+                LOCAL_PROPERTIES,
+                transactionManager
         );
+    }
+
+    private void stubPayableBusinessOrder(Long orderId) {
+        OrderPayableSnapshotResponse snapshot = OrderPayableSnapshotResponse.builder()
+                .orderId(orderId)
+                .status("PENDING_PAYMENT")
+                .expiresAt(LocalDateTime.now().plusMinutes(10))
+                .build();
+        when(orderClient.getPayableSnapshot(eq(orderId), any())).thenReturn(
+                new ApiResponse<>("OK", "success", snapshot, "req-1", Instant.now()));
     }
 
     @Test
@@ -93,6 +121,7 @@ class PaymentCallbackServiceTest {
         when(paymentOrderMapper.selectById(2091998812345678901L)).thenReturn(paymentOrder);
         when(paymentOrderMapper.updateStatusToSuccessCas(eq(2091998812345678901L), eq(PaymentStatus.SUCCESS), any(), any(), any()))
                 .thenReturn(1);
+        stubPayableBusinessOrder(2091895618182258690L);
 
         String json = "{\"paymentOrderId\":2091998812345678901,\"amountCents\":19900,\"notifyId\":\"NOTIFY_001\",\"channelTradeNo\":\"TR_001\"}";
         String response = callbackService.handleCallback(PaymentChannel.MOCK, Map.of(), Map.of(), json);
@@ -126,6 +155,9 @@ class PaymentCallbackServiceTest {
 
         assertEquals(PaymentErrorCode.AMOUNT_MISMATCH, exception.errorCode());
         verify(outboxEventWriter, never()).writeEvent(any(), any(), any(), any());
+        // 安全事件审计必须在主事务回滚后仍然落库（修复：审计随事务丢失的问题）
+        verify(callbackLogMapper).insert(any(PaymentCallbackLogEntity.class));
+        verify(callbackLogMapper).updateById(any(PaymentCallbackLogEntity.class));
     }
 
     @Test
@@ -142,14 +174,13 @@ class PaymentCallbackServiceTest {
                 .build();
 
         when(paymentOrderMapper.selectById(2091998812345678901L)).thenReturn(paymentOrder);
-        // CAS 失败（因为已经是 SUCCESS）
-        when(paymentOrderMapper.updateStatusToSuccessCas(eq(2091998812345678901L), eq(PaymentStatus.SUCCESS), any(), any(), any()))
-                .thenReturn(0);
 
         String json = "{\"paymentOrderId\":2091998812345678901,\"amountCents\":19900,\"notifyId\":\"NOTIFY_001\",\"channelTradeNo\":\"TR_001\"}";
         String response = callbackService.handleCallback(PaymentChannel.MOCK, Map.of(), Map.of(), json);
 
         assertNotNull(response);
         verify(outboxEventWriter, never()).writeEvent(any(), any(), any(), any());
+        // 幂等回调不重复入账，也不重复查询业务订单可付性（支付单已终态直接短路）
+        verify(orderClient, never()).getPayableSnapshot(any(), any());
     }
 }

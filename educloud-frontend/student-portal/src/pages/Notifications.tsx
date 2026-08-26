@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -6,6 +6,7 @@ import {
   CalendarCheck,
   CheckCheck,
   ClipboardCheck,
+  CreditCard,
   Radio,
   Settings,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ const kindConfig: Record<NotificationKind, { label: string; icon: typeof Bell; c
   EXAM: { label: '考试', icon: CalendarCheck, className: 'bg-green-50 text-green-700' },
   LIVE: { label: '直播', icon: Radio, className: 'bg-red-50 text-red-700' },
   SYSTEM: { label: '系统', icon: Settings, className: 'bg-ink-100 text-ink-600' },
+  PAYMENT: { label: '支付', icon: CreditCard, className: 'bg-emerald-50 text-emerald-700' },
 };
 
 type NotificationFilter = 'ALL' | 'UNREAD';
@@ -26,9 +28,15 @@ type NotificationFilter = 'ALL' | 'UNREAD';
 export default function Notifications() {
   const navigate = useNavigate();
   const notifications = useNotificationStore((state) => state.notifications);
+  const loading = useNotificationStore((state) => state.loading);
+  const fetchNotifications = useNotificationStore((state) => state.fetchNotifications);
   const markRead = useNotificationStore((state) => state.markRead);
   const markAllRead = useNotificationStore((state) => state.markAllRead);
   const [filter, setFilter] = useState<NotificationFilter>('ALL');
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const unreadCount = useMemo(
     () => notifications.reduce((count, notification) => count + Number(!notification.read), 0),
@@ -39,7 +47,7 @@ export default function Notifications() {
     [filter, notifications],
   );
 
-  const openNotification = (id: number, actionPath?: string) => {
+  const openNotification = (id: string, actionPath?: string) => {
     markRead(id);
     if (actionPath) navigate(actionPath);
   };
@@ -91,10 +99,16 @@ export default function Notifications() {
         </aside>
 
         <section className="min-w-0 space-y-3" aria-live="polite">
-          {visibleNotifications.length === 0 ? (
+          {loading && notifications.length === 0 ? (
+            <div className="card-editorial flex min-h-64 items-center justify-center px-6 text-center">
+              <p className="text-sm text-ink-400">加载中…</p>
+            </div>
+          ) : visibleNotifications.length === 0 ? (
             <div className="card-editorial flex min-h-64 flex-col items-center justify-center px-6 text-center">
               <CheckCheck className="mb-4 text-green-600" size={36} />
-              <h2 className="font-display text-xl font-semibold text-ink-900">没有未读通知</h2>
+              <h2 className="font-display text-xl font-semibold text-ink-900">
+                {filter === 'UNREAD' ? '没有未读通知' : '暂无通知'}
+              </h2>
               <p className="mt-2 text-sm text-ink-400">新的学习动态会及时出现在这里</p>
             </div>
           ) : visibleNotifications.map((notification) => {

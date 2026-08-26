@@ -1,85 +1,92 @@
 import { create } from 'zustand';
-import type { StudentNotification } from './types';
+import { http } from '../../services/http';
+import type { StudentNotification, NotificationKind } from './types';
 
-const initialNotifications: StudentNotification[] = [
-  {
-    id: 1,
-    kind: 'ASSIGNMENT',
-    title: '作业截止时间提醒',
-    content: '“第三章习题：导数与微分”将在 3 天后截止，请合理安排提交时间。',
-    createdAt: '2026-08-18 09:20',
-    read: false,
-    actionLabel: '查看作业',
-    actionPath: '/assignments',
-  },
-  {
-    id: 2,
-    kind: 'LIVE',
-    title: '直播课堂即将开始',
-    content: '李明远老师的“第三章直播答疑：导数的应用”将在今晚 19:30 开始。',
-    createdAt: '2026-08-18 08:45',
-    read: false,
-    actionLabel: '进入直播',
-    actionPath: '/live/1',
-  },
-  {
-    id: 3,
-    kind: 'EXAM',
-    title: '考试成绩已发布',
-    content: '“NumPy 基础测验”已完成批改，本次得分 45 / 50。',
-    createdAt: '2026-08-17 18:10',
-    read: false,
-    actionLabel: '查看成绩',
-    actionPath: '/exams',
-  },
-  {
-    id: 4,
-    kind: 'COURSE',
-    title: '课程内容更新',
-    content: '“前端工程化与 React 进阶”新增了性能优化专题与配套资料。',
-    createdAt: '2026-08-17 14:30',
-    read: true,
-    actionLabel: '继续学习',
-    actionPath: '/my-courses',
-  },
-  {
-    id: 5,
-    kind: 'SYSTEM',
-    title: '完善学习档案',
-    content: '补充学习方向和个人简介，可以获得更准确的课程推荐。',
-    createdAt: '2026-08-16 10:00',
-    read: false,
-    actionLabel: '完善资料',
-    actionPath: '/profile',
-  },
-  {
-    id: 6,
-    kind: 'SYSTEM',
-    title: '订单退款已完成',
-    content: '课程订单 EC2026062720004 的退款已原路退回。',
-    createdAt: '2026-08-15 16:40',
-    read: true,
-    actionLabel: '查看订单',
-    actionPath: '/orders',
-  },
-];
+/**
+ * 通知中心 Store（M10 联调修复）：
+ * 此前是写死的 6 条演示数据，页面永不请求后端；
+ * 现改为调用 notification 服务真实 API，并支持已读状态同步。
+ */
+interface NotificationItemDto {
+  id: string;
+  notificationId: string;
+  title: string;
+  content: string;
+  kind: NotificationKind;
+  actionLabel?: string | null;
+  actionPath?: string | null;
+  read: boolean;
+  createdAt: string;
+}
 
 interface NotificationState {
   notifications: StudentNotification[];
-  markRead: (id: number) => void;
-  markAllRead: () => void;
+  loading: boolean;
+  fetchNotifications: () => Promise<void>;
+  markRead: (id: string) => Promise<void>;
+  markAllRead: () => Promise<void>;
 }
 
-export const useNotificationStore = create<NotificationState>((set) => ({
-  notifications: initialNotifications,
-  markRead: (id) => set((state) => ({
-    notifications: state.notifications.map((notification) =>
-      notification.id === id ? { ...notification, read: true } : notification,
-    ),
-  })),
-  markAllRead: () => set((state) => ({
-    notifications: state.notifications.map((notification) =>
-      notification.read ? notification : { ...notification, read: true },
-    ),
-  })),
+/** 后端 ISO 时间（2026-08-25T16:02:41.37）→ 页面展示格式（2026-08-25 16:02）。 */
+function toView(dto: NotificationItemDto): StudentNotification {
+  return {
+    // Snowflake ID 保留字符串，Number() 会丢失精度导致已读/删除接口 404
+    id: dto.id,
+    kind: dto.kind,
+    title: dto.title,
+    content: dto.content,
+    createdAt: dto.createdAt.replace('T', ' ').slice(0, 16),
+    read: dto.read,
+    actionLabel: dto.actionLabel ?? undefined,
+    actionPath: dto.actionPath ?? undefined,
+  };
+}
+
+export const useNotificationStore = create<NotificationState>((set, get) => ({
+  notifications: [],
+  loading: false,
+
+  fetchNotifications: async () => {
+    if (get().loading) return;
+    set({ loading: true });
+    try {
+      const resp = await http.get<{ code: string; data: { items: NotificationItemDto[] } }>(
+        '/notifications',
+        { params: { page: 1, size: 50 } },
+      );
+      const items = resp.data?.data?.items ?? [];
+      set({ notifications: items.map(toView) });
+    } catch {
+      // 后端暂不可用时保留现有数据，不打断页面
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  markRead: async (id) => {
+    // 乐观更新：先本地置为已读，再同步后端
+    set((state) => ({
+      notifications: state.notifications.map((notification) =>
+        notification.id === id ? { ...notification, read: true } : notification,
+      ),
+    }));
+    try {
+      await http.put(`/notifications/${id}/read`);
+    } catch {
+      // 忽略同步失败，下次拉取会纠正
+    }
+  },
+
+  markAllRead: async () => {
+    set((state) => ({
+      notifications: state.notifications.map((notification) =>
+        notification.read ? notification : { ...notification, read: true },
+      ),
+    }));
+    try {
+      await http.put('/notifications/read-all');
+    } catch {
+      // 忽略同步失败，下次拉取会纠正
+    }
+  },
 }));

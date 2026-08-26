@@ -1,7 +1,8 @@
-export type NotificationKind = 'COURSE' | 'ASSIGNMENT' | 'EXAM' | 'LIVE' | 'SYSTEM';
+export type NotificationKind = 'COURSE' | 'ASSIGNMENT' | 'EXAM' | 'LIVE' | 'SYSTEM' | 'PAYMENT';
 
 export interface StudentNotification {
-  id: number;
+  /** Snowflake ID（字符串，避免 JS Number 精度丢失） */
+  id: string;
   kind: NotificationKind;
   title: string;
   content: string;

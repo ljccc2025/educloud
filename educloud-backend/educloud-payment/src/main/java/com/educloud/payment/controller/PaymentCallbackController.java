@@ -28,7 +28,8 @@ public class PaymentCallbackController {
     public ResponseEntity<String> handleAlipayCallback(
             @RequestHeader Map<String, String> headers,
             @RequestParam Map<String, String> params) {
-        log.info("Received Alipay callback params: {}", params);
+        // 回调参数含买家/交易敏感信息，降级为 debug 级别避免生产日志泄露（审计由 payment_callback_log 表承担）
+        log.debug("Received Alipay callback params: {}", params);
         String response = callbackService.handleCallback(PaymentChannel.ALIPAY, headers, params, null);
         return ResponseEntity.ok(response);
     }
@@ -37,7 +38,7 @@ public class PaymentCallbackController {
     public ResponseEntity<String> handleWeChatCallback(
             @RequestHeader Map<String, String> headers,
             @RequestBody String rawBody) {
-        log.info("Received WeChat callback headers: {}, body: {}", headers, rawBody);
+        log.debug("Received WeChat callback headers: {}, body: {}", headers, rawBody);
         String response = callbackService.handleCallback(PaymentChannel.WECHAT, headers, null, rawBody);
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(response);
     }
@@ -47,7 +48,7 @@ public class PaymentCallbackController {
             @RequestHeader Map<String, String> headers,
             @RequestParam(required = false) Map<String, String> params,
             @RequestBody(required = false) String rawBody) {
-        log.info("Received Mock callback headers: {}, params: {}, body: {}", headers, params, rawBody);
+        log.debug("Received Mock callback headers: {}, params: {}, body: {}", headers, params, rawBody);
         String response = callbackService.handleCallback(PaymentChannel.MOCK, headers, params, rawBody);
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(response);
     }

@@ -22,6 +22,7 @@ import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.observability.CourseMetrics;
 import com.educloud.course.support.TeacherAccessGuard;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +60,7 @@ import java.util.Set;
  * M05 无撤销触发路径（EnrollmentRevoked 事件与 REVOKED 状态预留 M07 退款接入），
  * 故已存在 enrollment 一律原样返回现状；恢复（REVOKED→ACTIVE）语义归 M07。</p>
  */
+@Slf4j
 @Service
 public class EnrollmentService {
 
@@ -158,6 +160,17 @@ public class EnrollmentService {
 
         CourseEntity course = courseMapper.selectByIdForUpdate(courseId);
         if (course == null) {
+            // 不抛异常避免消息无限重投（消费端无 DLQ）；ERROR 日志 + 对账介入
+            log.error("PAID-ENROLL-MISSING-COURSE: order {} references nonexistent course {}", orderId, courseId);
+            return null;
+        }
+
+        // 终态课程（ARCHIVED/DELETED）拒绝开课：已下架 OFFLINE 仍应开课（付费权益优先），
+        // 仅终态拒绝并告警，避免“已付款但课程已归档”的权益错配（修复 BUG-054）
+        String lifecycle = course.getLifecycleStatus();
+        if ("ARCHIVED".equals(lifecycle) || "DELETED".equals(lifecycle)) {
+            log.error("PAID-ENROLL-ARCHIVED-COURSE: order {} references {} course {}; enrollment skipped, manual reconciliation required",
+                    orderId, lifecycle, courseId);
             return null;
         }
 

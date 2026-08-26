@@ -2,6 +2,7 @@ package com.educloud.user.session;
 
 import com.educloud.user.config.SessionProperties;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -21,6 +22,12 @@ public final class RedisSessionStore implements SessionStore {
     private static final String KEY_PREFIX = "educloud:{";
     private static final String KEY_SUFFIX = ":auth}:session:";
 
+    /** 原子写入脚本：HSET + EXPIRE 一次执行，避免进程崩溃/连接中断产生无 TTL 的会话键（BUG-039）。 */
+    private static final DefaultRedisScript<Long> WRITE_ACTIVE_SCRIPT = new DefaultRedisScript<>(
+            "redis.call('HSET', KEYS[1], 'subject', ARGV[1], 'status', 'ACTIVE', 'tokenVersion', ARGV[2]); "
+                    + "redis.call('EXPIRE', KEYS[1], ARGV[3]); return 1",
+            Long.class);
+
     private final StringRedisTemplate redis;
     private final String environment;
 
@@ -37,11 +44,12 @@ public final class RedisSessionStore implements SessionStore {
     @Override
     public void writeActive(String sessionId, String subject, long tokenVersion, Duration ttl) {
         String key = key(sessionId);
-        redis.opsForHash().putAll(key, Map.of(
-                "subject", Objects.requireNonNull(subject, "subject"),
-                "status", "ACTIVE",
-                "tokenVersion", Long.toString(tokenVersion)));
-        redis.expire(key, requirePositive(ttl));
+        // 原子写入：HSET + EXPIRE 在单个 Lua 脚本中执行，避免非原子写导致无 TTL 会话键
+        redis.execute(WRITE_ACTIVE_SCRIPT,
+                java.util.List.of(key),
+                Objects.requireNonNull(subject, "subject"),
+                Long.toString(tokenVersion),
+                Long.toString(requirePositive(ttl).getSeconds()));
     }
 
     @Override

@@ -14,6 +14,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Objects;
 
 @Component
@@ -42,7 +44,11 @@ public final class InternalApiFilter extends OncePerRequestFilter {
         String internalTokenHeader = request.getHeader("X-Internal-Token");
         if (internalTokenHeader != null && !internalTokenHeader.isBlank()) {
             String configuredSecret = paymentProperties.internal() != null ? paymentProperties.internal().secretToken() : null;
-            if (configuredSecret != null && !configuredSecret.isBlank() && configuredSecret.equals(internalTokenHeader)) {
+            // 常量时间比较，避免时序侧信道枚举密钥
+            if (configuredSecret != null && !configuredSecret.isBlank()
+                    && MessageDigest.isEqual(
+                            configuredSecret.getBytes(StandardCharsets.UTF_8),
+                            internalTokenHeader.getBytes(StandardCharsets.UTF_8))) {
                 String caller = request.getHeader("X-Client-Id");
                 request.setAttribute(CLIENT_ID_ATTRIBUTE, caller != null ? caller : "internal-service");
                 filterChain.doFilter(request, response);

@@ -451,7 +451,17 @@ public class OrderServiceImpl implements OrderService {
         int rows = tradeOrderMapper.updateStatusToPaidWithCas(
                 orderId, OrderStatus.PENDING_PAYMENT.name(), OrderStatus.PAID.name(), actualPaidAt);
         if (rows == 0) {
-            log.info("CAS update failed for order {}, possibly already updated or expired", orderId);
+            // 幂等：订单已是 PAID 属正常重复事件
+            TradeOrderEntity latest = tradeOrderMapper.selectById(orderId);
+            if (latest != null && OrderStatus.PAID.name().equals(latest.getStatus())) {
+                log.info("Order {} is already PAID, ignoring duplicate payment success event", orderId);
+                return;
+            }
+            // 非幂等失败：渠道已扣款但订单已关单/取消/过期，履约不会发生 → 资损风险，必须告警并由对账/人工退款介入
+            log.error("PAYMENT-ORDER-MISMATCH: payment succeeded (paymentOrderId={}) but order {} is in status {} (expiresAt={}); "
+                            + "fulfillment will not proceed and no automatic refund exists - manual refund/reconciliation required",
+                    paymentOrderId, orderId, latest != null ? latest.getStatus() : "UNKNOWN",
+                    latest != null ? latest.getExpiresAt() : null);
             return;
         }
 

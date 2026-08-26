@@ -66,6 +66,7 @@ class DeliveryTaskJobTest {
                 .build();
 
         when(deliveryTaskMapper.selectPendingTasks(any(), eq(50))).thenReturn(List.of(task));
+        when(deliveryTaskMapper.claimTask(eq(7001L), any())).thenReturn(1);
         when(notificationMapper.selectById(5001L)).thenReturn(notif);
         when(emailChannelFactory.getDefaultPlugin()).thenReturn(emailChannelPlugin);
         when(emailChannelPlugin.sendEmail(any())).thenReturn(EmailSendResult.success("MSG_123"));

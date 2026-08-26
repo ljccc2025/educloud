@@ -143,7 +143,8 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         int current = Math.max(1, page);
-        int pageSize = Math.max(1, size);
+        // 分页钳制：防止恶意超大 size 触发全量拉取（与 BUG-012 同型分页 DoS）
+        int pageSize = Math.min(Math.max(1, size), 100);
 
         LambdaQueryWrapper<UserNotificationEntity> query = new LambdaQueryWrapper<UserNotificationEntity>()
                 .eq(UserNotificationEntity::getUserId, userId)

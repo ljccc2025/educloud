@@ -151,13 +151,21 @@ class PaymentFlowIntegrationTest {
         org.mockito.Mockito.lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         org.mockito.Mockito.lenient().when(valueOperations.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
 
+        // 回调审计独立事务需要事务管理器（测试中同步执行）
+        PlatformTransactionManager txManager = org.mockito.Mockito.mock(PlatformTransactionManager.class);
+        org.mockito.Mockito.lenient().when(txManager.getTransaction(any()))
+                .thenReturn(new org.springframework.transaction.support.SimpleTransactionStatus());
+
         callbackService = new PaymentCallbackServiceImpl(
                 paymentOrderMapper,
                 paymentTransactionMapper,
                 callbackLogMapper,
                 channelFactory,
                 outboxEventWriter,
-                redisTemplate
+                redisTemplate,
+                orderClient,
+                properties,
+                txManager
         );
 
         refundService = new RefundServiceImpl(

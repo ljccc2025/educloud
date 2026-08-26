@@ -33,6 +33,7 @@ export default function Navbar() {
   const unreadCount = useNotificationStore((state) =>
     state.notifications.reduce((count, notification) => count + Number(!notification.read), 0),
   );
+  const fetchNotifications = useNotificationStore((state) => state.fetchNotifications);
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [scrolled, setScrolled] = useState(false);
@@ -63,6 +64,11 @@ export default function Navbar() {
       }
     };
   }, []);
+
+  // M10 联调修复：登录后拉取真实未读数（铃铛角标）
+  useEffect(() => {
+    if (token) fetchNotifications();
+  }, [token, fetchNotifications]);
 
   // 300ms 防抖搜索建议
   useEffect(() => {
