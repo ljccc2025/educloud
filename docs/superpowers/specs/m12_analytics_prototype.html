@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduCloud M12 学习分析与指标大屏中心 · UI 高保真交互原型</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' },
+            ink: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+    body { font-family: 'Plus Jakarta Sans', 'Noto Sans SC', sans-serif; }
+    .card-glass {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+    }
+    .stat-card {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.12);
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-ink-800 min-h-screen">
+
+  <!-- 顶部导航与原型视图切换栏 -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+            <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="font-bold text-lg text-ink-900 tracking-tight">EduCloud</span>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 font-semibold border border-brand-200">M12 Analytics</span>
+            </div>
+            <p class="text-xs text-ink-400">学习分析与指标大屏中心 · UI 原型预览</p>
+          </div>
+        </div>
+
+        <!-- 视图切换 Tab -->
+        <nav class="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <button onclick="switchTab('teacher-analytics')" id="tab-teacher-analytics" class="tab-btn px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-2 bg-white text-brand-600 shadow-sm">
+            <i data-lucide="graduation-cap" class="w-4 h-4"></i>
+            <span>① 教师端 · 教学数据大屏</span>
+          </button>
+          <button onclick="switchTab('admin-dashboard')" id="tab-admin-dashboard" class="tab-btn px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-2 text-ink-500 hover:text-ink-900">
+            <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+            <span>② 管理端 · 平台运营看板</span>
+          </button>
+          <button onclick="switchTab('admin-finance')" id="tab-admin-finance" class="tab-btn px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-2 text-ink-500 hover:text-ink-900">
+            <i data-lucide="circle-dollar-sign" class="w-4 h-4"></i>
+            <span>③ 管理端 · 财务营收中心</span>
+          </button>
+          <button onclick="switchTab('admin-logs')" id="tab-admin-logs" class="tab-btn px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-2 text-ink-500 hover:text-ink-900">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+            <span>④ 管理端 · 全平台审计日志</span>
+          </button>
+        </nav>
+
+        <!-- 模拟环境标签 -->
+        <div class="flex items-center space-x-2">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+            真实 API 联调就绪 (:8101)
+          </span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主体视图区域 -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- ========================================================================= -->
+    <!-- VIEW 1: 教师端 · 教学数据概览大屏 (Analytics.tsx)                        -->
+    <!-- ========================================================================= -->
+    <section id="view-teacher-analytics" class="view-panel space-y-8 animate-fadeIn">
+      <!-- 页面标题 -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div class="flex items-center space-x-2 text-xs font-semibold tracking-wider text-brand-600 uppercase mb-1">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+            <span>Teacher Portal :5174 / Analytics.tsx</span>
+          </div>
+          <h1 class="text-3xl font-extrabold text-ink-900 tracking-tight">教学数据分析概览</h1>
+          <p class="text-sm text-ink-500 mt-1">追踪您的课程报名走势、月度收益分配与学员完课活跃度</p>
+        </div>
+        <div class="flex items-center space-x-3">
+          <button class="px-4 py-2 text-xs font-semibold bg-white border border-slate-200 text-ink-700 rounded-xl hover:bg-slate-50 flex items-center space-x-1.5 shadow-sm">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>导出教学月报</span>
+          </button>
+          <button class="px-4 py-2 text-xs font-semibold bg-brand-600 text-white rounded-xl hover:bg-brand-700 flex items-center space-x-1.5 shadow-sm shadow-brand-500/20">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>新建课程</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 4 大核心指标卡片 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <!-- 课程总数 -->
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-ink-500">课程总数</span>
+            <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <i data-lucide="book-open" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline space-x-2">
+            <span class="text-3xl font-bold text-ink-900">12</span>
+            <span class="text-xs text-ink-400">门在售</span>
+          </div>
+          <div class="mt-3 flex items-center text-xs text-emerald-600 font-medium">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5 mr-1"></i>
+            <span>本月新增 2 门已发布</span>
+          </div>
+        </div>
+
+        <!-- 学员总数 -->
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-ink-500">学员总数</span>
+            <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i data-lucide="users" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline space-x-2">
+            <span class="text-3xl font-bold text-ink-900">3,420</span>
+            <span class="text-xs text-ink-400">人累计</span>
+          </div>
+          <div class="mt-3 flex items-center text-xs text-emerald-600 font-medium">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5 mr-1"></i>
+            <span>近30天新增 +680 人</span>
+          </div>
+        </div>
+
+        <!-- 累计收益 -->
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-ink-500">累计总收入</span>
+            <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <i data-lucide="circle-dollar-sign" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline space-x-2">
+            <span class="text-3xl font-bold text-ink-900">¥12.85<span class="text-lg">万</span></span>
+            <span class="text-xs text-ink-400">已扣减佣金</span>
+          </div>
+          <div class="mt-3 flex items-center text-xs text-emerald-600 font-medium">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5 mr-1"></i>
+            <span>较上月环比 +23.2%</span>
+          </div>
+        </div>
+
+        <!-- 完课率 -->
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-ink-500">平均完课率</span>
+            <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <i data-lucide="award" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline space-x-2">
+            <span class="text-3xl font-bold text-ink-900">78.5%</span>
+            <span class="text-xs text-ink-400">全课平均</span>
+          </div>
+          <div class="mt-3 flex items-center text-xs text-purple-600 font-medium">
+            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 mr-1"></i>
+            <span>高于平台均值 14.2%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 双图表分析区域 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 报名趋势柱状图 -->
+        <div class="card-glass p-6 rounded-2xl">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h2 class="text-base font-bold text-ink-900 flex items-center space-x-2">
+                <i data-lucide="trending-up" class="w-4 h-4 text-amber-500"></i>
+                <span>近 6 个月报名趋势</span>
+              </h2>
+              <p class="text-xs text-ink-400 mt-0.5">学员新增选课自然月分布 (人)</p>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-medium">月度汇总</span>
+          </div>
+          <div class="h-64">
+            <canvas id="chart-teacher-enrollment"></canvas>
+          </div>
+        </div>
+
+        <!-- 收入趋势折线图 -->
+        <div class="card-glass p-6 rounded-2xl">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h2 class="text-base font-bold text-ink-900 flex items-center space-x-2">
+                <i data-lucide="circle-dollar-sign" class="w-4 h-4 text-emerald-500"></i>
+                <span>近 6 个月月度收益趋势</span>
+              </h2>
+              <p class="text-xs text-ink-400 mt-0.5">每月实际结算到账收益 (元)</p>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-medium">收入对账</span>
+          </div>
+          <div class="h-64">
+            <canvas id="chart-teacher-revenue"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- 课程参与度排行与完课率 -->
+      <div class="card-glass p-6 rounded-2xl">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-base font-bold text-ink-900 flex items-center space-x-2">
+              <i data-lucide="bar-chart-2" class="w-4 h-4 text-brand-600"></i>
+              <span>课程参与度与完课排行</span>
+            </h2>
+            <p class="text-xs text-ink-400 mt-0.5">按在学人数与章节完成率综合排序</p>
+          </div>
+          <span class="text-xs text-ink-500">实时计算</span>
+        </div>
+
+        <div class="space-y-4">
+          <!-- 课程 1 -->
+          <div class="p-4 rounded-xl bg-slate-50/80 border border-slate-100 hover:bg-slate-100/70 transition-all">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center space-x-3">
+                <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">1</span>
+                <span class="font-semibold text-sm text-ink-900">Spring Cloud 微服务架构与全链路治理实战</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium">高评价 4.9</span>
+              </div>
+              <div class="text-right">
+                <span class="text-sm font-bold text-ink-900">1,240</span>
+                <span class="text-xs text-ink-400">人在学</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+              <div class="bg-gradient-to-r from-brand-500 to-indigo-600 h-2 rounded-full" style="width: 84.2%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-ink-400 mt-1.5">
+              <span>平均完成课时：28 / 32 节</span>
+              <span class="font-medium text-brand-600">完课率 84.2%</span>
+            </div>
+          </div>
+
+          <!-- 课程 2 -->
+          <div class="p-4 rounded-xl bg-slate-50/80 border border-slate-100 hover:bg-slate-100/70 transition-all">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center space-x-3">
+                <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center">2</span>
+                <span class="font-semibold text-sm text-ink-900">Vue 3 + TypeScript 企业级大型中台实战</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">精品课</span>
+              </div>
+              <div class="text-right">
+                <span class="text-sm font-bold text-ink-900">980</span>
+                <span class="text-xs text-ink-400">人在学</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+              <div class="bg-gradient-to-r from-brand-500 to-indigo-600 h-2 rounded-full" style="width: 79.5%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-ink-400 mt-1.5">
+              <span>平均完成课时：21 / 26 节</span>
+              <span class="font-medium text-brand-600">完课率 79.5%</span>
+            </div>
+          </div>
+
+          <!-- 课程 3 -->
+          <div class="p-4 rounded-xl bg-slate-50/80 border border-slate-100 hover:bg-slate-100/70 transition-all">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center space-x-3">
+                <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center">3</span>
+                <span class="font-semibold text-sm text-ink-900">Elasticsearch 8.x 分布式搜索引擎与向量检索</span>
+              </div>
+              <div class="text-right">
+                <span class="text-sm font-bold text-ink-900">650</span>
+                <span class="text-xs text-ink-400">人在学</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+              <div class="bg-gradient-to-r from-brand-500 to-indigo-600 h-2 rounded-full" style="width: 71.0%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-ink-400 mt-1.5">
+              <span>平均完成课时：14 / 20 节</span>
+              <span class="font-medium text-brand-600">完课率 71.0%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- VIEW 2: 管理端 · 平台运营看板大屏 (Dashboard.tsx)                        -->
+    <!-- ========================================================================= -->
+    <section id="view-admin-dashboard" class="view-panel space-y-8 hidden animate-fadeIn">
+      <!-- 页面标题与一键重算触发 -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div class="flex items-center space-x-2 text-xs font-semibold tracking-wider text-indigo-600 uppercase mb-1">
+            <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+            <span>Admin Portal :5175 / Dashboard.tsx</span>
+          </div>
+          <h1 class="text-3xl font-extrabold text-ink-900 tracking-tight">平台运营数据看板</h1>
+          <p class="text-sm text-ink-500 mt-1">全平台核心业务指标监控、多维分布与实时事件流</p>
+        </div>
+        <div class="flex items-center space-x-3">
+          <button onclick="triggerRebuildModal()" class="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl hover:from-brand-700 hover:to-indigo-700 flex items-center space-x-1.5 shadow-md shadow-brand-500/20">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            <span>一键全量重算指标</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 4 大运营核心指标卡片 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-ink-500">平台总用户数</span>
+            <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <i data-lucide="users" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline space-x-2">
+            <span class="text-3xl font-bold text-ink-900">28,450</span>
+            <span class="text-xs text-emerald-600 font-semibold">▲ +12.8%</span>
+          </div>
+          <p class="text-xs text-ink-400 mt-2">较上周环比增长</p>
+        </div>
+
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-ink-500">已发布课程数</span>
+            <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i data-lucide="book-open" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline space-x-2">
+            <span class="text-3xl font-bold text-ink-900">156</span>
+            <span class="text-xs text-emerald-600 font-semibold">▲ +5.4%</span>
+          </div>
+          <p class="text-xs text-ink-400 mt-2">覆盖 5 大技术分类</p>
+        </div>
+
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-ink-500">平台累计 GMV</span>
+            <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <i data-lucide="circle-dollar-sign" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline space-x-2">
+            <span class="text-3xl font-bold text-ink-900">¥158.4<span class="text-lg">万</span></span>
+            <span class="text-xs text-emerald-600 font-semibold">▲ +18.6%</span>
+          </div>
+          <p class="text-xs text-ink-400 mt-2">全渠道成功支付总额</p>
+        </div>
+
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-ink-500">进行中直播课</span>
+            <div class="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+              <i data-lucide="radio" class="w-4 h-4 animate-pulse"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline space-x-2">
+            <span class="text-3xl font-bold text-ink-900">3</span>
+            <span class="text-xs text-emerald-600 font-semibold">● 运行平稳</span>
+          </div>
+          <p class="text-xs text-ink-400 mt-2">实时在线学员 482 人</p>
+        </div>
+      </div>
+
+      <!-- 图表区域：双折线增长趋势 + 分类环形图 + 订单状态饼图 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 用户与课程双折线图 -->
+        <div class="card-glass p-6 rounded-2xl lg:col-span-2">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-base font-bold text-ink-900 flex items-center space-x-2">
+                <i data-lucide="trending-up" class="w-4 h-4 text-brand-600"></i>
+                <span>用户与课程增长趋势</span>
+              </h2>
+              <p class="text-xs text-ink-400 mt-0.5">近 6 天平台整体规模扩张双轴走势</p>
+            </div>
+            <div class="flex items-center space-x-4 text-xs font-medium">
+              <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-indigo-600 mr-1.5"></span>用户总量</span>
+              <span class="flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 mr-1.5"></span>课程总量</span>
+            </div>
+          </div>
+          <div class="h-64">
+            <canvas id="chart-admin-growth"></canvas>
+          </div>
+        </div>
+
+        <!-- 课程分类分布环形图 -->
+        <div class="card-glass p-6 rounded-2xl">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-base font-bold text-ink-900 flex items-center space-x-2">
+                <i data-lucide="pie-chart" class="w-4 h-4 text-purple-600"></i>
+                <span>课程分类分布</span>
+              </h2>
+              <p class="text-xs text-ink-400 mt-0.5">各类目在售课程占比</p>
+            </div>
+          </div>
+          <div class="h-56 relative flex items-center justify-center">
+            <canvas id="chart-admin-categories"></canvas>
+          </div>
+          <div class="grid grid-cols-2 gap-2 mt-2 text-xs text-ink-600">
+            <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-indigo-600 mr-1.5"></span>后端开发 (28.8%)</div>
+            <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-500 mr-1.5"></span>前端工程 (24.4%)</div>
+            <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5"></span>人工智能 (20.5%)</div>
+            <div class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-1.5"></span>云计算 (16.0%)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 实时系统动态事件流 -->
+      <div class="card-glass p-6 rounded-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-base font-bold text-ink-900 flex items-center space-x-2">
+            <i data-lucide="activity" class="w-4 h-4 text-emerald-600"></i>
+            <span>全平台实时动态流 (Activity Feed)</span>
+          </h2>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">MQ 实时推送</span>
+        </div>
+        <div class="divide-y divide-slate-100">
+          <div class="py-3 flex items-center justify-between text-xs">
+            <div class="flex items-center space-x-3">
+              <span class="p-2 rounded-lg bg-blue-50 text-blue-600"><i data-lucide="user-plus" class="w-4 h-4"></i></span>
+              <div>
+                <p class="font-medium text-ink-800">学员「李**」完成注册并加入 EduCloud 平台</p>
+                <p class="text-ink-400">来源服务：educloud-user · IP: 192.168.100.88</p>
+              </div>
+            </div>
+            <span class="text-ink-400 font-mono">2分钟前</span>
+          </div>
+
+          <div class="py-3 flex items-center justify-between text-xs">
+            <div class="flex items-center space-x-3">
+              <span class="p-2 rounded-lg bg-emerald-50 text-emerald-600"><i data-lucide="shopping-bag" class="w-4 h-4"></i></span>
+              <div>
+                <p class="font-medium text-ink-800">订单「ORD_20260826_104」支付成功 (¥299.00) ── 《Spring Cloud 架构实战》</p>
+                <p class="text-ink-400">来源服务：educloud-payment · 渠道: ALIPAY</p>
+              </div>
+            </div>
+            <span class="text-ink-400 font-mono">15分钟前</span>
+          </div>
+
+          <div class="py-3 flex items-center justify-between text-xs">
+            <div class="flex items-center space-x-3">
+              <span class="p-2 rounded-lg bg-purple-50 text-purple-600"><i data-lucide="check-square" class="w-4 h-4"></i></span>
+              <div>
+                <p class="font-medium text-ink-800">管理员「demo_admin」审核通过课程《Vue 3 高级组件设计》并正式发布</p>
+                <p class="text-ink-400">来源服务：educloud-course</p>
+              </div>
+            </div>
+            <span class="text-ink-400 font-mono">1小时前</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- VIEW 3: 管理端 · 财务营收中心 (Finance.tsx)                              -->
+    <!-- ========================================================================= -->
+    <section id="view-admin-finance" class="view-panel space-y-8 hidden animate-fadeIn">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div class="flex items-center space-x-2 text-xs font-semibold tracking-wider text-emerald-600 uppercase mb-1">
+            <i data-lucide="circle-dollar-sign" class="w-3.5 h-3.5"></i>
+            <span>Admin Portal :5175 / Finance.tsx</span>
+          </div>
+          <h1 class="text-3xl font-extrabold text-ink-900 tracking-tight">财务与营收分析中心</h1>
+          <p class="text-sm text-ink-500 mt-1">资金流水总览、月度收支双柱对比与退款对账分析</p>
+        </div>
+      </div>
+
+      <!-- 4 大财务指标卡 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <span class="text-xs font-semibold text-ink-500">累计总流水 (GMV)</span>
+          <div class="mt-3 text-2xl font-bold text-ink-900 font-mono">¥1,584,200.00</div>
+          <span class="text-xs text-emerald-600 mt-2 block font-medium">全平台成交总金额</span>
+        </div>
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <span class="text-xs font-semibold text-ink-500">待结算分账金额</span>
+          <div class="mt-3 text-2xl font-bold text-amber-600 font-mono">¥45,200.00</div>
+          <span class="text-xs text-ink-400 mt-2 block font-medium">待分配至教师账户</span>
+        </div>
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <span class="text-xs font-semibold text-ink-500">累计退款总额</span>
+          <div class="mt-3 text-2xl font-bold text-rose-600 font-mono">¥32,800.00</div>
+          <span class="text-xs text-rose-600 mt-2 block font-medium">退款订单共 85 笔</span>
+        </div>
+        <div class="card-glass p-5 rounded-2xl stat-card">
+          <span class="text-xs font-semibold text-ink-500">全平台退款率</span>
+          <div class="mt-3 text-2xl font-bold text-ink-900 font-mono">2.07%</div>
+          <span class="text-xs text-emerald-600 mt-2 block font-medium">远优于行业 5% 基准</span>
+        </div>
+      </div>
+
+      <!-- 12 个月月度营收与退款双柱状对比图 -->
+      <div class="card-glass p-6 rounded-2xl">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-base font-bold text-ink-900 flex items-center space-x-2">
+              <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-600"></i>
+              <span>月度总流水与退款冲正对比 (近 6 个月)</span>
+            </h2>
+            <p class="text-xs text-ink-400 mt-0.5">对比每月的 Gross 收入与退款金额</p>
+          </div>
+          <div class="flex items-center space-x-4 text-xs font-medium">
+            <span class="flex items-center"><span class="w-3 h-3 rounded bg-emerald-500 mr-1.5"></span>总流水 (Gross)</span>
+            <span class="flex items-center"><span class="w-3 h-3 rounded bg-rose-400 mr-1.5"></span>退款金额 (Refund)</span>
+          </div>
+        </div>
+        <div class="h-72">
+          <canvas id="chart-admin-finance"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- VIEW 4: 管理端 · 全平台操作审计日志 (Logs.tsx)                           -->
+    <!-- ========================================================================= -->
+    <section id="view-admin-logs" class="view-panel space-y-6 hidden animate-fadeIn">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div class="flex items-center space-x-2 text-xs font-semibold tracking-wider text-purple-600 uppercase mb-1">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+            <span>Admin Portal :5175 / Logs.tsx</span>
+          </div>
+          <h1 class="text-3xl font-extrabold text-ink-900 tracking-tight">全平台操作审计日志</h1>
+          <p class="text-sm text-ink-500 mt-1">集中式只读模型，精确追踪所有微服务的关键操作与安全事件</p>
+        </div>
+      </div>
+
+      <!-- 搜索过滤条 -->
+      <div class="card-glass p-4 rounded-2xl flex flex-wrap items-center gap-3">
+        <div class="relative flex-1 min-w-[240px]">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-400"></i>
+          <input type="text" placeholder="搜索操作者、动作类型、目标资源或 IP..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all">
+        </div>
+        <select class="py-2 px-3 text-xs rounded-xl bg-slate-50 border border-slate-200 text-ink-700 focus:outline-none">
+          <option>全部日志级别 (ALL)</option>
+          <option>INFO (正常记录)</option>
+          <option>WARN (告警提示)</option>
+          <option>ERROR (错误异常)</option>
+        </select>
+        <div class="flex items-center space-x-2">
+          <input type="date" value="2026-08-01" class="py-2 px-3 text-xs rounded-xl bg-slate-50 border border-slate-200 text-ink-700">
+          <span class="text-ink-400 text-xs">至</span>
+          <input type="date" value="2026-08-26" class="py-2 px-3 text-xs rounded-xl bg-slate-50 border border-slate-200 text-ink-700">
+        </div>
+        <button class="px-4 py-2 text-xs font-semibold bg-brand-600 text-white rounded-xl hover:bg-brand-700 shadow-sm shadow-brand-500/20">
+          查询
+        </button>
+      </div>
+
+      <!-- 审计日志表格 -->
+      <div class="card-glass rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50/80 border-b border-slate-200 text-ink-500 uppercase tracking-wider font-semibold">
+              <tr>
+                <th class="py-3.5 px-4">时间</th>
+                <th class="py-3.5 px-4">级别</th>
+                <th class="py-3.5 px-4">来源服务</th>
+                <th class="py-3.5 px-4">操作人</th>
+                <th class="py-3.5 px-4">动作类型</th>
+                <th class="py-3.5 px-4">操作目标</th>
+                <th class="py-3.5 px-4">客户端 IP</th>
+                <th class="py-3.5 px-4 text-right">详情</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 font-mono">
+              <tr class="hover:bg-slate-50/60 transition-colors">
+                <td class="py-3.5 px-4 text-ink-500">2026-08-26 13:45:12</td>
+                <td class="py-3.5 px-4"><span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold">INFO</span></td>
+                <td class="py-3.5 px-4 text-ink-700 font-sans">educloud-search</td>
+                <td class="py-3.5 px-4 font-bold text-ink-900">demo_admin</td>
+                <td class="py-3.5 px-4"><span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700">REBUILD_INDEX</span></td>
+                <td class="py-3.5 px-4 text-ink-700 font-sans">educloud_course_search</td>
+                <td class="py-3.5 px-4 text-ink-500">192.168.100.1</td>
+                <td class="py-3.5 px-4 text-right font-sans"><button class="text-brand-600 hover:underline">查看 Payload</button></td>
+              </tr>
+              <tr class="hover:bg-slate-50/60 transition-colors">
+                <td class="py-3.5 px-4 text-ink-500">2026-08-26 13:30:05</td>
+                <td class="py-3.5 px-4"><span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold">WARN</span></td>
+                <td class="py-3.5 px-4 text-ink-700 font-sans">educloud-payment</td>
+                <td class="py-3.5 px-4 font-bold text-ink-900">system</td>
+                <td class="py-3.5 px-4"><span class="px-2 py-0.5 rounded bg-rose-50 text-rose-700">REFUND_PROCESS</span></td>
+                <td class="py-3.5 px-4 text-ink-700 font-sans">ORD_202608260012</td>
+                <td class="py-3.5 px-4 text-ink-500">127.0.0.1</td>
+                <td class="py-3.5 px-4 text-right font-sans"><button class="text-brand-600 hover:underline">查看 Payload</button></td>
+              </tr>
+              <tr class="hover:bg-slate-50/60 transition-colors">
+                <td class="py-3.5 px-4 text-ink-500">2026-08-26 12:15:30</td>
+                <td class="py-3.5 px-4"><span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold">INFO</span></td>
+                <td class="py-3.5 px-4 text-ink-700 font-sans">educloud-course</td>
+                <td class="py-3.5 px-4 font-bold text-ink-900">teacher_01</td>
+                <td class="py-3.5 px-4"><span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">COURSE_AUDIT_SUB</span></td>
+                <td class="py-3.5 px-4 text-ink-700 font-sans">课程《Vue 3 进阶》</td>
+                <td class="py-3.5 px-4 text-ink-500">192.168.100.45</td>
+                <td class="py-3.5 px-4 text-right font-sans"><button class="text-brand-600 hover:underline">查看 Payload</button></td>
+              </tr>
+              <tr class="hover:bg-slate-50/60 transition-colors">
+                <td class="py-3.5 px-4 text-ink-500">2026-08-26 10:05:44</td>
+                <td class="py-3.5 px-4"><span class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-bold">ERROR</span></td>
+                <td class="py-3.5 px-4 text-ink-700 font-sans">educloud-user</td>
+                <td class="py-3.5 px-4 font-bold text-ink-900">anonymous</td>
+                <td class="py-3.5 px-4"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700">AUTH_FAILED</span></td>
+                <td class="py-3.5 px-4 text-ink-700 font-sans">密码错误尝试(3次)</td>
+                <td class="py-3.5 px-4 text-ink-500">192.168.100.99</td>
+                <td class="py-3.5 px-4 text-right font-sans"><button class="text-brand-600 hover:underline">查看 Payload</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="py-3 px-4 bg-slate-50/80 border-t border-slate-200 flex items-center justify-between text-xs text-ink-500">
+          <span>显示 1 到 4 条，共 128 条记录</span>
+          <div class="flex items-center space-x-1">
+            <button class="px-2.5 py-1 rounded bg-white border border-slate-200 text-ink-700 hover:bg-slate-50">上一页</button>
+            <button class="px-2.5 py-1 rounded bg-brand-600 text-white font-bold">1</button>
+            <button class="px-2.5 py-1 rounded bg-white border border-slate-200 text-ink-700 hover:bg-slate-50">2</button>
+            <button class="px-2.5 py-1 rounded bg-white border border-slate-200 text-ink-700 hover:bg-slate-50">3</button>
+            <button class="px-2.5 py-1 rounded bg-white border border-slate-200 text-ink-700 hover:bg-slate-50">下一页</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 模拟全量指标重算 Modal 弹窗 -->
+  <div id="modal-rebuild" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-scaleUp">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+          <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-ink-900">全量指标历史抽取与重算</h3>
+          <p class="text-xs text-ink-400">AggregationRebuildService 任务调度器</p>
+        </div>
+      </div>
+
+      <p class="text-xs text-ink-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+        该操作将跨 User、Course、Order、Payment、Content 5 大业务库分批抽取历史事实，按日/月重新计算物理预聚合指标。全程<b>只读抽取且毫秒级原子切换</b>，不影响线上运行。
+      </p>
+
+      <!-- 进度条区域 -->
+      <div id="rebuild-progress-box" class="space-y-2 hidden">
+        <div class="flex justify-between text-xs font-semibold">
+          <span id="rebuild-stage-text" class="text-indigo-600">正在抽取历史数据...</span>
+          <span id="rebuild-percent-text" class="text-ink-700">0%</span>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+          <div id="rebuild-progress-bar" class="bg-gradient-to-r from-brand-500 to-indigo-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-2">
+        <button onclick="closeRebuildModal()" class="px-4 py-2 text-xs font-semibold text-ink-600 hover:bg-slate-100 rounded-xl transition-all">取消</button>
+        <button id="btn-start-rebuild" onclick="runRebuildSimulation()" class="px-4 py-2 text-xs font-semibold bg-brand-600 text-white rounded-xl hover:bg-brand-700 shadow-md shadow-brand-500/20 flex items-center space-x-1.5">
+          <i data-lucide="play" class="w-3.5 h-3.5"></i>
+          <span>确认开始全量重算</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Lucide Icons 初始化
+    lucide.createIcons();
+
+    // Tab 切换逻辑
+    function switchTab(viewId) {
+      document.querySelectorAll('.view-panel').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-white', 'text-brand-600', 'shadow-sm');
+        btn.classList.add('text-ink-500');
+      });
+
+      document.getElementById('view-' + viewId).classList.remove('hidden');
+      const activeBtn = document.getElementById('tab-' + viewId);
+      activeBtn.classList.add('bg-white', 'text-brand-600', 'shadow-sm');
+      activeBtn.classList.remove('text-ink-500');
+
+      // 重新触发图表渲染
+      setTimeout(initCharts, 50);
+    }
+
+    // Modal 逻辑
+    function triggerRebuildModal() {
+      const modal = document.getElementById('modal-rebuild');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+    function closeRebuildModal() {
+      const modal = document.getElementById('modal-rebuild');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.getElementById('rebuild-progress-box').classList.add('hidden');
+      document.getElementById('btn-start-rebuild').disabled = false;
+    }
+
+    function runRebuildSimulation() {
+      const btn = document.getElementById('btn-start-rebuild');
+      const pBox = document.getElementById('rebuild-progress-box');
+      const pBar = document.getElementById('rebuild-progress-bar');
+      const pText = document.getElementById('rebuild-percent-text');
+      const sText = document.getElementById('rebuild-stage-text');
+
+      btn.disabled = true;
+      pBox.classList.remove('hidden');
+
+      let percent = 0;
+      const stages = [
+        { p: 25, label: 'Stage 1/4: 抽取 User & 注册历史数据...' },
+        { p: 50, label: 'Stage 2/4: 抽取 Course & 选课参与度...' },
+        { p: 75, label: 'Stage 3/4: 抽取 Payment 流水与退款冲正...' },
+        { p: 100, label: 'Stage 4/4: 批量写入指标表，重算完成！' }
+      ];
+      let stageIdx = 0;
+
+      const interval = setInterval(() => {
+        percent += 5;
+        if (percent > stages[stageIdx].p && stageIdx < stages.length - 1) {
+          stageIdx++;
+        }
+        sText.innerText = stages[stageIdx].label;
+        pBar.style.width = percent + '%';
+        pText.innerText = percent + '%';
+
+        if (percent >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            alert('🎉 历史指标全量重算完成！物理指标表已原子生效。');
+            closeRebuildModal();
+          }, 400);
+        }
+      }, 70);
+    }
+
+    // 初始化 Chart.js 图表
+    let chartsInitialized = false;
+    function initCharts() {
+      // 教师端报名趋势
+      const ctx1 = document.getElementById('chart-teacher-enrollment');
+      if (ctx1 && !ctx1.chartInstance) {
+        ctx1.chartInstance = new Chart(ctx1, {
+          type: 'bar',
+          data: {
+            labels: ['3月', '4月', '5月', '6月', '7月', '8月'],
+            datasets: [{
+              label: '新增选课人数 (人)',
+              data: [280, 350, 420, 390, 510, 680],
+              backgroundColor: 'rgba(99, 102, 241, 0.85)',
+              borderRadius: 8
+            }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+      }
+
+      // 教师端月度收入趋势
+      const ctx2 = document.getElementById('chart-teacher-revenue');
+      if (ctx2 && !ctx2.chartInstance) {
+        ctx2.chartInstance = new Chart(ctx2, {
+          type: 'line',
+          data: {
+            labels: ['3月', '4月', '5月', '6月', '7月', '8月'],
+            datasets: [{
+              label: '月度收入 (元)',
+              data: [12500, 18200, 23400, 21000, 28900, 35600],
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.35,
+              fill: true
+            }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+      }
+
+      // 管理端增长趋势双折线
+      const ctx3 = document.getElementById('chart-admin-growth');
+      if (ctx3 && !ctx3.chartInstance) {
+        ctx3.chartInstance = new Chart(ctx3, {
+          type: 'line',
+          data: {
+            labels: ['08-20', '08-21', '08-22', '08-23', '08-24', '08-25'],
+            datasets: [
+              { label: '用户总量', data: [28100, 28180, 28260, 28310, 28390, 28450], borderColor: '#6366f1', yAxisID: 'y' },
+              { label: '课程总量', data: [150, 152, 153, 154, 155, 156], borderColor: '#f59e0b', yAxisID: 'y1' }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { type: 'linear', display: true, position: 'left' },
+              y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } }
+            }
+          }
+        });
+      }
+
+      // 管理端课程分类环形图
+      const ctx4 = document.getElementById('chart-admin-categories');
+      if (ctx4 && !ctx4.chartInstance) {
+        ctx4.chartInstance = new Chart(ctx4, {
+          type: 'doughnut',
+          data: {
+            labels: ['后端开发', '前端工程', '人工智能', '云计算', '其它'],
+            datasets: [{
+              data: [45, 38, 32, 25, 16],
+              backgroundColor: ['#6366f1', '#f59e0b', '#10b981', '#3b82f6', '#94a3b8'],
+              borderWidth: 0
+            }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '70%' }
+        });
+      }
+
+      // 管理端财务双柱图
+      const ctx5 = document.getElementById('chart-admin-finance');
+      if (ctx5 && !ctx5.chartInstance) {
+        ctx5.chartInstance = new Chart(ctx5, {
+          type: 'bar',
+          data: {
+            labels: ['3月', '4月', '5月', '6月', '7月', '8月'],
+            datasets: [
+              { label: '总流水 (元)', data: [128000, 145000, 162000, 158000, 189000, 215000], backgroundColor: '#10b981', borderRadius: 6 },
+              { label: '退款金额 (元)', data: [2400, 3100, 2800, 3500, 4200, 3800], backgroundColor: '#fb7185', borderRadius: 6 }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+      }
+    }
+
+    // 页面加载完成后初始化
+    window.addEventListener('DOMContentLoaded', initCharts);
+  </script>
+</body>
+</html>
