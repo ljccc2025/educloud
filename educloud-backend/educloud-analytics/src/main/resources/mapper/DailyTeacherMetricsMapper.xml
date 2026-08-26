@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.educloud.analytics.mapper.DailyTeacherMetricsMapper">
+
+    <insert id="upsertIncrement">
+        INSERT INTO daily_teacher_metrics (
+            teacher_id, metric_date, new_enrollments, revenue_cents, active_students, completed_courses_count
+        ) VALUES (
+            #{teacherId}, #{metricDate}, #{newEnrollments}, #{revenueCents}, #{activeStudents}, #{completedCourses}
+        )
+        ON DUPLICATE KEY UPDATE
+            new_enrollments = new_enrollments + VALUES(new_enrollments),
+            revenue_cents = revenue_cents + VALUES(revenue_cents),
+            active_students = GREATEST(active_students, VALUES(active_students)),
+            completed_courses_count = completed_courses_count + VALUES(completed_courses_count),
+            updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+</mapper>

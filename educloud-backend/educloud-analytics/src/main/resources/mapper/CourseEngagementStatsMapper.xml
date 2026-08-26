@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.educloud.analytics.mapper.CourseEngagementStatsMapper">
+
+    <insert id="upsertCourseStats">
+        INSERT INTO course_engagement_stats (
+            course_id, course_title, teacher_id, total_enrollments, active_learners, completed_count, completion_rate
+        ) VALUES (
+            #{courseId}, #{courseTitle}, #{teacherId}, #{enrollmentDelta}, #{enrollmentDelta}, #{completedDelta},
+            CASE WHEN #{enrollmentDelta} > 0 THEN ROUND((#{completedDelta} * 100.0) / #{enrollmentDelta}, 2) ELSE 0.00 END
+        )
+        ON DUPLICATE KEY UPDATE
+            course_title = VALUES(course_title),
+            total_enrollments = total_enrollments + VALUES(total_enrollments),
+            active_learners = active_learners + VALUES(active_learners),
+            completed_count = completed_count + VALUES(completed_count),
+            completion_rate = CASE 
+                WHEN (total_enrollments + VALUES(total_enrollments)) > 0 
+                THEN ROUND(((completed_count + VALUES(completed_count)) * 100.0) / (total_enrollments + VALUES(total_enrollments)), 2)
+                ELSE 0.00 
+            END,
+            updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+</mapper>

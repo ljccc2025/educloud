@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.educloud.analytics.mapper.DailyFinanceMetricsMapper">
+
+    <insert id="upsertIncrement">
+        INSERT INTO daily_finance_metrics (
+            metric_date, gross_revenue_cents, refund_amount_cents, net_revenue_cents, order_count, refund_count
+        ) VALUES (
+            #{metricDate}, #{grossRevenueCents}, #{refundAmountCents}, #{netRevenueCents}, #{orderCount}, #{refundCount}
+        )
+        ON DUPLICATE KEY UPDATE
+            gross_revenue_cents = gross_revenue_cents + VALUES(gross_revenue_cents),
+            refund_amount_cents = refund_amount_cents + VALUES(refund_amount_cents),
+            net_revenue_cents = net_revenue_cents + VALUES(net_revenue_cents),
+            order_count = order_count + VALUES(order_count),
+            refund_count = refund_count + VALUES(refund_count),
+            updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+</mapper>

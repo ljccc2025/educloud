@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.educloud.analytics.mapper.AuditEventReadModelMapper">
+
+    <select id="searchAuditLogs" resultType="com.educloud.analytics.entity.AuditEventReadModelEntity">
+        SELECT *
+        FROM audit_event_read_model
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (
+                    actor_id LIKE CONCAT('%', #{keyword}, '%')
+                    OR action LIKE CONCAT('%', #{keyword}, '%')
+                    OR resource_id LIKE CONCAT('%', #{keyword}, '%')
+                    OR client_ip LIKE CONCAT('%', #{keyword}, '%')
+                )
+            </if>
+            <if test="level != null and level != '' and level != 'ALL'">
+                AND level = #{level}
+            </if>
+            <if test="sourceService != null and sourceService != ''">
+                AND source_service = #{sourceService}
+            </if>
+            <if test="actorId != null and actorId != ''">
+                AND actor_id = #{actorId}
+            </if>
+            <if test="startDate != null">
+                AND occurred_at &gt;= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND occurred_at &lt;= #{endDate}
+            </if>
+        </where>
+        ORDER BY occurred_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countAuditLogs" resultType="long">
+        SELECT COUNT(*)
+        FROM audit_event_read_model
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (
+                    actor_id LIKE CONCAT('%', #{keyword}, '%')
+                    OR action LIKE CONCAT('%', #{keyword}, '%')
+                    OR resource_id LIKE CONCAT('%', #{keyword}, '%')
+                    OR client_ip LIKE CONCAT('%', #{keyword}, '%')
+                )
+            </if>
+            <if test="level != null and level != '' and level != 'ALL'">
+                AND level = #{level}
+            </if>
+            <if test="sourceService != null and sourceService != ''">
+                AND source_service = #{sourceService}
+            </if>
+            <if test="actorId != null and actorId != ''">
+                AND actor_id = #{actorId}
+            </if>
+            <if test="startDate != null">
+                AND occurred_at &gt;= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND occurred_at &lt;= #{endDate}
+            </if>
+        </where>
+    </select>
+
+</mapper>

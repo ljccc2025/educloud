@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.educloud.analytics.mapper.DailyPlatformMetricsMapper">
+
+    <insert id="upsertIncrement">
+        INSERT INTO daily_platform_metrics (
+            metric_date, total_users, new_users, total_courses, new_courses, total_orders, gmv_cents, refund_cents
+        ) VALUES (
+            #{metricDate}, #{newUsers}, #{newUsers}, #{newCourses}, #{newCourses}, #{orders}, #{gmvCents}, #{refundCents}
+        )
+        ON DUPLICATE KEY UPDATE
+            total_users = total_users + VALUES(new_users),
+            new_users = new_users + VALUES(new_users),
+            total_courses = total_courses + VALUES(new_courses),
+            new_courses = new_courses + VALUES(new_courses),
+            total_orders = total_orders + VALUES(total_orders),
+            gmv_cents = gmv_cents + VALUES(gmv_cents),
+            refund_cents = refund_cents + VALUES(refund_cents),
+            updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+</mapper>

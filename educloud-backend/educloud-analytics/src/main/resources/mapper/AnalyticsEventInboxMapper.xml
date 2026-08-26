@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.educloud.analytics.mapper.AnalyticsEventInboxMapper">
+
+    <insert id="insertIfNotExists">
+        INSERT IGNORE INTO analytics_event_inbox (
+            event_id, event_type, source_service, payload_json, status, created_at
+        ) VALUES (
+            #{entity.eventId}, #{entity.eventType}, #{entity.sourceService}, 
+            #{entity.payloadJson}, #{entity.status}, #{entity.createdAt}
+        )
+    </insert>
+
+</mapper>
