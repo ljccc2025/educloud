@@ -23,6 +23,7 @@
         <module>educloud-payment</module>
         <module>educloud-live</module>
         <module>educloud-notification</module>
+        <module>educloud-search</module>
     </modules>
 
     <properties>
@@ -48,6 +49,8 @@
         <springdoc.version>2.5.0</springdoc.version>
         <!-- M04: 版本依据：minio-java 官方发布（https://github.com/minio/minio-java/releases），8.5.7 与架构文档钦定版本一致。 -->
         <minio.version>8.5.7</minio.version>
+        <!-- M11: Elasticsearch Java Client 8.14.0 -->
+        <elasticsearch-java.version>8.14.0</elasticsearch-java.version>
     </properties>
 
     <dependencyManagement>
@@ -88,6 +91,12 @@
                 <groupId>io.minio</groupId>
                 <artifactId>minio</artifactId>
                 <version>${minio.version}</version>
+            </dependency>
+            <!-- M11: Elasticsearch Java Client -->
+            <dependency>
+                <groupId>co.elastic.clients</groupId>
+                <artifactId>elasticsearch-java</artifactId>
+                <version>${elasticsearch-java.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

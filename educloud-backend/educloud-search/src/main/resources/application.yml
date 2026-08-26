@@ -1,0 +1,81 @@
+server:
+  port: 8099
+
+spring:
+  application:
+    name: educloud-search
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 2000
+            read-timeout: 3000
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_SEARCH_NACOS_USERNAME:${NACOS_ADMIN_USERNAME:nacos}}
+      password: ${EDUCLOUD_SEARCH_NACOS_PASSWORD:${NACOS_ADMIN_PASSWORD:nacos}}
+      discovery:
+        username: ${EDUCLOUD_SEARCH_NACOS_USERNAME:${NACOS_ADMIN_USERNAME:nacos}}
+        password: ${EDUCLOUD_SEARCH_NACOS_PASSWORD:${NACOS_ADMIN_PASSWORD:nacos}}
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_search?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${EDUCLOUD_SEARCH_DB_USERNAME:${MYSQL_USERNAME:search_app}}
+    password: ${EDUCLOUD_SEARCH_DB_PASSWORD:${EDUCLOUD_ORDER_DB_PASSWORD:b97ac137f154ee3561da13eb792c502f7e2a4c357ed7cf95}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_DEFAULT_USER:${RABBITMQ_USERNAME:guest}}
+    password: ${RABBITMQ_DEFAULT_PASS:${RABBITMQ_PASSWORD:guest}}
+    virtual-host: ${RABBITMQ_DEFAULT_VHOST:educloud}
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  server:
+    port: 8100
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+educloud:
+  environment: ${EDUCLOUD_ENVIRONMENT:prod}
+  search:
+    environment: ${EDUCLOUD_ENVIRONMENT:prod}
+    elasticsearch:
+      host: ${ELASTICSEARCH_HOST:127.0.0.1}
+      port: ${ELASTICSEARCH_PORT:9200}
+      scheme: ${ELASTICSEARCH_SCHEME:http}
+      username: ${ELASTICSEARCH_USERNAME:}
+      password: ${ELASTICSEARCH_PASSWORD:}
+      api-key: ${ELASTICSEARCH_API_KEY:}
+      connect-timeout-ms: ${ELASTICSEARCH_CONNECT_TIMEOUT_MS:2000}
+      socket-timeout-ms: ${ELASTICSEARCH_SOCKET_TIMEOUT_MS:5000}
+      alias-name: ${SEARCH_ALIAS_NAME:educloud_course_search}
+      index-prefix: ${SEARCH_INDEX_PREFIX:educloud_course_v}
+    jwt:
+      jwks-location: ${SEARCH_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
+      issuer: ${EDUCLOUD_SEARCH_JWT_ISSUER:https://issuer.educloud.local}
+      audience: ${EDUCLOUD_SEARCH_JWT_AUDIENCE:educloud-api}
+    internal:
+      audience: ${EDUCLOUD_SEARCH_INTERNAL_AUDIENCE:educloud-search}
+      allowed-client-ids: ${EDUCLOUD_SEARCH_INTERNAL_ALLOWED_CLIENT_IDS:gateway,user-service,educloud-order,educloud-course,educloud-content,educloud-file,educloud-payment,educloud-live,educloud-notification}
+      secret-token: ${EDUCLOUD_SEARCH_INTERNAL_SECRET:educloud-internal-secret}

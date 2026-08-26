@@ -1,0 +1,128 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "analyzer": {
+        "search_text_analyzer": {
+          "type": "standard"
+        },
+        "search_suggest_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "courseId": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "search_text_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          },
+          "suggest": {
+            "type": "completion",
+            "analyzer": "search_suggest_analyzer"
+          }
+        }
+      },
+      "subtitle": {
+        "type": "text",
+        "analyzer": "search_text_analyzer"
+      },
+      "description": {
+        "type": "text",
+        "analyzer": "search_text_analyzer"
+      },
+      "teacherId": {
+        "type": "keyword"
+      },
+      "teacherName": {
+        "type": "text",
+        "analyzer": "search_text_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "category": {
+        "type": "keyword"
+      },
+      "categoryCode": {
+        "type": "keyword"
+      },
+      "coverUrl": {
+        "type": "keyword",
+        "index": false
+      },
+      "difficulty": {
+        "type": "keyword"
+      },
+      "priceCents": {
+        "type": "long"
+      },
+      "isFree": {
+        "type": "boolean"
+      },
+      "rating": {
+        "type": "float"
+      },
+      "studentCount": {
+        "type": "integer"
+      },
+      "lessonCount": {
+        "type": "integer"
+      },
+      "status": {
+        "type": "keyword"
+      },
+      "tags": {
+        "type": "keyword"
+      },
+      "lessons": {
+        "type": "nested",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "title": {
+            "type": "text",
+            "analyzer": "search_text_analyzer"
+          },
+          "chapterTitle": {
+            "type": "text",
+            "analyzer": "search_text_analyzer"
+          },
+          "isPreview": {
+            "type": "boolean"
+          }
+        }
+      },
+      "aggregateVersion": {
+        "type": "long"
+      },
+      "publishedAt": {
+        "type": "date",
+        "format": "yyyy-MM-dd HH:mm:ss||strict_date_optional_time||epoch_millis"
+      },
+      "updatedAt": {
+        "type": "date",
+        "format": "yyyy-MM-dd HH:mm:ss||strict_date_optional_time||epoch_millis"
+      }
+    }
+  }
+}
