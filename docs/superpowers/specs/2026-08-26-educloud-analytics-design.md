@@ -454,30 +454,88 @@ sequenceDiagram
 }
 ```
 
+## 6. 前端接入与 Booker 极简 UI 设计规范
+
+### 6.1 Booker UI 视觉设计系统（Design System Guidelines）
+
+本项目全端统计与大屏界面全面遵循 **Booker 现代极简设计系统**，重点规范如下：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Booker Design System · 视觉设计规范                                                        │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 1. 配色体系 (Color Palette)                                                                 │
+│    • 主色调 (Primary): Booker 皇家蓝 (#2563EB / #1D4ED8)，用于激活态导航、胶囊立柱、核心曲线与高亮 │
+│    • 卡片底色 (Surface): 纯白 (#FFFFFF)，外框采用极细浅灰线 (1px solid #EAEFF5)              │
+│    • 全局背景 (Canvas): 全局冷白 (#FFFFFF / #F8FAFC)，全屏无多余边距铺满                     │
+│    • 文本主色 (Typography): 标题/大数字 Charcoal Black (#0F172A), 副标灰阶 (#94A3B8)        │
+│    • 状态胶囊 (Pills): 薄荷绿微标 (bg-emerald-50 text-emerald-600 用于增长率/完课率标签)       │
+│    • 经典圆形微标 (Circle Icons): 纯黑底色 (w-12 h-12 rounded-full bg-slate-900 text-white) │
+│    • 课程指示彩条 (Color Strips): 紫(#8B5CF6)、绿(#10B981)、粉(#EC4899)、蓝(#3B82F6)、黄(#F59E0B)  │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 2. 空间与间距留白 (Spacing & Breathing Room)                                                 │
+│    • 指标卡结构: 统一采用宽敞型 kpi-card (padding: 1.25rem 1.5rem, min-height: 5.25rem)，   │
+│      与黑色圆标保持 space-x-4 间距，数字与边框留出充足呼吸感，杜绝任何紧绷挤压                 │
+│    • 容器与图表卡片: 统一采用 rounded-2xl (1.25rem) 圆角，内边距遵循 p-5 至 p-6               │
+│    • 阴影体系: 剔除厚重渐变阴影，采用超轻微弥散阴影 (shadow-[0_2px_8px_rgba(15,23,42,0.02)]) │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 3. 业务映射与边界隔离 (Domain Separation)                                                    │
+│    • 严禁引入项目中不存在的伪入口（如无关的通用日程或假待办清单），严格保留各端原有路由架构 │
+│    • 教师端与管理端统计数据完全物理隔离，严格按照端各自的业务诉求与角色权限呈现              │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
-## 6. 前端接入与改造清单
+### 6.2 教师端门户改造（`teacher-portal :5174`）
 
-### 6.1 教师端（`educloud-frontend/teacher-portal`）
-- **`src/services/api.ts`**：
-  - 将 `getStats()` 对接 `GET /api/v1/analytics/teacher/stats`；
-  - 将 `getEnrollmentTrend()` 对接 `GET /api/v1/analytics/teacher/enrollment-trend`；
-  - 将 `getRevenueData()` 对接 `GET /api/v1/analytics/teacher/revenue-trend`；
-  - 将 `getEngagementData()` 对接 `GET /api/v1/analytics/teacher/engagement`；
-  - 将 `getActivities()` 对接 `GET /api/v1/analytics/teacher/activities`。
-- **页面**：
-  - `src/pages/Analytics.tsx`：直连真实 API，渲染 4 张指标卡与 3 组图表；
-  - `src/pages/Dashboard.tsx`：直连真实 API 渲染活动流与概览。
+#### 1. 路由与页面对接
+- **保留原有路由结构**：概览（`Dashboard.tsx`）、教学数据分析（`Analytics.tsx`）、课程管理、学员管理、设置；
+- **对接 API（`src/services/api.ts`）**：
+  - `getStats()` $\to$ `GET /api/v1/analytics/teacher/stats`
+  - `getEnrollmentTrend()` $\to$ `GET /api/v1/analytics/teacher/enrollment-trend`
+  - `getRevenueData()` $\to$ `GET /api/v1/analytics/teacher/revenue-trend`
+  - `getEngagementData()` $\to$ `GET /api/v1/analytics/teacher/engagement`
+  - `getActivities()` $\to$ `GET /api/v1/analytics/teacher/activities`
 
-### 6.2 管理端（`educloud-frontend/admin-portal`）
-- **`src/services/api.ts`**：
-  - `dashboardApi.getStats`、`getUserGrowth`、`getCategoryStats`、`getOrderStatusStats`、`getActivities` 全面接入网关 `/api/v1/analytics/admin/**`；
-  - `financeApi.getStats`、`getMonthlyRevenue` 接入 `/api/v1/analytics/admin/finance/**`；
-  - `logApi.getLogs` 接入 `/api/v1/analytics/admin/audit-logs`，支持分页、级别与关键词搜索。
-- **页面**：
-  - `src/pages/Dashboard.tsx`：核心大屏、双折线趋势、分类环形图、订单分布饼图与近期系统动态；
-  - `src/pages/Finance.tsx`：月度收支柱状图与财务核心指标卡；
-  - `src/pages/Logs.tsx`：全平台审计日志表格、条件过滤与分页。
+#### 2. `Analytics.tsx` 页面视觉组件设计
+- **Top 4 KPI 卡片**：
+  - 课程总数（在售）、学员总规模、累计已结算收益、平均完课率（纯黑圆标 + 宽敞通透布局）；
+- **学员报名增长走势（Activity Hours 风格）**：
+  - 胶囊立柱图（带自然周/月筛选与薄荷绿指标徽章）；
+- **收益结算走势（Performance 风格）**：
+  - 皇家蓝平滑贝塞尔曲线（Spline）与高光转折点；
+- **课程深度排行榜（Enrolled Classes 风格）**：
+  - 彩色彩条指示器 + 课程标题 + 课时与时间 + 双色进度条与完课率；
+- **实时学员动态流（Overall Activity 风格）**：
+  - 学员首字头像 + 动态动作 + 时间戳。
+
+---
+
+### 6.3 管理端门户改造（`admin-portal :5175`）
+
+#### 1. 路由与页面对接
+- **保留原有路由结构**：运营看板（`Dashboard.tsx`）、用户管理、课程管理、财务中心（`Finance.tsx`）、全平台审计日志（`Logs.tsx`）、系统设置；
+- **对接 API（`src/services/api.ts`）**：
+  - `dashboardApi.getStats`、`getUserGrowth`、`getCategoryStats` $\to$ `/api/v1/analytics/admin/**`
+  - `financeApi.getStats`、`getMonthlyRevenue` $\to$ `/api/v1/analytics/admin/finance/**`
+  - `logApi.getLogs` $\to$ `/api/v1/analytics/admin/audit-logs`
+  - `rebuildApi.triggerRebuild`、`getTasks` $\to$ `/api/v1/analytics/admin/rebuild/**`
+
+#### 2. `Dashboard.tsx` 平台运营大屏
+- **4 大运营 KPI**：平台总注册用户、已发布课程总量、平台累计 GMV、进行中实时直播课；
+- **全景增长走势图**：用户与课程增长双轴曲面图（左轴用户数，右轴课程数）；
+- **课程分类分布**：精致环形 Donut 图；
+- **全量指标历史抽取重算中心**：支持一键触发 `AggregationRebuildService`，展示 Stage 1~4 进度模态弹窗。
+
+#### 3. `Finance.tsx` 财务营收大屏
+- **4 大财务 KPI**：累计总流水 (GMV)、待结算分账金额、累计退款总额、全平台综合退款率；
+- **月度总流水与退款冲正对比**：月度收支双柱图（总流水 vs 退款金额）。
+
+#### 4. `Logs.tsx` 全平台操作审计日志
+- **多维过滤搜索栏**：微服务源、操作人、级别（INFO/WARN/ERROR）、时间范围；
+- **审计日志数据表格**：毫秒级时间戳、微服务名称、操作人、动作类型、目标资源、IP 地址；
+- **详情抽屉/模态框**：完整 JSON Payload 结构化预览。
 
 ---
 

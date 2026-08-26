@@ -198,7 +198,12 @@
 
 ---
 
-### 任务 7：前端双端门户真实数据对接（教师端分析大屏 + 管理端运营/财务/审计大屏）
+### 任务 7：前端双端门户 Booker UI 极简风格重构与真实 API 对接
+
+**设计系统规范：**
+- 严格遵循 Booker 极简 UI 风格：Booker 皇家蓝（`#2563EB`）、纯白高透底色（`#FFFFFF`）、极细灰边（`#EAEFF5`）、纯黑圆形图标徽章（`w-12 h-12 bg-slate-900`）、薄荷绿状态胶囊、胶囊立柱图、平滑双曲线与彩条排行榜；
+- 宽敞透气的 `.kpi-card` 结构（`padding: 1.25rem 1.5rem`、`min-height: 5.25rem`），杜绝文字与边框挤压；
+- 严禁引入假入口、伪日程或假待办，严格保留各端原有路由架构并区分双端统计数据。
 
 **文件：**
 - 修改：`educloud-frontend/teacher-portal/src/services/api.ts`
@@ -209,18 +214,21 @@
 - 修改：`educloud-frontend/admin-portal/src/pages/Finance.tsx`
 - 修改：`educloud-frontend/admin-portal/src/pages/Logs.tsx`
 
-- [ ] **步骤 1：教师端 API 替换与页面改造**
-  - 在 `teacher-portal/src/services/api.ts` 中移除 Mock，全面接入 `/api/v1/analytics/teacher/**`；
-  - 在 `Analytics.tsx` 与 `Dashboard.tsx` 中绑定真实数据。
-- [ ] **步骤 2：管理端 API 替换与页面改造**
+- [ ] **步骤 1：教师端 API 替换与 Booker 风格页面重构**
+  - 在 `teacher-portal/src/services/api.ts` 中移除 Mock，对接 `/api/v1/analytics/teacher/**`；
+  - 重构 `Analytics.tsx`：4 大指标卡（纯黑圆标 + 宽敞通透）、报名趋势胶囊立柱、收益平滑双曲线、热门课程彩条排行榜、实时学员动态流；
+  - 重构 `Dashboard.tsx`：同步对接真实统计与动态概览。
+- [ ] **步骤 2：管理端 API 替换与 Booker 风格页面重构**
   - 在 `admin-portal/src/services/api.ts` 中将 `dashboardApi`、`financeApi`、`logApi` 全面对接 `/api/v1/analytics/admin/**`；
-  - 在 `Dashboard.tsx`、`Finance.tsx`、`Logs.tsx` 中绑定真实数据，并提供一键重算与任务进度提示。
+  - 重构 `Dashboard.tsx`：4 大运营 KPI、用户/课程全景增长双轴图、分类环形 Donut 图、一键全量重算调度卡片与进度模态弹窗；
+  - 重构 `Finance.tsx`：4 大财务指标卡、月度总流水与退款冲正对比双柱图；
+  - 重构 `Logs.tsx`：全维度组合过滤搜索栏、集中式审计日志只读表格与 JSON Payload 结构化抽屉。
 - [ ] **步骤 3：运行前端生产构建验证**
   - 分别在 `teacher-portal` 与 `admin-portal` 运行 `npm run build`；
   - 预期：TypeScript 类型检查通过，0 错误。
 - [ ] **步骤 4：Commit**
   - `git add educloud-frontend/teacher-portal educloud-frontend/admin-portal`
-  - `git commit -m "feat(frontend): connect teacher and admin portals to real analytics backend apis"`
+  - `git commit -m "feat(frontend): apply Booker UI design system and connect teacher & admin portals to real analytics backend"`
 
 ---
 
