@@ -2,27 +2,37 @@ package com.educloud.content.integration;
 
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import com.educloud.common.id.IdentifierGenerator;
+import com.educloud.common.web.RequestContextAccessor;
 import com.educloud.content.dto.request.ProgressReportRequest;
 import com.educloud.content.dto.response.CourseProgressResponse;
 import com.educloud.content.entity.ContentRevisionEntity;
+import com.educloud.content.entity.CourseCertificateEntity;
 import com.educloud.content.entity.CourseContentEntity;
 import com.educloud.content.entity.CoursewareEntity;
+import com.educloud.content.entity.OutboxEventEntity;
 import com.educloud.content.mapper.ChapterMapper;
 import com.educloud.content.mapper.ContentAuditSubmissionMapper;
 import com.educloud.content.mapper.ContentRevisionMapper;
+import com.educloud.content.mapper.CourseCertificateMapper;
 import com.educloud.content.mapper.CourseContentMapper;
 import com.educloud.content.mapper.CoursewareMapper;
 import com.educloud.content.mapper.OutboxEventMapper;
 import com.educloud.content.mapper.OutboxSequenceMapper;
 import com.educloud.content.mapper.UserCourseProgressMapper;
 import com.educloud.content.mapper.UserCoursewareProgressMapper;
+import com.educloud.content.messaging.ContentEventPublisher;
+import com.educloud.content.messaging.OutboxWriter;
+import com.educloud.content.service.CertificateService;
+import com.educloud.content.service.CourseClient;
 import com.educloud.content.service.CourseProgressService;
 import com.educloud.content.testcontainers.TestContainerImages;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -38,9 +48,13 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Testcontainers
 class LearningProgressIT {
@@ -57,6 +71,8 @@ class LearningProgressIT {
     private static CourseContentMapper contentMapper;
     private static ContentRevisionMapper revisionMapper;
     private static CoursewareMapper coursewareMapper;
+    private static CourseCertificateMapper certificateMapper;
+    private static OutboxEventMapper outboxEventMapper;
 
     @BeforeAll
     static void bootstrap() throws Exception {
@@ -80,6 +96,7 @@ class LearningProgressIT {
             ScriptUtils.executeSqlScript(connection, new FileSystemResource(Path.of("../../deploy/sql/content/V000__technical_tables.sql")));
             ScriptUtils.executeSqlScript(connection, new FileSystemResource(Path.of("../../deploy/sql/content/V001__init_content_schema.sql")));
             ScriptUtils.executeSqlScript(connection, new FileSystemResource(Path.of("../../deploy/sql/content/V003__outbox_claim_support.sql")));
+            ScriptUtils.executeSqlScript(connection, new FileSystemResource(Path.of("../../deploy/sql/content/V004__course_certificate.sql")));
         }
 
         MybatisConfiguration configuration = new MybatisConfiguration();
@@ -93,6 +110,7 @@ class LearningProgressIT {
         configuration.addMapper(ContentAuditSubmissionMapper.class);
         configuration.addMapper(OutboxEventMapper.class);
         configuration.addMapper(OutboxSequenceMapper.class);
+        configuration.addMapper(CourseCertificateMapper.class);
 
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
         interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
@@ -109,16 +127,35 @@ class LearningProgressIT {
         coursewareMapper = sqlSessionTemplate.getMapper(CoursewareMapper.class);
         UserCoursewareProgressMapper coursewareProgressMapper = sqlSessionTemplate.getMapper(UserCoursewareProgressMapper.class);
         UserCourseProgressMapper courseProgressMapper = sqlSessionTemplate.getMapper(UserCourseProgressMapper.class);
+        certificateMapper = sqlSessionTemplate.getMapper(CourseCertificateMapper.class);
+        outboxEventMapper = sqlSessionTemplate.getMapper(OutboxEventMapper.class);
+        OutboxSequenceMapper outboxSequenceMapper = sqlSessionTemplate.getMapper(OutboxSequenceMapper.class);
 
         AtomicLong idSeq = new AtomicLong(2000000000000000000L);
         IdentifierGenerator idGenerator = idSeq::incrementAndGet;
+
+        OutboxWriter outboxWriter = new OutboxWriter(outboxEventMapper, outboxSequenceMapper, idGenerator);
+        RequestContextAccessor requestContextAccessor = mock(RequestContextAccessor.class);
+        when(requestContextAccessor.requestId()).thenReturn("it-request");
+        when(requestContextAccessor.traceId()).thenReturn(Optional.empty());
+        ContentEventPublisher eventPublisher =
+                new ContentEventPublisher(outboxWriter, new ObjectMapper(), requestContextAccessor);
+
+        CertificateService certificateService = new CertificateService(certificateMapper);
+        // IT 无 course 服务：快照解析直接抛错，验证完课触发降级（兜底标题）不阻断主流程。
+        CourseClient courseClient = mock(CourseClient.class);
+        when(courseClient.getCourseSnapshot(org.mockito.ArgumentMatchers.anyLong()))
+                .thenThrow(new IllegalStateException("course service unavailable in IT"));
 
         progressService = new CourseProgressService(
                 coursewareProgressMapper,
                 courseProgressMapper,
                 coursewareMapper,
                 contentMapper,
-                idGenerator);
+                idGenerator,
+                certificateService,
+                eventPublisher,
+                courseClient);
     }
 
     @Test
@@ -196,5 +233,28 @@ class LearningProgressIT {
         assertThat(resp2.getProgressPercent()).isEqualTo(100);
         assertThat(resp2.getCompletedCoursewareCount()).isEqualTo(2);
         assertThat(resp2.getTotalCoursewareCount()).isEqualTo(2);
+
+        // 完课（100%）自动颁发证书（course 服务不可用降级为兜底标题，不阻断主流程）
+        List<CourseCertificateEntity> certs = certificateMapper.selectList(
+                new LambdaQueryWrapper<CourseCertificateEntity>()
+                        .eq(CourseCertificateEntity::getUserId, studentId)
+                        .eq(CourseCertificateEntity::getCourseId, courseId));
+        assertThat(certs).hasSize(1);
+        assertThat(certs.get(0).getCertNo()).matches("CERT-\\d{8}-\\d{6}");
+        assertThat(certs.get(0).getCourseTitle()).isEqualTo("课程 " + courseId);
+
+        // 完课 + 证书事件均经 Outbox 落库；重复上报不重复颁发/不重复发事件（幂等）
+        CourseProgressResponse resp3 = progressService.reportProgress(coursewareId2, req2, studentId);
+        assertThat(resp3.getProgressPercent()).isEqualTo(100);
+        assertThat(certificateMapper.selectCount(
+                new LambdaQueryWrapper<CourseCertificateEntity>()
+                        .eq(CourseCertificateEntity::getUserId, studentId)
+                        .eq(CourseCertificateEntity::getCourseId, courseId))).isEqualTo(1L);
+        assertThat(outboxEventMapper.selectCount(
+                new LambdaQueryWrapper<OutboxEventEntity>()
+                        .eq(OutboxEventEntity::getEventType, "CourseCompleted"))).isEqualTo(1L);
+        assertThat(outboxEventMapper.selectCount(
+                new LambdaQueryWrapper<OutboxEventEntity>()
+                        .eq(OutboxEventEntity::getEventType, "CertificateIssued"))).isEqualTo(1L);
     }
 }

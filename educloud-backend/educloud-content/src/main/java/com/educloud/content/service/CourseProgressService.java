@@ -5,6 +5,7 @@ import com.educloud.common.error.BusinessException;
 import com.educloud.common.id.IdentifierGenerator;
 import com.educloud.content.dto.request.ProgressReportRequest;
 import com.educloud.content.dto.response.CourseProgressResponse;
+import com.educloud.content.entity.CourseCertificateEntity;
 import com.educloud.content.entity.CourseContentEntity;
 import com.educloud.content.entity.CoursewareEntity;
 import com.educloud.content.entity.UserCourseProgressEntity;
@@ -14,7 +15,10 @@ import com.educloud.content.mapper.CourseContentMapper;
 import com.educloud.content.mapper.CoursewareMapper;
 import com.educloud.content.mapper.UserCourseProgressMapper;
 import com.educloud.content.mapper.UserCoursewareProgressMapper;
+import com.educloud.content.messaging.ContentEventPublisher;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +33,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CourseProgressService {
 
+    private static final Logger log = LoggerFactory.getLogger(CourseProgressService.class);
     private static final int MAX_HEARTBEAT_DELTA_SECONDS = 60;
 
     private final UserCoursewareProgressMapper coursewareProgressMapper;
@@ -36,6 +41,9 @@ public class CourseProgressService {
     private final CoursewareMapper coursewareMapper;
     private final CourseContentMapper contentMapper;
     private final IdentifierGenerator idGenerator;
+    private final CertificateService certificateService;
+    private final ContentEventPublisher eventPublisher;
+    private final CourseClient courseClient;
 
     @Transactional
     public CourseProgressResponse reportProgress(Long coursewareId, ProgressReportRequest req, Long studentId) {
@@ -143,6 +151,12 @@ public class CourseProgressService {
             courseProgressMapper.updateById(ucp);
         }
 
+        // 3. 完课（进度 100%）触发证书颁发 + 完课/证书事件（角色化动态流阶段 3）；
+        //    失败仅记日志，不阻断进度上报主流程。
+        if (percent >= 100) {
+            tryIssueCompletionCertificate(studentId, courseId, now);
+        }
+
         CourseProgressResponse resp = new CourseProgressResponse();
         resp.setCourseId(courseId);
         resp.setCompletedCoursewareCount(ucp.getCompletedCoursewareCount());
@@ -151,6 +165,45 @@ public class CourseProgressService {
         resp.setLastLearnedCoursewareId(ucp.getLastLearnedCoursewareId());
         resp.setUpdatedAt(ucp.getUpdatedAt());
         return resp;
+    }
+
+    /**
+     * 完课触发：幂等颁发完课证书并发布 {@code CourseCompleted} + {@code CertificateIssued}
+     * 事件（规格 §6.2）。幂等保障：已颁发直接跳过 + {@code uk_user_course} 唯一约束兜底。
+     * 任何异常仅记日志不抛出——证书生成失败不得阻断进度上报主流程。
+     */
+    private void tryIssueCompletionCertificate(Long studentId, Long courseId, LocalDateTime completedAt) {
+        try {
+            if (certificateService.findCertificate(studentId, courseId) != null) {
+                return; // 该课程已颁发证书，幂等跳过（不重复发事件）
+            }
+
+            // 课程标题快照 + 归属教师：尽力从 course 服务解析，失败降级不阻断。
+            String courseTitle = null;
+            Long teacherId = null;
+            try {
+                CourseClient.CourseSnapshot snapshot = courseClient.getCourseSnapshot(courseId);
+                if (snapshot != null) {
+                    courseTitle = snapshot.title();
+                    teacherId = snapshot.ownerTeacherId();
+                }
+            } catch (Exception e) {
+                log.warn("Failed to resolve course snapshot for certificate, fallback title used: "
+                        + "courseId={}, {}", courseId, e.getMessage());
+            }
+            if (courseTitle == null || courseTitle.isBlank()) {
+                courseTitle = "课程 " + courseId;
+            }
+
+            CourseCertificateEntity certificate =
+                    certificateService.issueCertificate(studentId, courseId, courseTitle);
+            eventPublisher.courseCompleted(courseId, studentId, 1L, completedAt);
+            eventPublisher.certificateIssued(
+                    certificate.getCertNo(), courseId, studentId, teacherId, 1L, certificate.getIssuedAt());
+        } catch (Exception e) {
+            log.warn("Completion certificate issuance failed, progress report unaffected: "
+                    + "studentId={}, courseId={}", studentId, courseId, e);
+        }
     }
 
     public CourseProgressResponse getCourseProgress(Long courseId, Long studentId) {

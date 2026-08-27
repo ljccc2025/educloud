@@ -119,6 +119,41 @@ public class CourseClient {
                 .anyMatch(teacher -> teacherIdText.equals(teacher.teacherId()));
     }
 
+    /**
+     * 课程快照（标题 + 归属教师，角色化动态流阶段 3）：完课颁发证书时
+     * 调用 course 服务公开详情接口 {@code GET /api/v1/courses/{courseId}}（permitAll）
+     * 解析课程标题快照与 OWNER 教师；服务不可用/解析失败时由调用方降级处理。
+     */
+    public CourseSnapshot getCourseSnapshot(Long courseId) {
+        if (!properties.enabled()) {
+            LOGGER.warn("Course client disabled, skipping course snapshot lookup "
+                    + "(DEV ONLY): courseId={}", courseId);
+            return null;
+        }
+
+        Map<?, ?> envelope = getForObject("/api/v1/courses/{courseId}", Map.class, courseId);
+        if (envelope == null || !(envelope.get("data") instanceof Map<?, ?> data)) {
+            return null;
+        }
+        String title = data.get("title") instanceof String t && !t.isBlank() ? t : null;
+        Long ownerTeacherId = null;
+        if (data.get("teachers") instanceof List<?> teachers) {
+            for (Object teacher : teachers) {
+                if (teacher instanceof Map<?, ?> teacherMap
+                        && "OWNER".equals(teacherMap.get("teacherRole"))
+                        && teacherMap.get("teacherId") != null) {
+                    try {
+                        ownerTeacherId = Long.valueOf(teacherMap.get("teacherId").toString());
+                    } catch (NumberFormatException ignored) {
+                        // 非法教师 ID 快照，降级为无教师归属
+                    }
+                    break;
+                }
+            }
+        }
+        return new CourseSnapshot(title, ownerTeacherId);
+    }
+
     private <T> T getForObject(String uriTemplate, Class<T> responseType, Object... uriVariables) {
         try {
             return restClient.get()
@@ -191,5 +226,9 @@ public class CourseClient {
     }
 
     private record CachedToken(String accessToken, Instant expiresAt) {
+    }
+
+    /** 课程快照：标题 + OWNER 教师（均可为 null，调用方降级处理）。 */
+    public record CourseSnapshot(String title, Long ownerTeacherId) {
     }
 }
