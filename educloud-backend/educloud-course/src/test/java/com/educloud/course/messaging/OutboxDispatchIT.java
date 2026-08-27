@@ -78,6 +78,7 @@ class OutboxDispatchIT {
                 Statement statement = root.createStatement()) {
             statement.execute("CREATE USER IF NOT EXISTS 'course_app'@'%' IDENTIFIED BY '" + APP_PASSWORD + "'");
             ScriptUtils.executeSqlScript(root, new FileSystemResource(sqlDir.resolve("V000__technical_tables.sql").toFile()));
+            ScriptUtils.executeSqlScript(root, new FileSystemResource(sqlDir.resolve("V006__outbox_claim_support.sql").toFile()));
         }
 
         // MyBatis-Plus 非 Spring 装配：PooledDataSource + MybatisConfiguration + 注解 Mapper。

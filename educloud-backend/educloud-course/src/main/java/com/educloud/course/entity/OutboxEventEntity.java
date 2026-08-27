@@ -47,6 +47,9 @@ public class OutboxEventEntity {
 
     private Instant nextAttemptAt;
 
+    /** 认领实例标识（V006 迁移新增，仅认领实例可取回投递）。 */
+    private String claimOwner;
+
     private Instant publishedAt;
 
     private Instant archivedAt;

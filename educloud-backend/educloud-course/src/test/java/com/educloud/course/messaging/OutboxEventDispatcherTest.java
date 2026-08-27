@@ -1,143 +1,168 @@
 package com.educloud.course.messaging;
 
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.educloud.common.messaging.EventEnvelope;
 import com.educloud.course.entity.OutboxEventEntity;
 import com.educloud.course.mapper.OutboxEventMapper;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.time.Instant;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * M05 任务 15：Outbox 发布器单元测试（mock OutboxEventMapper + RabbitTemplate）。
- *
- * <p>依据：M03/M04 发布器模式（PENDING 小批锁定、投递后标记 PUBLISHED、失败退避重试、
- * 达阈值 FAILED；信封字段完整）。M04 坑 3：交换机为 Topic，routing key 用点分隔
- * {@code aggregateType.aggregateId}（Course.10001），可被 Course.# 通配绑定命中；
- * 并发安全：状态更新 WHERE id=? AND publish_status='PENDING'（任务 15 要求，
- * 经 UpdateWrapper eq 条件进入 paramNameValuePairs）。</p>
+ * Outbox 投递器单测（BUG-042/058/064 修复后）：mock Mapper 验证 CAS 认领闭环——
+ * 先回置陈旧认领 → 批量认领 → 仅投递本实例认领的事件 → 成功 markPublished /
+ * 失败 markFailedAttempt（attempt+1 由 SQL 原子完成，此处验证调用与退避时间）/
+ * 达阈值 markFailed（终态语义保持原有值）。M04 坑 3：routing key 点分隔
+ * {@code aggregateType.aggregateId}（Course.10001）。
  */
-@ExtendWith(MockitoExtension.class)
 class OutboxEventDispatcherTest {
 
-    @Mock
     private OutboxEventMapper outboxEventMapper;
-    @Mock
     private RabbitTemplate rabbitTemplate;
-
+    private ObjectMapper objectMapper;
     private OutboxEventDispatcher dispatcher;
 
     @BeforeEach
     void setUp() {
-        dispatcher = new OutboxEventDispatcher(outboxEventMapper, rabbitTemplate, new ObjectMapper());
+        outboxEventMapper = mock(OutboxEventMapper.class);
+        rabbitTemplate = mock(RabbitTemplate.class);
+        objectMapper = new ObjectMapper();
+        dispatcher = new OutboxEventDispatcher(outboxEventMapper, rabbitTemplate, objectMapper);
     }
 
-    private OutboxEventEntity pendingEvent() {
+    private OutboxEventEntity claimedEvent(long id, int attemptCount) {
         OutboxEventEntity event = new OutboxEventEntity();
-        event.setId(1L);
-        event.setEventId("event-1");
+        event.setId(id);
+        event.setEventId("evt-" + id);
         event.setEventType("CoursePublished");
         event.setEventVersion(1);
         event.setAggregateType("Course");
         event.setAggregateId("1001");
         event.setAggregateVersion(1L);
-        event.setSourceSequence(1L);
+        event.setSourceSequence(id);
         event.setPayloadJson("{\"courseId\":1001}");
         event.setRequestId("req-1");
         event.setOccurredAt(Instant.parse("2026-08-23T10:00:00Z"));
-        event.setPublishStatus("PENDING");
-        event.setAttemptCount(0);
+        event.setPublishStatus("CLAIMED");
+        event.setAttemptCount(attemptCount);
         return event;
     }
 
     @Test
-    void publishesEnvelopeWithDotRoutingKeyAndMarksPublished() {
-        when(outboxEventMapper.selectList(any())).thenReturn(List.of(pendingEvent()));
-        when(outboxEventMapper.update(any(), any())).thenReturn(1);
+    void relayReleasesStaleClaimsBeforeClaiming() {
+        when(outboxEventMapper.claimPending(anyString(), anyInt(), anyInt())).thenReturn(0);
 
         dispatcher.dispatchPending();
 
-        ArgumentCaptor<EventEnvelope> envelopeCaptor = ArgumentCaptor.forClass(EventEnvelope.class);
-        verify(rabbitTemplate).convertAndSend(eq("Course.1001"), (Object) envelopeCaptor.capture());
-        EventEnvelope envelope = envelopeCaptor.getValue();
-        assertThat(envelope.eventId()).isEqualTo("event-1");
-        assertThat(envelope.eventType()).isEqualTo("CoursePublished");
-        assertThat(envelope.eventVersion()).isEqualTo(1);
-        assertThat(envelope.sourceService()).isEqualTo("educloud-course");
-        assertThat(envelope.sourceSequence()).isEqualTo(1L);
-        assertThat(envelope.aggregateType()).isEqualTo("Course");
-        assertThat(envelope.aggregateId()).isEqualTo("1001");
-        assertThat(envelope.aggregateVersion()).isEqualTo(1L);
-        assertThat(envelope.requestId()).isEqualTo("req-1");
-        assertThat(envelope.occurredAt()).isEqualTo(Instant.parse("2026-08-23T10:00:00Z"));
-        assertThat(((JsonNode) envelope.data()).get("courseId").asLong()).isEqualTo(1001L);
-
-        UpdateWrapper<OutboxEventEntity> update = capturedUpdate();
-        assertThat(update.getSqlSet()).contains("publish_status").contains("published_at");
-        // 并发安全：仅当仍为 PENDING 才推进为 PUBLISHED（eq 条件在 WHERE 段）。
-        assertThat(update.getSqlSegment()).contains("publish_status");
-        assertThat(update.getParamNameValuePairs()).containsValue("PENDING").containsValue("PUBLISHED");
+        verify(outboxEventMapper).releaseStaleClaims(300);
+        verify(outboxEventMapper).claimPending(anyString(), eq(10), eq(50));
+        verify(outboxEventMapper, never()).selectClaimedByOwner(anyString());
+        verifyNoInteractions(rabbitTemplate);
     }
 
     @Test
-    void deliveryFailureBacksOffAndKeepsPending() {
-        OutboxEventEntity event = pendingEvent();
-        when(outboxEventMapper.selectList(any())).thenReturn(List.of(event));
-        doThrow(new RuntimeException("broker down"))
-                .when(rabbitTemplate).convertAndSend(any(String.class), any(Object.class));
-        when(outboxEventMapper.update(any(), any())).thenReturn(1);
+    void relayStopsWhenNoPendingEvents() {
+        when(outboxEventMapper.releaseStaleClaims(anyInt())).thenReturn(0);
+        when(outboxEventMapper.claimPending(anyString(), anyInt(), anyInt())).thenReturn(0);
 
         dispatcher.dispatchPending();
 
-        UpdateWrapper<OutboxEventEntity> update = capturedUpdate();
-        assertThat(update.getSqlSet()).contains("attempt_count").contains("next_attempt_at");
-        assertThat(update.getParamNameValuePairs())
-                .containsValue(1)
-                .containsValue("PENDING");
-        // 退避：next_attempt_at 被排程为未来时刻（5s * 1 次尝试）。
-        assertThat(update.getParamNameValuePairs().values())
-                .anyMatch(value -> value instanceof Instant);
+        verify(outboxEventMapper, times(1)).claimPending(anyString(), anyInt(), anyInt());
+        verify(outboxEventMapper, never()).selectClaimedByOwner(anyString());
+        verifyNoInteractions(rabbitTemplate);
     }
 
     @Test
-    void deliveryFailureReachesThresholdAndMarksFailed() {
-        OutboxEventEntity event = pendingEvent();
-        event.setAttemptCount(9);
-        when(outboxEventMapper.selectList(any())).thenReturn(List.of(event));
-        doThrow(new RuntimeException("broker down"))
-                .when(rabbitTemplate).convertAndSend(any(String.class), any(Object.class));
-        when(outboxEventMapper.update(any(), any())).thenReturn(1);
+    void relayPublishesClaimedEventAfterSuccessfulDispatch() {
+        OutboxEventEntity event = claimedEvent(1L, 0);
+        when(outboxEventMapper.claimPending(anyString(), anyInt(), anyInt())).thenReturn(1, 0);
+        when(outboxEventMapper.selectClaimedByOwner(anyString())).thenReturn(List.of(event));
 
         dispatcher.dispatchPending();
 
-        UpdateWrapper<OutboxEventEntity> update = capturedUpdate();
-        assertThat(update.getSqlSet()).contains("attempt_count").contains("publish_status");
-        // 达阈值：attempt 9 -> 10 >= MAX_ATTEMPTS(10)，标记 FAILED。
-        assertThat(update.getParamNameValuePairs()).containsValue(10).containsValue("FAILED");
+        // M04 坑 3：routing key 为点分隔 Course.1001（Topic 交换机通配绑定）。
+        verify(rabbitTemplate).convertAndSend(eq("Course.1001"), any(Object.class));
+        verify(outboxEventMapper).markPublished(event.getId());
+        verify(outboxEventMapper, never()).markFailedAttempt(any(), any());
+        verify(outboxEventMapper, never()).markFailed(any(), any());
     }
 
-    @SuppressWarnings("unchecked")
-    private UpdateWrapper<OutboxEventEntity> capturedUpdate() {
-        ArgumentCaptor<Wrapper<OutboxEventEntity>> captor = ArgumentCaptor.forClass(Wrapper.class);
-        verify(outboxEventMapper).update(isNull(), captor.capture());
-        return (UpdateWrapper<OutboxEventEntity>) captor.getValue();
+    @Test
+    void relayRetriesClaimedEventWithBackoffAfterFailedDispatch() {
+        OutboxEventEntity event = claimedEvent(2L, 2);
+        when(outboxEventMapper.claimPending(anyString(), anyInt(), anyInt())).thenReturn(1, 0);
+        when(outboxEventMapper.selectClaimedByOwner(anyString())).thenReturn(List.of(event));
+        doThrow(new AmqpException("RabbitMQ down"))
+                .when(rabbitTemplate).convertAndSend(anyString(), any(Object.class));
+
+        Instant before = Instant.now();
+        dispatcher.dispatchPending();
+
+        // 退避公式不变：attempt=2 → 5s * 3 = 15s。
+        verify(outboxEventMapper).markFailedAttempt(eq(event.getId()),
+                argThat(nextAttemptAt -> nextAttemptAt.isAfter(before.plusSeconds(14))
+                        && nextAttemptAt.isBefore(before.plusSeconds(16))));
+        verify(outboxEventMapper, never()).markPublished(any());
+        verify(outboxEventMapper, never()).markFailed(any(), any());
+    }
+
+    @Test
+    void relayMarksFailedWhenAttemptsReachThreshold() {
+        OutboxEventEntity event = claimedEvent(3L, 9);
+        when(outboxEventMapper.claimPending(anyString(), anyInt(), anyInt())).thenReturn(1, 0);
+        when(outboxEventMapper.selectClaimedByOwner(anyString())).thenReturn(List.of(event));
+        doThrow(new AmqpException("RabbitMQ down"))
+                .when(rabbitTemplate).convertAndSend(anyString(), any(Object.class));
+
+        Instant before = Instant.now();
+        dispatcher.dispatchPending();
+
+        // 终态语义不变：attempt 9 -> 10 >= MAX_ATTEMPTS(10)，标记 FAILED（next_attempt_at 一并保留）。
+        verify(outboxEventMapper).markFailed(eq(event.getId()),
+                argThat(nextAttemptAt -> nextAttemptAt.isAfter(before.plusSeconds(49))
+                        && nextAttemptAt.isBefore(before.plusSeconds(51))));
+        verify(outboxEventMapper, never()).markFailedAttempt(any(), any());
+        verify(outboxEventMapper, never()).markPublished(any());
+    }
+
+    @Test
+    void relayStopsAfterMaxBatchesToAvoidInfiniteLoop() {
+        OutboxEventEntity event = claimedEvent(4L, 0);
+        when(outboxEventMapper.claimPending(anyString(), anyInt(), anyInt())).thenReturn(1);
+        when(outboxEventMapper.selectClaimedByOwner(anyString())).thenReturn(List.of(event));
+
+        dispatcher.dispatchPending();
+
+        // 每轮认领 1 条且均成功：循环 10 批（MAX_BATCHES）后停止，不会无限循环。
+        verify(outboxEventMapper, times(10)).claimPending(anyString(), eq(10), eq(50));
+        verify(outboxEventMapper, times(10)).markPublished(any());
+        verify(outboxEventMapper, times(1)).releaseStaleClaims(300);
+    }
+
+    @Test
+    void relaySkipsDispatchWhenClaimedBatchVanished() {
+        when(outboxEventMapper.claimPending(anyString(), anyInt(), anyInt())).thenReturn(1);
+        when(outboxEventMapper.selectClaimedByOwner(anyString())).thenReturn(List.of());
+
+        dispatcher.dispatchPending();
+
+        verify(outboxEventMapper, times(1)).claimPending(anyString(), anyInt(), anyInt());
+        verifyNoInteractions(rabbitTemplate);
     }
 }

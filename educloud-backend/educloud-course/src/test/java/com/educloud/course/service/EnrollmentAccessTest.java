@@ -127,8 +127,8 @@ class EnrollmentAccessTest {
         CourseStudentResponse first = response.items().get(0);
         assertThat(first.studentId()).isEqualTo("5001");
         assertThat(first.enrolledAt()).isEqualTo(LocalDateTime.of(2026, 8, 23, 10, 0));
-        // M05 无 user Profile 客户端：displayName 恒 null（javadoc 已说明，展示名后续接入）。
-        assertThat(first.displayName()).isNull();
+        // 无 profile 命中（selectStudentProfiles 未 mock → nameMap 为空）时按学号后 4 位生成兜底展示名。
+        assertThat(first.displayName()).isEqualTo("学员_5001");
         assertThat(response.items().get(1).studentId()).isEqualTo("5002");
     }
 
