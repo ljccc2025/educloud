@@ -11,7 +11,6 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -116,14 +115,15 @@ public class OutboxEventDispatcher {
             outboxEventMapper.markPublished(event.getId());
         } catch (Exception failure) {
             int nextAttempt = event.getAttemptCount() + 1;
-            LocalDateTime nextAttemptAt = LocalDateTime.now().plusSeconds(
-                    Math.min(MAX_DELAY_SECONDS, BASE_DELAY_SECONDS * nextAttempt));
+            // 退避时长交由数据库时钟（NOW(3)）在 SQL 内计算 next_attempt_at，
+            // 避免应用本地时区与 DB 时区不一致导致事件被误判为“未来”而永不认领。
+            long delaySeconds = Math.min(MAX_DELAY_SECONDS, BASE_DELAY_SECONDS * nextAttempt);
             if (nextAttempt >= MAX_ATTEMPTS) {
-                outboxEventMapper.markFailed(event.getId(), nextAttemptAt);
+                outboxEventMapper.markFailed(event.getId(), delaySeconds);
                 LOGGER.error("Outbox event {} reached the retry limit and is marked FAILED",
                         event.getEventId(), failure);
             } else {
-                outboxEventMapper.markFailedAttempt(event.getId(), nextAttemptAt);
+                outboxEventMapper.markFailedAttempt(event.getId(), delaySeconds);
                 LOGGER.warn("Outbox event {} delivery failed, attempt {}",
                         event.getEventId(), nextAttempt, failure);
             }

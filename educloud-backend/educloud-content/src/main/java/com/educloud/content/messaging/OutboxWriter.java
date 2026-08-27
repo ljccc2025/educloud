@@ -53,7 +53,10 @@ public class OutboxWriter {
         event.setSourceSequence(sequence);
         event.setPublishStatus("PENDING");
         event.setAttemptCount(0);
-        event.setNextAttemptAt(now);
+        // next_attempt_at 置 NULL 表示“立即可认领”。若写入应用本地时间（LocalDateTime.now()），
+        // 当应用时区（CST）与 MySQL 容器时区（UTC）不一致时，新事件会被认领条件
+        // {@code next_attempt_at <= NOW()} 误判为“未来 8 小时”而永不投递。
+        event.setNextAttemptAt(null);
         outboxEventMapper.insert(event);
     }
 }

@@ -7,7 +7,6 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -63,17 +62,22 @@ public interface OutboxEventMapper extends BaseMapper<OutboxEventEntity> {
             + "claim_owner = NULL WHERE id = #{id} AND publish_status = 'CLAIMED'")
     int markPublished(@Param("id") Long id);
 
-    /** 投递失败：回置 PENDING、attempt_count+1 并按退避时间推迟下次重试。 */
+    /** 投递失败：回置 PENDING、attempt_count+1 并按退避时间推迟下次重试。
+     *  next_attempt_at 由数据库时钟（NOW(3)）计算，避免应用本地时区与 DB 时区不一致
+     *  导致认领条件 {@code next_attempt_at <= NOW()} 永远不成立（事件被误判为未来）。 */
     @Update("UPDATE outbox_event SET publish_status = 'PENDING', "
-            + "attempt_count = attempt_count + 1, next_attempt_at = #{nextAttemptAt}, "
+            + "attempt_count = attempt_count + 1, "
+            + "next_attempt_at = TIMESTAMPADD(SECOND, #{delaySeconds}, NOW(3)), "
             + "claim_owner = NULL WHERE id = #{id} AND publish_status = 'CLAIMED'")
-    int markFailedAttempt(@Param("id") Long id, @Param("nextAttemptAt") LocalDateTime nextAttemptAt);
+    int markFailedAttempt(@Param("id") Long id, @Param("delaySeconds") long delaySeconds);
 
-    /** 投递失败且达重试阈值：CAS 置 FAILED（终态，人工介入）。 */
+    /** 投递失败且达重试阈值：CAS 置 FAILED（终态，人工介入）。
+     *  next_attempt_at 同由数据库时钟计算，保持与认领条件同一时钟基准。 */
     @Update("UPDATE outbox_event SET publish_status = 'FAILED', "
-            + "attempt_count = attempt_count + 1, next_attempt_at = #{nextAttemptAt}, "
+            + "attempt_count = attempt_count + 1, "
+            + "next_attempt_at = TIMESTAMPADD(SECOND, #{delaySeconds}, NOW(3)), "
             + "claim_owner = NULL WHERE id = #{id} AND publish_status = 'CLAIMED'")
-    int markFailed(@Param("id") Long id, @Param("nextAttemptAt") LocalDateTime nextAttemptAt);
+    int markFailed(@Param("id") Long id, @Param("delaySeconds") long delaySeconds);
 
     /**
      * 回置超时未收敛的 CLAIMED 认领（实例崩溃恢复）：置回 PENDING 并 attempt_count+1，

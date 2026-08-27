@@ -13,8 +13,8 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -140,15 +140,12 @@ class OutboxEventDispatcherTest {
         doThrow(new AmqpException("RabbitMQ down"))
                 .when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
 
-        LocalDateTime before = LocalDateTime.now();
         dispatcher.dispatchPending();
 
-        // 退避公式：attempt=2 → 5s * 3 = 15s。
-        verify(outboxEventMapper).markFailedAttempt(eq(event.getId()),
-                argThat(nextAttemptAt -> nextAttemptAt.isAfter(before.plusSeconds(14))
-                        && nextAttemptAt.isBefore(before.plusSeconds(16))));
+        // 退避公式：attempt=2 → nextAttempt=3 → 5s * 3 = 15s；next_attempt_at 由 DB 时钟计算。
+        verify(outboxEventMapper).markFailedAttempt(eq(event.getId()), eq(15L));
         verify(outboxEventMapper, never()).markPublished(any());
-        verify(outboxEventMapper, never()).markFailed(any(), any());
+        verify(outboxEventMapper, never()).markFailed(any(), anyLong());
     }
 
     @Test
@@ -159,14 +156,11 @@ class OutboxEventDispatcherTest {
         doThrow(new AmqpException("RabbitMQ down"))
                 .when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
 
-        LocalDateTime before = LocalDateTime.now();
         dispatcher.dispatchPending();
 
-        // attempt 9 -> 10 >= MAX_ATTEMPTS(10)，标记 FAILED。
-        verify(outboxEventMapper).markFailed(eq(event.getId()),
-                argThat(nextAttemptAt -> nextAttemptAt.isAfter(before.plusSeconds(49))
-                        && nextAttemptAt.isBefore(before.plusSeconds(51))));
-        verify(outboxEventMapper, never()).markFailedAttempt(any(), any());
+        // attempt 9 -> 10 >= MAX_ATTEMPTS(10)，标记 FAILED；退避 5s * 10 = 50s。
+        verify(outboxEventMapper).markFailed(eq(event.getId()), eq(50L));
+        verify(outboxEventMapper, never()).markFailedAttempt(any(), anyLong());
         verify(outboxEventMapper, never()).markPublished(any());
     }
 
