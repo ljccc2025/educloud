@@ -581,6 +581,22 @@ function delay<T>(data: T, ms = 300): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms));
 }
 
+/** 后端 actionType → 前端图标类型映射（角色化动态流阶段 4）。 */
+function mapTeacherActivityType(actionType?: string | null): Activity['type'] {
+  switch (actionType) {
+    case 'STUDENT_ENROLLED':
+      return 'enrollment';
+    case 'STUDENT_SUBMITTED':
+      return 'submission';
+    case 'STUDENT_REVIEWED':
+      return 'comment';
+    case 'LIVE_STARTED':
+      return 'live';
+    default:
+      return 'system';
+  }
+}
+
 function cloneAssignment(assignment: Assignment): Assignment {
   return {
     ...assignment,
@@ -996,23 +1012,33 @@ export const api = {
   },
 
   // Dashboard & Analytics
+  // 角色化动态流阶段 4：读取 GET /analytics/teacher/activities 动态流（ActivityItem 契约：
+  // id/actionType/action/targetTitle/extra/timestamp），不再读审计日志。
   getActivities: async (): Promise<Activity[]> => {
     try {
-      const resp = await http.get<ApiEnvelope<any[]>>('/analytics/teacher/activities');
-      if (resp.data?.data) {
+      const resp = await http.get<ApiEnvelope<any[]>>('/analytics/teacher/activities', {
+        params: { limit: 10 },
+      });
+      if (resp.data?.data && Array.isArray(resp.data.data)) {
         return resp.data.data.map((item): Activity => {
-          const base = `${item.studentName || '学员'} ${item.action || '进行了操作'}`;
+          const studentName = item?.extra?.studentName || item?.studentName || '';
+          const actionText = item?.action || '';
+          const courseName = item?.targetTitle || '';
+          // 动态内容组合：学员名 + 动作文案（后端文案已含课程名）；
+          // 空字段不拼接，避免多余分隔符；文案缺失时用课程名兜底。
+          const segments = [studentName, actionText || courseName].filter((s) => s && s.trim());
           return {
-          id: item.id || `act-${Math.random()}`,
-          type: 'system',
-          // 后端审计事件无 content 字段：由学员名 + 动作 + 课程名组合成可读内容；课程名为空时省略分隔符（修复内容为空）
-          content: item.courseName ? `${base} · ${item.courseName}` : base,
-          studentName: item.studentName || '学员',
-          studentAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.studentName}&backgroundColor=c7d2fe`,
-          action: item.action || '进行了学习操作',
-          courseName: item.courseName || '微服务实战',
-          // 后端 timeAgo 是中文相对时间（如“近期”）无法被 dayjs 解析；改用可解析的 timestamp（修复 Invalid Date）
-          time: item.timestamp || new Date().toISOString(),
+            id: item?.id ? String(item.id) : `act-${Math.random()}`,
+            type: mapTeacherActivityType(item?.actionType),
+            content: segments.length > 0 ? segments.join(' ') : '教学动态更新',
+            studentName: studentName || undefined,
+            studentAvatar: studentName
+              ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(studentName)}&backgroundColor=c7d2fe`
+              : undefined,
+            action: actionText || undefined,
+            courseName: courseName || undefined,
+            // 时间只用后端 timestamp（ISO-8601）；绝不用 timeAgo（中文相对时间会让 dayjs Invalid Date）
+            time: item?.timestamp || new Date().toISOString(),
           };
         });
       }

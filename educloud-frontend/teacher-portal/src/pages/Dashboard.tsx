@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { AnalyticsStats, Activity, LiveRoom } from '../types';
+import { relativeTime } from '../utils/relativeTime';
 import dayjs from 'dayjs';
 
 const activityIcons: Record<string, typeof BookOpen> = {
@@ -98,25 +99,28 @@ export default function Dashboard() {
             </Link>
           </div>
           <div className="space-y-1">
-            {activities.map((act) => {
-              const Icon = activityIcons[act.type || 'system'] || BookOpen;
-              return (
-                <div
-                  key={act.id}
-                  className="flex items-start gap-4 py-3 border-b border-ink-50 last:border-b-0"
-                >
-                  <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg">
-                    <Icon className="w-4 h-4" />
+            {activities.length === 0 ? (
+              <p className="text-sm text-ink-400 text-center py-8">暂无教学动态</p>
+            ) : (
+              activities.map((act) => {
+                const Icon = activityIcons[act.type || 'system'] || BookOpen;
+                return (
+                  <div
+                    key={act.id}
+                    className="flex items-start gap-4 py-3 border-b border-ink-50 last:border-b-0"
+                  >
+                    <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-ink-700">{act.content}</p>
+                      {/* 相对时间由后端 timestamp（act.time）计算，绝不用 timeAgo（会 Invalid Date） */}
+                      <p className="text-xs text-ink-400 mt-0.5">{relativeTime(act.time)}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-ink-700">{act.content}</p>
-                    <p className="text-xs text-ink-400 mt-0.5">
-                      {dayjs(act.time).format('MM-DD HH:mm')}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
