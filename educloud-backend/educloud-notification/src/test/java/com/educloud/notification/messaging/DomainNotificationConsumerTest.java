@@ -179,11 +179,16 @@ class DomainNotificationConsumerTest {
                 .courseId(101L)
                 .courseTitle("微服务实战")
                 .teacherName("李明远老师")
+                .audienceIds(List.of(3001L, 3002L))
                 .build();
 
         consumer.handleLiveStarted(liveEvent);
+        // 事件自带报名受众时逐个发送
         verify(notificationService).sendDirectNotification(
-                any(), eq(NotificationKind.LIVE), contains("直播课堂"), contains("李明远老师"), any(), any(), eq(false)
+                eq(3001L), eq(NotificationKind.LIVE), contains("直播课堂"), contains("李明远老师"), eq("进入直播"), eq("/live/101"), eq(false)
+        );
+        verify(notificationService).sendDirectNotification(
+                eq(3002L), eq(NotificationKind.LIVE), contains("直播课堂"), contains("李明远老师"), eq("进入直播"), eq("/live/101"), eq(false)
         );
 
         AssignmentGradedEvent assignEvent = AssignmentGradedEvent.builder()
@@ -197,6 +202,70 @@ class DomainNotificationConsumerTest {
         consumer.handleAssignmentGraded(assignEvent);
         verify(notificationService).sendDirectNotification(
                 eq(3001L), eq(NotificationKind.ASSIGNMENT), eq("作业批改完成"), contains("95.0"), any(), any(), eq(false)
+        );
+    }
+
+    @Test
+    @DisplayName("开播事件无受众时跨库查询报名学生发送测试")
+    void handleLiveStartedResolvesAudienceFromCourseEnrollment() {
+        when(jdbcTemplate.queryForList(
+                "SELECT student_id FROM educloud_course.course_enrollment WHERE course_id = ? AND status = 'ACTIVE'",
+                Long.class, 101L)).thenReturn(List.of(3001L, 3002L, 3003L));
+
+        LiveStartedEvent liveEvent = LiveStartedEvent.builder()
+                .eventId("evt_live_3002")
+                .roomId(101L)
+                .courseId(101L)
+                .courseTitle("微服务实战")
+                .teacherName("李明远老师")
+                .build();
+
+        consumer.handleLiveStarted(liveEvent);
+
+        verify(jdbcTemplate).queryForList(
+                "SELECT student_id FROM educloud_course.course_enrollment WHERE course_id = ? AND status = 'ACTIVE'",
+                Long.class, 101L);
+        verify(notificationService, times(3)).sendDirectNotification(
+                any(), eq(NotificationKind.LIVE), contains("直播课堂"), contains("微服务实战"), eq("进入直播"), eq("/live/101"), eq(false)
+        );
+        verify(notificationService).sendDirectNotification(
+                eq(3002L), eq(NotificationKind.LIVE), contains("直播课堂"), contains("微服务实战"), eq("进入直播"), eq("/live/101"), eq(false)
+        );
+    }
+
+    @Test
+    @DisplayName("开播事件无人报名时降级不发送测试")
+    void handleLiveStartedSkipsWhenNoAudience() {
+        // 事件无受众且课程无 ACTIVE 报名学生
+        when(jdbcTemplate.queryForList(
+                "SELECT student_id FROM educloud_course.course_enrollment WHERE course_id = ? AND status = 'ACTIVE'",
+                Long.class, 999L)).thenReturn(List.of());
+
+        LiveStartedEvent liveEvent = LiveStartedEvent.builder()
+                .eventId("evt_live_3003")
+                .roomId(999L)
+                .courseId(999L)
+                .courseTitle("无人报名课")
+                .build();
+
+        consumer.handleLiveStarted(liveEvent);
+
+        verify(notificationService, never()).sendDirectNotification(
+                any(), eq(NotificationKind.LIVE), any(), any(), any(), any(), eq(false)
+        );
+
+        // 跨库查询异常同样降级不发送
+        when(jdbcTemplate.queryForList(
+                "SELECT student_id FROM educloud_course.course_enrollment WHERE course_id = ? AND status = 'ACTIVE'",
+                Long.class, 998L)).thenThrow(new RuntimeException("connection refused"));
+        LiveStartedEvent noCourse = LiveStartedEvent.builder()
+                .eventId("evt_live_3004")
+                .roomId(998L)
+                .courseId(998L)
+                .build();
+        consumer.handleLiveStarted(noCourse);
+        verify(notificationService, never()).sendDirectNotification(
+                any(), eq(NotificationKind.LIVE), any(), any(), any(), any(), eq(false)
         );
     }
 }

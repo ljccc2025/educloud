@@ -132,16 +132,30 @@ public class DomainNotificationConsumer {
         String title = "直播课堂已开播";
         String content = (event.getTeacherName() != null ? event.getTeacherName() : "讲师") + " 的课程《" + (event.getCourseTitle() != null ? event.getCourseTitle() : "直播互动课") + "》正在直播中，点击立即进入教室！";
         String actionPath = "/live/" + event.getRoomId();
-        // 演示广播给活跃学员
-        notificationService.sendDirectNotification(
-                2091648316809035778L, // fe_demo_10
-                NotificationKind.LIVE,
-                title,
-                content,
-                "进入直播",
-                actionPath,
-                false
-        );
+        // 真实受众：优先使用事件自带的报名学生列表（live 服务开播时写入）；
+        // 缺失时跨库查询 educloud_course.course_enrollment 的 ACTIVE 选课学生
+        List<Long> audienceIds = event.getAudienceIds();
+        if (audienceIds == null || audienceIds.isEmpty()) {
+            audienceIds = resolveEnrolledStudents(event.getCourseId());
+        }
+        if (audienceIds == null || audienceIds.isEmpty()) {
+            // 降级策略：无人报名时只记录日志，不发送（避免骚扰无关用户）
+            log.info("[DomainNotificationConsumer] Live started event has no enrolled audience, skip notification: roomId={}, courseId={}",
+                    event.getRoomId(), event.getCourseId());
+            return;
+        }
+        for (Long studentId : audienceIds) {
+            if (studentId == null) continue;
+            notificationService.sendDirectNotification(
+                    studentId,
+                    NotificationKind.LIVE,
+                    title,
+                    content,
+                    "进入直播",
+                    actionPath,
+                    false
+            );
+        }
     }
 
     public void handleAssignmentGraded(AssignmentGradedEvent event) {
@@ -170,6 +184,20 @@ public class DomainNotificationConsumer {
         } catch (Exception e) {
             log.warn("Resolve course title from educloud_order failed, orderId={}: {}", orderId, e.getMessage());
             return null;
+        }
+    }
+
+    /** 跨库解析报名学生：educloud_course.course_enrollment 中该课程的 ACTIVE 选课学生 ID；异常返回空列表 */
+    private List<Long> resolveEnrolledStudents(Long courseId) {
+        if (courseId == null) return List.of();
+        try {
+            List<Long> students = jdbcTemplate.queryForList(
+                    "SELECT student_id FROM educloud_course.course_enrollment WHERE course_id = ? AND status = 'ACTIVE'",
+                    Long.class, courseId);
+            return students == null ? List.of() : students;
+        } catch (Exception e) {
+            log.warn("Resolve live audience from educloud_course failed, courseId={}: {}", courseId, e.getMessage());
+            return List.of();
         }
     }
 
