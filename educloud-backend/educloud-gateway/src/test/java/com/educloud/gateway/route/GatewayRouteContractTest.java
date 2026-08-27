@@ -108,7 +108,8 @@ class GatewayRouteContractTest {
                 "/api/v1/exam-attempts", "/api/v1/exam-attempts/**",
                 "/api/v1/community", "/api/v1/community/**",
                 "/api/v1/content-audits", "/api/v1/content-audits/**",
-                "/api/v1/admin/content-audits/**", "/api/v1/student/courses/**");
+                "/api/v1/admin/content-audits/**", "/api/v1/student/courses/**",
+                "/api/v1/content/certificates", "/api/v1/content/certificates/**");
         assertThat(pathArguments(route("content-drafts"))).containsExactly(
                 "/api/v1/teacher/courses/*/content-draft", "/api/v1/teacher/courses/*/content-draft/**",
                 "/api/v1/teacher/courses/*/chapters", "/api/v1/teacher/chapters/**",
