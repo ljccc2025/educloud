@@ -14,10 +14,12 @@ import { useCartStore } from '@/stores/useCartStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { courseApi } from '@/services/courseApi';
 import { cartApi } from '@/services/api';
+import { recommendationApi } from '@/services/recommendationApi';
 import { getCourseCover, getCourseTeacher } from '@/utils/courseHelper';
 import { apiErrorText } from '@/services/http';
 import { cn } from '@/utils/cn';
-import type { CourseDetail as CourseDetailType } from '@/types';
+import CourseCard from '@/components/CourseCard';
+import type { Course, CourseDetail as CourseDetailType, RecommendationItem } from '@/types';
 
 const roleLabel: Record<string, string> = {
   OWNER: '主讲教师',
@@ -47,6 +49,47 @@ export default function CourseDetail() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState('');
   const [reviewSuccess, setReviewSuccess] = useState(false);
+
+  // 相关课程（M13 推荐：course 上下文；接口失败则保持空数组隐藏区块）
+  const [related, setRelated] = useState<RecommendationItem[]>([]);
+  const isLoggedIn = useAuthStore((s) => s.user !== null);
+
+  useEffect(() => {
+    if (!currentCourse?.id) return;
+    let cancelled = false;
+    setRelated([]); // 课程切换时清空上一门课程的推荐；失败时保持空数组 → 区块隐藏
+    recommendationApi
+      .getRecommendations('course', currentCourse.id, 6)
+      .then((resp) => {
+        if (!cancelled) setRelated(resp.items);
+      })
+      .catch(() => {
+        /* 降级：隐藏区块 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentCourse?.id]);
+
+  const handleDislike = (courseId: string) => {
+    recommendationApi.dislikeCourse(courseId).catch(() => {});
+    setRelated((prev) => prev.filter((c) => c.courseId !== courseId));
+  };
+
+  /** 推荐项 → Course 形状（CourseCard 兼容；无 store 时补齐全部字段默认值） */
+  const toCourseShape = (item: RecommendationItem): Course => ({
+    id: item.courseId,
+    title: item.title,
+    coverUrl: item.coverUrl || '',
+    price: item.price || '0.00',
+    teacherName: '',
+    categoryName: item.categoryName ?? '',
+    level: 'BEGINNER',
+    ratingAvg: 0,
+    ratingCount: 0,
+    enrollmentCount: 0,
+    enrolled: false,
+  });
 
   useEffect(() => {
     if (id) {
@@ -519,6 +562,33 @@ export default function CourseDetail() {
           </aside>
         </div>
       </div>
+
+      {/* Related Courses（M13 推荐：仅在有推荐结果时渲染） */}
+      {related.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <h2 className="display-heading text-3xl mb-8">相关课程</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {related.map((item, i) => (
+              <div key={item.courseId} className="group relative">
+                {isLoggedIn && (
+                  <button
+                    onClick={() => handleDislike(item.courseId)}
+                    title="不感兴趣"
+                    aria-label="不感兴趣"
+                    className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-white shadow border border-ink-200 text-ink-400 hover:text-red-500 hover:border-red-300 flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    ✕
+                  </button>
+                )}
+                <CourseCard course={toCourseShape(item)} />
+                {item.reason && (
+                  <p className="mt-1.5 text-xs text-ink-400">{item.reason}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
