@@ -183,7 +183,7 @@ CREATE TABLE recommendation_feedback (
 | courseId | string | 否 | context = course 时必填（Snowflake ID 字符串） |
 | limit | integer | 否 | 1~20，默认 10 |
 
-鉴权：可选登录（未登录返回热门 + 新品 50/50）。
+鉴权：可选登录（未登录返回热门 + 新品，按启用权重 40/30 分配、差额由热门补齐）。
 
 响应示例：
 
@@ -210,7 +210,7 @@ CREATE TABLE recommendation_feedback (
 
 字段说明：
 - 所有 ID 为字符串（Snowflake 精度规范）；
-- `priceCents` 单位：分；
+- `price` 为十进制金额字符串，单位：元（与 course 服务 `CourseSummaryResponse.price` 对齐）；
 - 字段与 course 服务 `CourseSummaryResponse` 对齐，前端一个 API 直接渲染。
 
 ### 6.2 反馈提交
@@ -259,7 +259,7 @@ CREATE TABLE recommendation_feedback (
 | 任一跨库查询失败 | 该策略跳过，其余补齐 |
 | 全部跨库失败 | 返回空列表 → 前端回退 |
 | 反馈写入失败 / 重复 | 静默成功（幂等），不阻塞 UI |
-| 未登录访问 | 返回热门 + 新品 50/50，无个性化 |
+| 未登录访问 | 返回热门 + 新品（按权重 40/30 分配、差额由热门补齐），无个性化 |
 | limit 越界 / 参数非法 | 400 + 错误码，不影响其他端点 |
 
 核心原则：推荐是纯派生能力，任何故障不得影响主链路。
