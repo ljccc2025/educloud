@@ -24,6 +24,7 @@ import com.educloud.notification.mapper.UserNotificationMapper;
 import com.educloud.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +45,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationMapper notificationMapper;
     private final UserNotificationMapper userNotificationMapper;
     private final DeliveryTaskMapper deliveryTaskMapper;
+    private final JdbcTemplate jdbcTemplate;
 
     // 默认活跃测试用户种子（全员广播分发受众）
     private static final List<Long> DEMO_BROADCAST_USERS = List.of(
@@ -119,12 +121,19 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     private void saveEmailDeliveryTask(Long userId, Long notificationId, LocalDateTime now) {
+        // P3-9 修复：使用用户真实邮箱（educloud_user.sys_user.email），不再伪造 user_{id}@educloud.cn
+        String realEmail = resolveUserEmail(userId);
+        if (realEmail == null || realEmail.isBlank()) {
+            // 降级策略：用户无邮箱时只记录日志并跳过邮件任务（站内信不受影响）
+            log.warn("Skip email delivery task: user {} has no email address in educloud_user.sys_user", userId);
+            return;
+        }
         DeliveryTaskEntity task = DeliveryTaskEntity.builder()
                 .id(IdWorker.getId())
                 .notificationId(notificationId)
                 .userId(userId)
                 .channelCode(ChannelCode.EMAIL)
-                .receiverTarget("user_" + userId + "@educloud.cn")
+                .receiverTarget(realEmail)
                 .status(DeliveryStatus.PENDING)
                 .retryCount(0)
                 .maxRetries(3)
@@ -133,6 +142,20 @@ public class NotificationServiceImpl implements NotificationService {
                 .updatedAt(now)
                 .build();
         deliveryTaskMapper.insert(task);
+    }
+
+    /** 解析用户真实邮箱：跨库查询 educloud_user.sys_user.email（需 notification_app 只读授权）；异常/缺失返回 null */
+    private String resolveUserEmail(Long userId) {
+        if (userId == null) return null;
+        try {
+            List<String> emails = jdbcTemplate.queryForList(
+                    "SELECT email FROM educloud_user.sys_user WHERE id = ? LIMIT 1",
+                    String.class, userId);
+            return emails.isEmpty() ? null : emails.get(0);
+        } catch (Exception e) {
+            log.warn("Resolve user email from educloud_user failed, userId={}: {}", userId, e.getMessage());
+            return null;
+        }
     }
 
     @Override

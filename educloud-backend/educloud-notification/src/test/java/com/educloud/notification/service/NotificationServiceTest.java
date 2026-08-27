@@ -19,9 +19,11 @@ import com.educloud.notification.service.impl.NotificationServiceImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,12 +50,23 @@ class NotificationServiceTest {
     @Mock
     private DeliveryTaskMapper deliveryTaskMapper;
 
+    @Mock
+    private JdbcTemplate jdbcTemplate;
+
     @InjectMocks
     private NotificationServiceImpl notificationService;
 
     @Test
     @DisplayName("发布通知给指定用户测试")
     void testPublishNotificationToUsers() {
+        // 邮件任务使用用户真实邮箱
+        when(jdbcTemplate.queryForList(
+                "SELECT email FROM educloud_user.sys_user WHERE id = ? LIMIT 1",
+                String.class, 3001L)).thenReturn(List.of("student1@example.com"));
+        when(jdbcTemplate.queryForList(
+                "SELECT email FROM educloud_user.sys_user WHERE id = ? LIMIT 1",
+                String.class, 3002L)).thenReturn(List.of("student2@example.com"));
+
         PublishNotificationRequest request = PublishNotificationRequest.builder()
                 .title("作业截止提醒")
                 .content("请于今晚提交第三章作业")
@@ -71,6 +85,78 @@ class NotificationServiceTest {
         verify(notificationMapper, times(1)).insert(any(NotificationEntity.class));
         verify(userNotificationMapper, times(2)).insert(any(UserNotificationEntity.class));
         verify(deliveryTaskMapper, times(2)).insert(any(DeliveryTaskEntity.class));
+    }
+
+    @Test
+    @DisplayName("邮件投递任务使用用户真实邮箱测试")
+    void testEmailDeliveryTaskUsesRealUserEmail() {
+        when(jdbcTemplate.queryForList(
+                "SELECT email FROM educloud_user.sys_user WHERE id = ? LIMIT 1",
+                String.class, 3001L)).thenReturn(List.of("real.student@example.com"));
+
+        PublishNotificationRequest request = PublishNotificationRequest.builder()
+                .title("开课通知")
+                .content("课程已开课")
+                .kind(NotificationKind.COURSE)
+                .targetType(TargetType.USER)
+                .targetUserIds(List.of(3001L))
+                .sendEmail(true)
+                .build();
+
+        notificationService.publishNotification(9001L, request);
+
+        ArgumentCaptor<DeliveryTaskEntity> taskCaptor = ArgumentCaptor.forClass(DeliveryTaskEntity.class);
+        verify(deliveryTaskMapper, times(1)).insert(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getReceiverTarget()).isEqualTo("real.student@example.com");
+        // 不再伪造虚构地址
+        assertThat(taskCaptor.getValue().getReceiverTarget())
+                .doesNotContain("@educloud.cn")
+                .doesNotContain("user_");
+    }
+
+    @Test
+    @DisplayName("用户无邮箱时跳过邮件投递任务测试")
+    void testEmailDeliveryTaskSkippedWhenUserHasNoEmail() {
+        when(jdbcTemplate.queryForList(
+                "SELECT email FROM educloud_user.sys_user WHERE id = ? LIMIT 1",
+                String.class, 3001L)).thenReturn(List.of());
+
+        PublishNotificationRequest request = PublishNotificationRequest.builder()
+                .title("开课通知")
+                .content("课程已开课")
+                .kind(NotificationKind.COURSE)
+                .targetType(TargetType.USER)
+                .targetUserIds(List.of(3001L))
+                .sendEmail(true)
+                .build();
+
+        notificationService.publishNotification(9001L, request);
+
+        // 站内信正常，但邮件任务被跳过
+        verify(userNotificationMapper, times(1)).insert(any(UserNotificationEntity.class));
+        verify(deliveryTaskMapper, never()).insert(any(DeliveryTaskEntity.class));
+    }
+
+    @Test
+    @DisplayName("邮箱解析异常时跳过邮件投递任务测试")
+    void testEmailDeliveryTaskSkippedWhenEmailResolutionFails() {
+        when(jdbcTemplate.queryForList(
+                "SELECT email FROM educloud_user.sys_user WHERE id = ? LIMIT 1",
+                String.class, 3001L)).thenThrow(new RuntimeException("connection refused"));
+
+        PublishNotificationRequest request = PublishNotificationRequest.builder()
+                .title("开课通知")
+                .content("课程已开课")
+                .kind(NotificationKind.COURSE)
+                .targetType(TargetType.USER)
+                .targetUserIds(List.of(3001L))
+                .sendEmail(true)
+                .build();
+
+        notificationService.publishNotification(9001L, request);
+
+        verify(userNotificationMapper, times(1)).insert(any(UserNotificationEntity.class));
+        verify(deliveryTaskMapper, never()).insert(any(DeliveryTaskEntity.class));
     }
 
     @Test
