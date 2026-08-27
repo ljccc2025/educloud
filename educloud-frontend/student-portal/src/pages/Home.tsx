@@ -26,9 +26,11 @@ import {
   Users,
 } from 'lucide-react';
 import { useCourseStore } from '@/stores/useCourseStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { courseApi } from '@/services/courseApi';
+import { recommendationApi } from '@/services/recommendationApi';
 import CourseCard from '@/components/CourseCard';
-import type { Category } from '@/types';
+import type { Category, Course, RecommendationItem } from '@/types';
 import SideRays from '@/components/SideRays/SideRays';
 
 const stats = [
@@ -53,6 +55,7 @@ const categoryIcons: Record<string, LucideIcon> = {
 
 export default function Home() {
   const { courses, fetchCourses } = useCourseStore();
+  const isLoggedIn = useAuthStore((s) => s.user !== null);
   const [leafCategories, setLeafCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
@@ -88,7 +91,51 @@ export default function Home() {
     };
   }, []);
 
-  const featuredCourses = courses.slice(0, 6);
+  const [recommended, setRecommended] = useState<RecommendationItem[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    recommendationApi
+      .getRecommendations('home', undefined, 6)
+      .then((resp) => {
+        if (!cancelled && resp.items.length > 0) setRecommended(resp.items);
+      })
+      .catch(() => {
+        /* 推荐服务不可用：保留 null，走静态回退 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** 推荐项 → Course 形状（CourseCard 兼容；推荐项不在 store 时补齐全部字段默认值，缺失字段回退 store 同名课程） */
+  const toCourseShape = (item: RecommendationItem): Course => {
+    const cached = courses.find((c) => c.id === item.courseId);
+    return {
+      id: item.courseId,
+      title: item.title,
+      coverUrl: item.coverUrl || cached?.coverUrl || '',
+      price: item.price || cached?.price || '0.00',
+      teacherName: cached?.teacherName ?? '',
+      categoryName: cached?.categoryName ?? item.categoryName ?? '',
+      level: cached?.level ?? 'BEGINNER',
+      ratingAvg: cached?.ratingAvg ?? 0,
+      ratingCount: cached?.ratingCount ?? 0,
+      enrollmentCount: cached?.enrollmentCount ?? 0,
+      enrolled: cached?.enrolled ?? false,
+    };
+  };
+
+  const featuredCourses: Course[] = recommended ? recommended.map(toCourseShape) : courses.slice(0, 6);
+
+  const handleDislike = (courseId: string) => {
+    recommendationApi.dislikeCourse(courseId).catch(() => {});
+    // 全部点掉 → 空数组回退 null → 静态课程列表
+    setRecommended((prev) => {
+      const next = prev?.filter((c) => c.courseId !== courseId) ?? prev;
+      return next && next.length > 0 ? next : null;
+    });
+  };
 
   return (
     <div>
@@ -224,14 +271,30 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredCourses.map((course, i) => (
-            <div
-              key={course.id}
-              className={`animate-fade-up animation-delay-${(i % 3 + 1) * 100}`}
-            >
-              <CourseCard course={course} />
-            </div>
-          ))}
+          {featuredCourses.map((course, i) => {
+            const rec = recommended?.find((r) => r.courseId === course.id);
+            return (
+              <div
+                key={course.id}
+                className={`group relative animate-fade-up animation-delay-${(i % 3 + 1) * 100}`}
+              >
+                {recommended && isLoggedIn && (
+                  <button
+                    onClick={() => handleDislike(course.id)}
+                    title="不感兴趣"
+                    aria-label="不感兴趣"
+                    className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-white shadow border border-ink-200 text-ink-400 hover:text-red-500 hover:border-red-300 flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    ✕
+                  </button>
+                )}
+                <CourseCard course={course} />
+                {rec?.reason && (
+                  <p className="mt-1.5 text-xs text-ink-400">{rec.reason}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       </section>
 
