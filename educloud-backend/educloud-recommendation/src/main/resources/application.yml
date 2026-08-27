@@ -46,5 +46,5 @@ educloud:
     jwt:
       jwks-location: ${RECOMMENDATION_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
       issuer: ${EDUCLOUD_RECOMMENDATION_JWT_ISSUER:educloud-auth}
-      audience: ${EDUCLOUD_RECOMMENDATION_JWT_AUDIENCE:educloud-web}
+      audience: ${EDUCLOUD_RECOMMENDATION_JWT_AUDIENCE:educloud-api}
     cache-ttl-seconds: 60

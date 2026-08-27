@@ -103,7 +103,7 @@ class RecommendationControllerTest {
     @DisplayName("POST /api/v1/recommendations/feedback body={} → 400 校验失败")
     void feedbackValidatesRequestBody() throws Exception {
         mockMvc.perform(post("/api/v1/recommendations/feedback")
-                        .with(jwt().jwt(j -> j.claim("aud", List.of("educloud-web")).subject("123")))
+                        .with(jwt().jwt(j -> j.claim("aud", List.of("educloud-api")).subject("123")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
@@ -111,10 +111,10 @@ class RecommendationControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/recommendations/feedback 已登录（jwt subject=123 aud=educloud-web）→ 200")
+    @DisplayName("POST /api/v1/recommendations/feedback 已登录（jwt subject=123 aud=educloud-api）→ 200")
     void feedbackWithAuthenticatedJwtSucceeds() throws Exception {
         mockMvc.perform(post("/api/v1/recommendations/feedback")
-                        .with(jwt().jwt(j -> j.claim("aud", List.of("educloud-web")).subject("123")))
+                        .with(jwt().jwt(j -> j.claim("aud", List.of("educloud-api")).subject("123")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":501,\"action\":\"DISLIKE\"}"))
                 .andExpect(status().isOk())

@@ -24,6 +24,6 @@ public class RecommendationProperties {
 
         private String jwksLocation = "file:/tmp/educloud-live/jwks.json";
         private String issuer = "educloud-auth";
-        private String audience = "educloud-web";
+        private String audience = "educloud-api";
     }
 }

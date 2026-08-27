@@ -14,13 +14,13 @@ import java.util.Collection;
  * JwtIssuerValidator/JwtTimestampValidator 完成）。
  *
  * <p>User 令牌必须携带 aud 数组且包含 {@code educloud.recommendation.jwt.audience}
- * （默认 educloud-web）；缺失/非数组/不匹配均视为无效令牌（补上 aud 校验，消除
+ * （默认 educloud-api，与 user 服务签发 token 的 aud 契约一致）；缺失/非数组/不匹配均视为无效令牌（补上 aud 校验，消除
  * SecurityConfig 中「Gateway 已按 aud 过滤、服务内不校验」的死配置，与 course/
  * analytics 的 aud 契约对齐）。</p>
  */
 public final class RecommendationJwtValidator implements OAuth2TokenValidator<Jwt> {
 
-    private static final String DEFAULT_AUDIENCE = "educloud-web";
+    private static final String DEFAULT_AUDIENCE = "educloud-api";
 
     private final String audience;
 
