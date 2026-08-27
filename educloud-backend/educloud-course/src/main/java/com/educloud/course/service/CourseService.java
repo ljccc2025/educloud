@@ -135,6 +135,11 @@ public class CourseService {
         auditWriter.write("COURSE_CREATED", "course", String.valueOf(course.getId()),
                 teacherId, roles, "SUCCESS", null);
 
+        // 动态流阶段 2：同事务写 CourseCreated outbox 行（含教师归属与标题，
+        // analytics 教师侧动态依赖）；与业务同库同事务，失败一并回滚。
+        eventPublisher.courseCreated(course.getId(), draft.getId(), teacherId,
+                request.title(), course.getVersion(), now);
+
         // 封面回显（任务 22 规格审查②）：建课响应同样携带教师视角 coverUrl（USER grant）。
         String coverUrl = null;
         if (draft.getCoverFileId() != null) {

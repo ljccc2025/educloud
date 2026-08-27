@@ -13,6 +13,7 @@ import com.educloud.course.exception.CourseErrorCode;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseTeacherMapper;
 import com.educloud.course.mapper.CourseVersionMapper;
+import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.support.SnowflakeIds;
 import com.educloud.course.support.TeacherAccessGuard;
 import org.springframework.dao.DuplicateKeyException;
@@ -57,18 +58,21 @@ public class CourseVersionService {
     private final CourseTeacherMapper teacherMapper;
     private final TeacherAccessGuard teacherAccessGuard;
     private final FileClient fileClient;
+    private final CourseEventPublisher eventPublisher;
 
     public CourseVersionService(
             CourseMapper courseMapper,
             CourseVersionMapper versionMapper,
             CourseTeacherMapper teacherMapper,
             TeacherAccessGuard teacherAccessGuard,
-            FileClient fileClient) {
+            FileClient fileClient,
+            CourseEventPublisher eventPublisher) {
         this.courseMapper = courseMapper;
         this.versionMapper = versionMapper;
         this.teacherMapper = teacherMapper;
         this.teacherAccessGuard = teacherAccessGuard;
         this.fileClient = Objects.requireNonNull(fileClient, "fileClient");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
     }
 
     /** 当前草稿或有效版本（GET /teacher/courses/{id}/draft）：归属校验后返回当前草稿或已发布/有效版本。 */
@@ -251,6 +255,10 @@ public class CourseVersionService {
         version.setPrice(request.price());
         version.setCurrency(request.currency());
         version.setCategoryId(categoryId);
+
+        // 动态流阶段 2：草稿更新成功后同事务写 CourseUpdated outbox 行（含教师归属与标题）。
+        eventPublisher.courseUpdated(version.getCourseId(), versionId, teacherId,
+                request.title(), course.getVersion(), LocalDateTime.now());
         return response(course, version, teacherId);
     }
 

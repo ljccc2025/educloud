@@ -14,6 +14,7 @@ import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseReviewMapper;
 import com.educloud.course.mapper.CourseReviewSummaryRow;
+import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.support.MybatisPlusTestSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -84,8 +85,11 @@ class CourseReviewServiceTest {
     @Mock
     private AuditWriter auditWriter;
 
+    @Mock
+    private CourseEventPublisher eventPublisher;
+
     private CourseReviewService service() {
-        return new CourseReviewService(courseMapper, enrollmentMapper, reviewMapper, auditWriter);
+        return new CourseReviewService(courseMapper, enrollmentMapper, reviewMapper, auditWriter, eventPublisher);
     }
 
     // ---------------------------------------------------------------- upsert：拒绝路径
@@ -101,6 +105,7 @@ class CourseReviewServiceTest {
                 });
         verify(reviewMapper, never()).upsert(any());
         verify(courseMapper, never()).updateRatingSummary(anyLong(), any(), anyInt());
+        verify(eventPublisher, never()).courseReviewed(any(), any(), any(), any(), any(), anyLong(), any());
     }
 
     @Test
@@ -178,6 +183,9 @@ class CourseReviewServiceTest {
         // 同事务重算：以 VISIBLE 评价聚合更新 course 汇总列。
         verify(courseMapper).updateRatingSummary(101L, new BigDecimal("4.50"), 12);
 
+        // 动态流阶段 2：同事务发布 CourseReviewed 事件（含 rating 与课程归属教师）。
+        verify(eventPublisher).courseReviewed(101L, 501L, 5001L, 2001L, 5, 7L, updatedAt);
+
         java.lang.reflect.Method upsert = CourseReviewService.class.getDeclaredMethod(
                 "upsert", Long.class, Long.class, ReviewUpsertRequest.class);
         assertThat(upsert.getAnnotation(Transactional.class)).isNotNull();
@@ -208,6 +216,8 @@ class CourseReviewServiceTest {
         assertThat(response.updatedAt()).isEqualTo(updatedAt);
         verify(reviewMapper).upsert(any());
         verify(courseMapper).updateRatingSummary(101L, new BigDecimal("3.00"), 1);
+        // 动态流阶段 2：更新评价同样发布 CourseReviewed（重查行 rating=3）。
+        verify(eventPublisher).courseReviewed(101L, 501L, 5001L, 2001L, 3, 7L, updatedAt);
     }
 
     // ---------------------------------------------------------------- hide：管理角色

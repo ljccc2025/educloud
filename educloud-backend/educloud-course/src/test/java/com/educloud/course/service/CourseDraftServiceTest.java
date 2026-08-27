@@ -562,7 +562,7 @@ class CourseDraftServiceTest {
 
     private CourseVersionService versionService() {
         return new CourseVersionService(courseMapper, courseVersionMapper, courseTeacherMapper,
-                new TeacherAccessGuard(courseTeacherMapper), fileClient);
+                new TeacherAccessGuard(courseTeacherMapper), fileClient, eventPublisher);
     }
 
     private static CourseDraftUpdateRequest updateRequest() {

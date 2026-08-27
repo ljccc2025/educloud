@@ -37,28 +37,84 @@ public class CourseEventPublisher {
         this.requestContextAccessor = Objects.requireNonNull(requestContextAccessor, "requestContextAccessor");
     }
 
-    /** 课程审核通过并发布：同事务写 CoursePublished outbox 行。 */
+    /** 课程创建（动态流阶段 2）：同事务写 CourseCreated outbox 行，含教师归属与标题。 */
+    public void courseCreated(
+            Long courseId, Long versionId, Long teacherId, String title,
+            long aggregateVersion, LocalDateTime createdAt) {
+        writeCourseEvent("CourseCreated", "createdAt", courseId, versionId, teacherId, title, aggregateVersion, createdAt);
+    }
+
+    /** 课程修改（动态流阶段 2）：草稿更新成功后同事务写 CourseUpdated outbox 行。 */
+    public void courseUpdated(
+            Long courseId, Long versionId, Long teacherId, String title,
+            long aggregateVersion, LocalDateTime updatedAt) {
+        writeCourseEvent("CourseUpdated", "updatedAt", courseId, versionId, teacherId, title, aggregateVersion, updatedAt);
+    }
+
+    /**
+     * 课程审核通过并发布：同事务写 CoursePublished outbox 行。
+     * 动态流阶段 2：payload 补发教师归属与课程标题（analytics 教师侧动态依赖）。
+     */
     public void coursePublished(
-            Long courseId, Long versionId, long aggregateVersion, LocalDateTime publishedAt) {
-        writeLifecycleEvent("CoursePublished", "publishedAt", courseId, versionId, aggregateVersion, publishedAt);
+            Long courseId, Long versionId, Long teacherId, String title,
+            long aggregateVersion, LocalDateTime publishedAt) {
+        writeCourseEvent("CoursePublished", "publishedAt", courseId, versionId, teacherId, title, aggregateVersion, publishedAt);
     }
 
     /** 课程下架（任务 10）：PUBLISHED→OFFLINE 后同事务写 CourseOfflined outbox 行。 */
     public void courseOfflined(
             Long courseId, Long versionId, long aggregateVersion, LocalDateTime offlinedAt) {
-        writeLifecycleEvent("CourseOfflined", "offlinedAt", courseId, versionId, aggregateVersion, offlinedAt);
+        writeCourseEvent("CourseOfflined", "offlinedAt", courseId, versionId, null, null, aggregateVersion, offlinedAt);
     }
 
     /** 课程重新上架（任务 10）：OFFLINE→PUBLISHED 后同事务写 CourseRepublished outbox 行。 */
     public void courseRepublished(
             Long courseId, Long versionId, long aggregateVersion, LocalDateTime republishedAt) {
-        writeLifecycleEvent("CourseRepublished", "republishedAt", courseId, versionId, aggregateVersion, republishedAt);
+        writeCourseEvent("CourseRepublished", "republishedAt", courseId, versionId, null, null, aggregateVersion, republishedAt);
     }
 
     /** 课程归档（任务 10）：OFFLINE→ARCHIVED 后同事务写 CourseArchived outbox 行。 */
     public void courseArchived(
             Long courseId, Long versionId, long aggregateVersion, LocalDateTime archivedAt) {
-        writeLifecycleEvent("CourseArchived", "archivedAt", courseId, versionId, aggregateVersion, archivedAt);
+        writeCourseEvent("CourseArchived", "archivedAt", courseId, versionId, null, null, aggregateVersion, archivedAt);
+    }
+
+    /**
+     * 课程评价（动态流阶段 2）：评价 upsert 后同事务写 CourseReviewed outbox 行，
+     * 含 rating；aggregateType=CourseReview、aggregateId=reviewId。
+     */
+    public void courseReviewed(
+            Long courseId,
+            Long reviewId,
+            Long studentId,
+            Long teacherId,
+            Integer rating,
+            long aggregateVersion,
+            LocalDateTime reviewedAt) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("courseId", courseId);
+        payload.put("reviewId", reviewId);
+        payload.put("studentId", studentId);
+        payload.put("teacherId", teacherId);
+        payload.put("rating", rating);
+        payload.put("version", aggregateVersion);
+        payload.put("reviewedAt", reviewedAt.toString());
+        String payloadJson;
+        try {
+            payloadJson = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException failure) {
+            throw new IllegalStateException(
+                    "failed to serialize CourseReviewed payload: " + reviewId, failure);
+        }
+        outboxWriter.write(
+                "CourseReview",
+                String.valueOf(reviewId),
+                "CourseReviewed",
+                1,
+                aggregateVersion,
+                payloadJson,
+                requestContextAccessor.requestId(),
+                requestContextAccessor.traceId().orElse(null));
     }
 
     /**
@@ -97,17 +153,29 @@ public class CourseEventPublisher {
                 requestContextAccessor.traceId().orElse(null));
     }
 
-    /** 生命周期事件公共落库：payload 固定 courseId/versionId/时间字段（LinkedHashMap 保序可测）。 */
-    private void writeLifecycleEvent(
+    /**
+     * 生命周期事件公共落库：payload 固定 courseId/versionId/时间字段（LinkedHashMap 保序可测）；
+     * 动态流阶段 2：可选补发教师归属（teacherId）与课程标题（title），兼容 analytics
+     * 教师侧动态映射（teacherId 缺失时消费者跳过教师行动态）。
+     */
+    private void writeCourseEvent(
             String eventType,
             String timestampField,
             Long courseId,
             Long versionId,
+            Long teacherId,
+            String title,
             long aggregateVersion,
             LocalDateTime occurredAt) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("courseId", courseId);
         payload.put("versionId", versionId);
+        if (teacherId != null) {
+            payload.put("teacherId", teacherId);
+        }
+        if (title != null) {
+            payload.put("title", title);
+        }
         payload.put(timestampField, occurredAt.toString());
         String payloadJson;
         try {

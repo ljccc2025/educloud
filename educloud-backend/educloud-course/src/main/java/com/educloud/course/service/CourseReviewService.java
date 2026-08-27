@@ -14,6 +14,7 @@ import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseReviewMapper;
 import com.educloud.course.mapper.CourseReviewSummaryRow;
+import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.observability.AuditWriter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,16 +69,19 @@ public class CourseReviewService {
     private final CourseEnrollmentMapper enrollmentMapper;
     private final CourseReviewMapper reviewMapper;
     private final AuditWriter auditWriter;
+    private final CourseEventPublisher eventPublisher;
 
     public CourseReviewService(
             CourseMapper courseMapper,
             CourseEnrollmentMapper enrollmentMapper,
             CourseReviewMapper reviewMapper,
-            AuditWriter auditWriter) {
+            AuditWriter auditWriter,
+            CourseEventPublisher eventPublisher) {
         this.courseMapper = Objects.requireNonNull(courseMapper, "courseMapper");
         this.enrollmentMapper = Objects.requireNonNull(enrollmentMapper, "enrollmentMapper");
         this.reviewMapper = Objects.requireNonNull(reviewMapper, "reviewMapper");
         this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
     }
 
     /**
@@ -120,6 +124,11 @@ public class CourseReviewService {
             throw new IllegalStateException(
                     "review upserted but not readable for course " + courseId + " student " + studentId);
         }
+
+        // 动态流阶段 2：同事务写 CourseReviewed outbox 行（含 rating 与课程归属教师），
+        // 与业务同库同事务，失败一并回滚。
+        eventPublisher.courseReviewed(courseId, saved.getId(), studentId,
+                course.getOwnerTeacherId(), saved.getRating(), course.getVersion(), saved.getUpdatedAt());
         return toResponse(saved);
     }
 

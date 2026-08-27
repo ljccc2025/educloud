@@ -18,6 +18,10 @@ import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseReviewMapper;
+import com.educloud.course.mapper.OutboxEventMapper;
+import com.educloud.course.mapper.OutboxSequenceMapper;
+import com.educloud.course.messaging.CourseEventPublisher;
+import com.educloud.course.messaging.OutboxWriter;
 import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.testcontainers.TestContainerImages;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -137,7 +141,12 @@ class ReviewSummaryIT {
                 sqlSessionTemplate.getMapper(CourseEnrollmentMapper.class),
                 sqlSessionTemplate.getMapper(CourseReviewMapper.class),
                 new AuditWriter(sqlSessionTemplate.getMapper(AuditEventMapper.class),
-                        requestContext, new ObjectMapper(), Clock.systemUTC()));
+                        requestContext, new ObjectMapper(), Clock.systemUTC()),
+                new CourseEventPublisher(
+                        new OutboxWriter(
+                                sqlSessionTemplate.getMapper(OutboxEventMapper.class),
+                                sqlSessionTemplate.getMapper(OutboxSequenceMapper.class)),
+                        new ObjectMapper(), requestContext));
     }
 
     @BeforeEach
@@ -355,7 +364,9 @@ class ReviewSummaryIT {
                 CourseMapper.class,
                 CourseEnrollmentMapper.class,
                 CourseReviewMapper.class,
-                AuditEventMapper.class);
+                AuditEventMapper.class,
+                OutboxEventMapper.class,
+                OutboxSequenceMapper.class);
     }
 
     private static Path migrationDirectory() {

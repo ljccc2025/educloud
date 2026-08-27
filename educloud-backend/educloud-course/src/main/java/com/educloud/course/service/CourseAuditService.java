@@ -227,7 +227,8 @@ public class CourseAuditService {
             throw new BusinessException(CommonErrorCode.VERSION_CONFLICT,
                     "Course root changed concurrently: " + course.getId());
         }
-        eventPublisher.coursePublished(course.getId(), version.getId(), course.getVersion(), now);
+        eventPublisher.coursePublished(course.getId(), version.getId(),
+                course.getOwnerTeacherId(), version.getTitle(), course.getVersion(), now);
         courseMetrics.recordCoursePublished();
         courseMetrics.recordAuditApproved();
         auditWriter.write("AUDIT_APPROVED", "course_audit", String.valueOf(auditId),

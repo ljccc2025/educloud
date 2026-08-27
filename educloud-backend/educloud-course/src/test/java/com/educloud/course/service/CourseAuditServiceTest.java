@@ -294,7 +294,7 @@ class CourseAuditServiceTest {
         assertThat(rootWrapperCaptor.getValue().getSqlSet()).contains("draft_version_id=");
         assertThat(rootWrapperCaptor.getValue().getSqlSegment()).contains("id =");
 
-        verify(eventPublisher).coursePublished(101L, 302L, 8L, updated.getPublishedAt());
+        verify(eventPublisher).coursePublished(101L, 302L, 1001L, "新版标题", 8L, updated.getPublishedAt());
 
         java.lang.reflect.Method approve = CourseAuditService.class.getDeclaredMethod(
                 "approve", Long.class, Long.class, Set.class);
@@ -313,7 +313,7 @@ class CourseAuditServiceTest {
                 });
         verify(courseMapper, never()).selectByIdForUpdate(any());
         verify(courseVersionMapper, never()).update(any(), any());
-        verify(eventPublisher, never()).coursePublished(any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).coursePublished(any(), any(), any(), any(), anyLong(), any());
     }
 
     @Test
@@ -341,7 +341,7 @@ class CourseAuditServiceTest {
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
                 });
         verify(courseVersionMapper, never()).update(any(), any());
-        verify(eventPublisher, never()).coursePublished(any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).coursePublished(any(), any(), any(), any(), anyLong(), any());
     }
 
     @Test
@@ -359,7 +359,7 @@ class CourseAuditServiceTest {
                 });
         verify(courseVersionMapper, never()).update(any(), any());
         verify(submissionMapper, never()).updateById(any(CourseAuditSubmissionEntity.class));
-        verify(eventPublisher, never()).coursePublished(any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).coursePublished(any(), any(), any(), any(), anyLong(), any());
     }
 
     @Test
@@ -377,7 +377,7 @@ class CourseAuditServiceTest {
         assertThatThrownBy(() -> auditService().approve(401L, 3001L, Set.of("SYSTEM_ADMIN")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(CommonErrorCode.VERSION_CONFLICT));
-        verify(eventPublisher, never()).coursePublished(any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).coursePublished(any(), any(), any(), any(), anyLong(), any());
     }
 
     // ---------------------------------------------------------------- reject
