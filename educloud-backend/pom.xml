@@ -25,6 +25,7 @@
         <module>educloud-notification</module>
         <module>educloud-search</module>
         <module>educloud-analytics</module>
+        <module>educloud-recommendation</module>
     </modules>
 
     <properties>

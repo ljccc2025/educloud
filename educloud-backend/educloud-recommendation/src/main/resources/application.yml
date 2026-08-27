@@ -1,0 +1,50 @@
+server:
+  port: 8103
+
+spring:
+  application:
+    name: educloud-recommendation
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_RECOMMENDATION_NACOS_USERNAME:${NACOS_ADMIN_USERNAME:nacos}}
+      password: ${EDUCLOUD_RECOMMENDATION_NACOS_PASSWORD:${NACOS_ADMIN_PASSWORD:nacos}}
+      discovery:
+        username: ${EDUCLOUD_RECOMMENDATION_NACOS_USERNAME:${NACOS_ADMIN_USERNAME:nacos}}
+        password: ${EDUCLOUD_RECOMMENDATION_NACOS_PASSWORD:${NACOS_ADMIN_PASSWORD:nacos}}
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_recommendation?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${EDUCLOUD_RECOMMENDATION_DB_USERNAME:${MYSQL_USERNAME:recommendation_app}}
+    password: ${EDUCLOUD_RECOMMENDATION_DB_PASSWORD:${EDUCLOUD_ORDER_DB_PASSWORD:b97ac137f154ee3561da13eb792c502f7e2a4c357ed7cf95}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+management:
+  server:
+    port: 8104
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+educloud:
+  environment: ${EDUCLOUD_ENVIRONMENT:prod}
+  recommendation:
+    jwt:
+      jwks-location: ${RECOMMENDATION_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
+      issuer: ${EDUCLOUD_RECOMMENDATION_JWT_ISSUER:educloud-auth}
+      audience: ${EDUCLOUD_RECOMMENDATION_JWT_AUDIENCE:educloud-web}
+    cache-ttl-seconds: 60
