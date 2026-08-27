@@ -84,6 +84,29 @@ public final class JwtSecurityUtils {
         return "teacher_01";
     }
 
+    /**
+     * 解析当前登录学员 ID（网关透传 X-Student-Id / X-User-Id，其次 JWT subject）。
+     */
+    public static String extractStudentId(Jwt jwt, HttpServletRequest request) {
+        if (request != null) {
+            String studentHeader = request.getHeader("X-Student-Id");
+            if (StringUtils.hasText(studentHeader)) {
+                return studentHeader.trim();
+            }
+            String userIdHeader = request.getHeader("X-User-Id");
+            if (StringUtils.hasText(userIdHeader)) {
+                return userIdHeader.trim();
+            }
+        }
+        if (jwt != null) {
+            String subject = jwt.getSubject();
+            if (StringUtils.hasText(subject)) {
+                return subject.trim();
+            }
+        }
+        return "student_01";
+    }
+
     public static Long userId(Jwt jwt) {
         if (jwt == null) {
             return null;

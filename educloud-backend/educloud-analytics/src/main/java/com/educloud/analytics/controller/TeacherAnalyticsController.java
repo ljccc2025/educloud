@@ -65,14 +65,4 @@ public class TeacherAnalyticsController {
         String teacherId = JwtSecurityUtils.extractTeacherId(jwt, request);
         return responses.success(teacherAnalyticsService.getEngagement(teacherId));
     }
-
-    @Operation(summary = "获取教师端实时学员动态流")
-    @GetMapping("/activities")
-    public ApiResponse<List<TeacherActivityItem>> getActivities(
-            @AuthenticationPrincipal Jwt jwt,
-            HttpServletRequest request
-    ) {
-        String teacherId = JwtSecurityUtils.extractTeacherId(jwt, request);
-        return responses.success(teacherAnalyticsService.getActivities(teacherId));
-    }
 }
