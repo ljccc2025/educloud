@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, BookOpen, CalendarClock, RefreshCw, Search, Users } from 'lucide-react';
+import CustomSelect, { type SelectOption } from '../components/CustomSelect';
 import { teacherCourseApi } from '../services/teacherCourseApi';
 import { apiErrorText } from '../services/http';
 import type { CourseStudent, TeacherCourse } from '../types';
@@ -25,10 +26,22 @@ export default function StudentList() {
       .getTeacherCourses({ size: 100 })
       .then((page) => {
         if (!alive) return;
-        setCourses(page.items);
+        // 仅保留审核通过/已发布的课程，未审核/草稿课程不展示在学员名录中
+        const published = (page.items || []).filter((c) => {
+          if (
+            c.versionStatus === 'DRAFT' ||
+            c.versionStatus === 'PENDING_REVIEW' ||
+            c.versionStatus === 'REJECTED' ||
+            c.versionStatus === 'WITHDRAWN'
+          ) {
+            return false;
+          }
+          return c.versionStatus === 'PUBLISHED' || c.lifecycleStatus === 'PUBLISHED';
+        });
+        setCourses(published);
         setCoursesLoading(false);
-        // 默认选中第一门课程（有学员时直接展示）。
-        setSelectedCourseId((prev) => prev || page.items[0]?.courseId || '');
+        // 默认选中第一门已发布课程
+        setSelectedCourseId((prev) => prev || published[0]?.courseId || '');
       })
       .catch((e) => {
         if (!alive) return;
@@ -65,6 +78,15 @@ export default function StudentList() {
 
   const selectedCourse = courses.find((c) => c.courseId === selectedCourseId);
 
+  const courseOptions: SelectOption[] = useMemo(() => {
+    return courses.map((c) => ({
+      value: c.courseId,
+      label: c.title,
+      image: c.coverUrl ?? undefined,
+      badge: c.enrollmentCount != null ? `${c.enrollmentCount} 学员` : undefined,
+    }));
+  }, [courses]);
+
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return students;
@@ -79,29 +101,21 @@ export default function StudentList() {
       <div>
         <p className="section-label mb-2">学生管理</p>
         <h1 className="display-heading text-3xl md:text-4xl">学员名录</h1>
-        <p className="text-ink-500 mt-2 text-sm">按课程查看已报名学员（M05 无 user Profile 客户端，姓名暂以学员 ID 展示）</p>
+        <p className="text-ink-500 mt-2 text-sm">按课程查看已报名学员基本信息与学习档案</p>
       </div>
 
       {/* Course selector + search */}
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-        <div className="relative flex-1 max-w-md">
-          <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-300" />
-          <select
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center relative z-30 overflow-visible">
+        <div className="flex-1 max-w-md w-full">
+          <CustomSelect
+            options={courseOptions}
             value={selectedCourseId}
-            onChange={(e) => setSelectedCourseId(e.target.value)}
-            disabled={coursesLoading}
-            className="input-field pl-11 appearance-none cursor-pointer"
-          >
-            {coursesLoading ? (
-              <option value="">正在加载课程…</option>
-            ) : courses.length === 0 ? (
-              <option value="">暂无课程</option>
-            ) : (
-              courses.map((c) => (
-                <option key={c.courseId} value={c.courseId}>{c.title}</option>
-              ))
-            )}
-          </select>
+            onChange={setSelectedCourseId}
+            placeholder={coursesLoading ? '正在加载课程…' : '请选择课程'}
+            disabled={coursesLoading || courses.length === 0}
+            prefixIcon={BookOpen}
+            minWidth="w-full"
+          />
         </div>
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-300" />
@@ -109,7 +123,7 @@ export default function StudentList() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索学员 ID……"
+            placeholder="搜索学员 ID 或姓名……"
             className="input-field pl-11"
           />
         </div>
@@ -132,8 +146,8 @@ export default function StudentList() {
           <table className="data-table">
             <thead>
               <tr>
+                <th>学员姓名</th>
                 <th>学员 ID</th>
-                <th>姓名</th>
                 <th>报名时间</th>
               </tr>
             </thead>
@@ -169,13 +183,18 @@ export default function StudentList() {
                 filtered.map((s) => (
                   <tr key={s.studentId}>
                     <td>
-                      <span className="flex items-center gap-1.5 text-ink-700 font-mono text-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-medium text-xs flex items-center justify-center shrink-0">
+                          {(s.displayName || s.studentId).slice(-1)}
+                        </div>
+                        <span className="font-medium text-ink-900">{s.displayName ?? '—'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="flex items-center gap-1.5 text-ink-600 font-mono text-xs">
                         <Users className="w-3.5 h-3.5 text-ink-400" />
                         {s.studentId}
                       </span>
-                    </td>
-                    <td>
-                      <span className="text-ink-700">{s.displayName ?? '—'}</span>
                     </td>
                     <td>
                       <span className="flex items-center gap-1.5 text-ink-500 text-sm">

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { Assignment, AssignmentDraftInput, Course } from '../types';
+import CustomSelect, { type SelectOption } from './CustomSelect';
 import {
   hasAssignmentErrors,
   validateAssignment,
@@ -96,34 +97,33 @@ export default function AssignmentForm({
     else onPublish(normalized);
   };
 
+  const assignmentCourseOptions: SelectOption[] = useMemo(() => {
+    const published = courses.filter((c) => c.status === 'PUBLISHED');
+    return [
+      { value: '', label: '请选择课程' },
+      ...published.map((course) => ({
+        value: course.id,
+        label: course.title,
+        image: course.cover,
+        badge: `${course.studentCount} 学员`,
+      })),
+    ];
+  }, [courses]);
+
   return (
     <form className="space-y-5" onSubmit={(event) => event.preventDefault()}>
       <div>
         <label htmlFor="assignment-course" className="mb-2 block text-sm font-medium text-ink-700">
           所属课程 <span className="text-amber-600">*</span>
         </label>
-        <select
-          id="assignment-course"
+        <CustomSelect
+          options={assignmentCourseOptions}
           value={values.courseId}
-          onChange={(event) => updateValue('courseId', event.target.value)}
+          onChange={(v) => updateValue('courseId', v)}
           disabled={isDisabled}
-          aria-invalid={Boolean(errors.courseId)}
-          aria-describedby={
-            errors.courseId
-              ? 'assignment-course-error'
-              : selectedCourse && selectedCourse.status !== 'PUBLISHED'
-                ? 'assignment-course-help'
-                : undefined
-          }
-          className="input-field disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <option value="">请选择课程</option>
-          {courses.map((course) => (
-            <option key={course.id} value={course.id}>
-              {course.title} · {courseStatusLabels[course.status]}
-            </option>
-          ))}
-        </select>
+          placeholder="请选择课程"
+          minWidth="w-full"
+        />
         {errors.courseId ? (
           <p id="assignment-course-error" className="mt-1.5 text-xs text-red-600">
             {errors.courseId}

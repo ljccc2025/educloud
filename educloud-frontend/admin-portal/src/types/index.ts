@@ -8,8 +8,10 @@ export type UserStatus = 'ACTIVE' | 'DISABLED';
 export interface User {
   id: number;
   username: string;
+  nickname?: string;
   email: string;
   avatar: string;
+  avatarUrl?: string;
   role: UserRole;
   status: UserStatus;
   phone?: string;
@@ -266,6 +268,11 @@ export interface CourseAuditItem {
   reviewedBy: string | null;
   reviewedAt: string | null;
   reason: string | null;
+  changeSummary?: string | null;
+  changes?: string[] | null;
+  previousCoverFileId?: string | null;
+  previousPrice?: string | null;
+  previousTitle?: string | null;
 }
 
 /** 管理端课程管理列表项（GET /admin/courses，全生命周期分页）。 */

@@ -349,15 +349,15 @@ export default function SearchAdmin() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-ink-200/60 bg-ink-50/50 text-ink-600 uppercase font-semibold">
-                <th className="py-3.5 px-4">任务编号</th>
-                <th className="py-3.5 px-4">任务类型</th>
-                <th className="py-3.5 px-4">物理索引名</th>
-                <th className="py-3.5 px-4">状态</th>
-                <th className="py-3.5 px-4">处理进度 (已完成/总量)</th>
-                <th className="py-3.5 px-4">触发人</th>
-                <th className="py-3.5 px-4">耗时</th>
-                <th className="py-3.5 px-4">创建时间</th>
-                <th className="py-3.5 px-4">完成时间</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">任务编号</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">任务类型</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">物理索引名</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">状态</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">处理进度 (已完成/总量)</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">触发人</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">耗时</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">创建时间</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">完成时间</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-200/60">
@@ -405,22 +405,22 @@ export default function SearchAdmin() {
                       </td>
 
                       {/* 任务类型 */}
-                      <td className="py-3.5 px-4">
-                        <span className="text-[11px] font-medium text-ink-700 bg-ink-100 px-2 py-0.5 rounded">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="text-[11px] font-medium text-ink-700 bg-ink-100 dark:bg-ink-800 px-2.5 py-1 rounded-md whitespace-nowrap inline-block">
                           {task.taskType === 'FULL_REBUILD' ? '全量重建' : '增量修复'}
                         </span>
                       </td>
 
                       {/* 目标物理索引 */}
-                      <td className="py-3.5 px-4 font-mono text-ink-700">
+                      <td className="py-3.5 px-4 font-mono text-ink-700 whitespace-nowrap">
                         {task.indexName}
                       </td>
 
                       {/* 状态 */}
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
                         <span
                           className={cn(
-                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border',
+                            'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium border whitespace-nowrap',
                             badge.cls,
                           )}
                         >

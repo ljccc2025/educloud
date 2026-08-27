@@ -85,6 +85,7 @@ export default function CourseEdit() {
       }
 
       setDraft(draftData);
+      setError(null);
       if (draftData?.coverUrl) {
         setCoverPreview(draftData.coverUrl);
       }
@@ -209,11 +210,30 @@ export default function CourseEdit() {
     const previousPreview = coverPreview;
     const objectUrl = URL.createObjectURL(file);
     try {
+      let activeDraft = draft;
+      // 如果当前是已发布等不可编辑状态，自动为其创建新版本草稿
+      if (activeDraft.versionStatus !== 'DRAFT') {
+        activeDraft = await teacherCourseApi.createDraft(activeDraft.courseId);
+        setDraft(activeDraft);
+        setNotice(`已为您基于当前版本自动创建新草稿 v${activeDraft.versionNo}`);
+      }
       const fileId = await teacherCourseApi.uploadCover(file);
       setCoverPreview(objectUrl);
-      await saveCoverFileId(fileId);
+      const input: CourseDraftInput = {
+        title: activeDraft.title,
+        subtitle: activeDraft.subtitle,
+        description: activeDraft.description,
+        coverFileId: fileId,
+        level: activeDraft.level,
+        price: activeDraft.price ?? '0',
+        currency: activeDraft.currency ?? 'CNY',
+        categoryId: activeDraft.categoryId ?? '',
+      };
+      const updated = await teacherCourseApi.updateDraft(activeDraft.versionId, input);
+      setDraft(updated);
+      setNotice('封面已成功上传并保存至草稿');
     } catch (e) {
-      // 保存失败回滚预览（任务 22 规格审查②）：释放本次对象 URL、恢复旧预览。
+      // 保存失败回滚预览
       URL.revokeObjectURL(objectUrl);
       setCoverPreview(previousPreview);
       setError(apiErrorText(e));
@@ -307,15 +327,15 @@ export default function CourseEdit() {
             {submitting ? '提交中…' : '提交审核'}
           </button>
         )}
-        {(draft?.versionStatus === 'REJECTED' || draft?.versionStatus === 'WITHDRAWN') && activeTab === 'basic' && (
+        {!editable && draft && (
           <button
             type="button"
             onClick={() => void handleCopyDraft()}
             disabled={copying}
-            className="btn-outline"
+            className="btn-primary"
           >
             <CopyPlus className="w-4 h-4" />
-            {copying ? '创建中…' : '复制为新草稿'}
+            {copying ? '创建中…' : '创建新草稿编辑'}
           </button>
         )}
       </div>
@@ -380,25 +400,37 @@ export default function CourseEdit() {
           ) : isNew && categories.length === 0 ? (
             <div className="card-editorial p-12 text-center text-ink-400 text-sm">正在加载课程分类…</div>
           ) : draft && !editable ? (
-            <div className="card-editorial p-8 space-y-4">
-              <div className="space-y-1">
-                <p className="section-label mb-2">课程信息</p>
-                <h2 className="font-display text-2xl font-semibold text-ink-900">{draft.title}</h2>
-                {draft.subtitle && <p className="text-ink-500">{draft.subtitle}</p>}
-                {draft.description && <p className="text-ink-600 text-sm whitespace-pre-line">{draft.description}</p>}
+            <div className="card-editorial p-8 space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="section-label mb-1">课程基本信息</p>
+                  <h2 className="font-display text-2xl font-semibold text-ink-900">{draft.title}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyDraft()}
+                  disabled={copying}
+                  className="btn-primary"
+                >
+                  <CopyPlus className="w-4 h-4" />
+                  {copying ? '创建中…' : '创建新草稿编辑'}
+                </button>
               </div>
-              <dl className="grid grid-cols-2 gap-4 text-sm">
-                <div><dt className="text-ink-400">难度</dt><dd className="text-ink-800">{draft.level}</dd></div>
-                <div><dt className="text-ink-400">价格</dt><dd className="text-ink-800">{draft.price === '0' || draft.price == null ? '免费' : '¥' + draft.price}</dd></div>
-                <div><dt className="text-ink-400">分类 ID</dt><dd className="text-ink-800">{draft.categoryId ?? '—'}</dd></div>
-                <div><dt className="text-ink-400">版本</dt><dd className="text-ink-800">v{draft.versionNo}</dd></div>
+              {draft.subtitle && <p className="text-ink-500">{draft.subtitle}</p>}
+              {draft.description && <p className="text-ink-600 text-sm whitespace-pre-line">{draft.description}</p>}
+              <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm bg-ink-50/70 p-4 rounded-xl border border-ink-100">
+                <div><dt className="text-ink-400 text-xs">难度</dt><dd className="text-ink-800 font-medium mt-0.5">{draft.level}</dd></div>
+                <div><dt className="text-ink-400 text-xs">价格</dt><dd className="text-ink-800 font-medium mt-0.5">{draft.price === '0' || draft.price == null ? '免费' : '¥' + draft.price}</dd></div>
+                <div><dt className="text-ink-400 text-xs">分类 ID</dt><dd className="text-ink-800 font-medium mt-0.5">{draft.categoryId ?? '—'}</dd></div>
+                <div><dt className="text-ink-400 text-xs">当前版本</dt><dd className="text-ink-800 font-medium mt-0.5">v{draft.versionNo}</dd></div>
               </dl>
-              {(draft.versionStatus === 'REJECTED' || draft.versionStatus === 'WITHDRAWN') && (
-                <p className="text-sm text-red-600">
-                  {draft.versionStatus === 'REJECTED' ? '审核未通过' : '已撤回'}，
-                  点击右上角「复制为新草稿」修改后重新提交。
-                </p>
-              )}
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-start gap-3">
+                <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">当前版本（v{draft.versionNo}）处于已发布/只读保护状态</p>
+                  <p className="text-xs text-amber-700 mt-1">如需修改课程基本信息、封面或价格，请点击右上角「创建新草稿编辑」。系统会自动基于本版本复制新草稿，修改完成后提交审核即可发布。</p>
+                </div>
+              </div>
             </div>
           ) : (
             <CourseForm
@@ -417,9 +449,63 @@ export default function CourseEdit() {
             {!draft ? (
               <div className="text-center py-12 text-ink-400 text-sm">请先保存课程基本信息后再设置封面</div>
             ) : !editable ? (
-              <div className="text-center py-12">
-                <ImageIcon className="w-12 h-12 mx-auto text-ink-200 mb-4" />
-                <p className="text-ink-500">当前版本不可编辑（{draft.versionStatus}），无法修改封面</p>
+              <div className="space-y-6">
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-start gap-3">
+                  <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">当前版本为已发布版本（v{draft.versionNo}，只读保护）</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      点击下方「上传新封面」或「创建新草稿」，系统将自动为您基于当前版本创建新版本草稿（v{draft.versionNo + 1}），并直接更新封面！
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-ink-500 mb-2 font-medium">当前已发布封面预览：</p>
+                  {coverPreview ? (
+                    <img
+                      src={coverPreview}
+                      alt="封面预览"
+                      className="w-full max-w-lg aspect-video object-cover border border-ink-100 rounded-2xl shadow-sm"
+                    />
+                  ) : draft.coverFileId ? (
+                    <div className="w-full max-w-lg aspect-video border border-ink-100 rounded-2xl bg-ink-50 flex items-center justify-center text-ink-400 text-sm">
+                      已设置封面（fileId: {draft.coverFileId}）
+                    </div>
+                  ) : (
+                    <div className="w-full max-w-lg aspect-video border border-ink-100 rounded-2xl bg-ink-50 flex items-center justify-center text-ink-400 text-sm">
+                      尚未设置封面
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => coverInputRef.current?.click()}
+                    disabled={coverUploading || saving || copying}
+                    className="btn-primary"
+                  >
+                    {coverUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {coverUploading ? '正在上传并创建草稿…' : '上传新封面（自动创建新草稿）'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyDraft()}
+                    disabled={copying}
+                    className="btn-outline"
+                  >
+                    <CopyPlus className="w-4 h-4" />
+                    {copying ? '创建中…' : '创建新版本草稿'}
+                  </button>
+                </div>
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => void handleCoverFile(e.target.files?.[0])}
+                />
               </div>
             ) : (
               <div className="space-y-4">

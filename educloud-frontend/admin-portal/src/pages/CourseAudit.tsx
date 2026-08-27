@@ -263,7 +263,20 @@ export default function CourseAudit() {
                         <td>
                           <div className="min-w-0">
                             <p className="font-medium text-ink-800 line-clamp-1">{item.title ?? '（未命名课程）'}</p>
-                            <p className="text-xs text-ink-400 mt-0.5">审核单 #{item.auditId} · 版本 v{item.versionNo ?? '--'}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              <span className="text-xs text-ink-400">审核单 #{item.auditId} · v{item.versionNo ?? '--'}</span>
+                              {(item.changes && item.changes.length > 0
+                                ? item.changes
+                                : (item.changeSummary ? [item.changeSummary] : ['✨ 课程审核'])
+                              ).map((ch, idx) => (
+                                <span
+                                  key={idx}
+                                  className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 whitespace-nowrap"
+                                >
+                                  {ch}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         </td>
                         <td><span className="text-ink-700">{formatPrice(item.price)}</span></td>
@@ -480,6 +493,25 @@ export default function CourseAudit() {
                   <span>{modalError}</span>
                 </div>
               )}
+              {/* 智能变更识别与修改原因 */}
+              <div className="rounded-xl border border-brand-500/20 bg-brand-50/40 dark:bg-brand-500/5 p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 text-xs font-bold bg-brand-500 text-white rounded-md">智能变更识别</span>
+                  <span className="text-xs font-medium text-brand-700 dark:text-brand-300">
+                    {selectedAudit.changeSummary || '检测到课程信息提交审核'}
+                  </span>
+                </div>
+                {selectedAudit.changes && selectedAudit.changes.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {selectedAudit.changes.map((c, idx) => (
+                      <span key={idx} className="text-xs px-2.5 py-1 rounded-lg bg-white dark:bg-ink-800 border border-brand-500/30 font-medium text-brand-800 dark:text-brand-200 shadow-sm">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <p className="text-sm text-ink-500 leading-relaxed whitespace-pre-line">
                 {selectedAudit.description || '（无课程简介）'}
               </p>

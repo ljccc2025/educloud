@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, Info, AlertTriangle, XCircle, FileText, X } from 'lucide-react';
 import DataTable, { type Column } from '../components/DataTable';
+import CustomSelect from '../components/CustomSelect';
 import { analyticsAdminApi } from '../services/analyticsAdminApi';
 import type { AuditLog, LogLevel } from '../types';
 
@@ -9,6 +10,23 @@ const levelConfig: Record<LogLevel, { cls: string; icon: typeof Info; text: stri
   WARN: { cls: 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-600', icon: AlertTriangle, text: 'WARN' },
   ERROR: { cls: 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-600', icon: XCircle, text: 'ERROR' },
 };
+
+const levelOptions = [
+  { value: 'ALL', label: '全部级别' },
+  { value: 'INFO', label: 'INFO (正常)' },
+  { value: 'WARN', label: 'WARN (警告)' },
+  { value: 'ERROR', label: 'ERROR (异常)' },
+];
+
+const serviceOptions = [
+  { value: 'ALL', label: '全部来源服务' },
+  { value: 'educloud-user', label: 'educloud-user (用户)' },
+  { value: 'educloud-course', label: 'educloud-course (课程)' },
+  { value: 'educloud-order', label: 'educloud-order (订单)' },
+  { value: 'educloud-payment', label: 'educloud-payment (支付)' },
+  { value: 'educloud-search', label: 'educloud-search (搜索)' },
+  { value: 'educloud-notification', label: 'educloud-notification (通知)' },
+];
 
 export default function Logs() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -123,7 +141,7 @@ export default function Logs() {
       </div>
 
       {/* 过滤器 */}
-      <form onSubmit={handleSearch} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+      <form onSubmit={handleSearch} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 relative z-30 overflow-visible">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -136,35 +154,25 @@ export default function Logs() {
             />
           </div>
 
-          <select
+          <CustomSelect
+            options={levelOptions}
             value={level}
-            onChange={(e) => { setLevel(e.target.value); setPage(1); }}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-600 bg-white text-slate-700"
-          >
-            <option value="ALL">全部日志级别</option>
-            <option value="INFO">INFO (正常)</option>
-            <option value="WARN">WARN (警告)</option>
-            <option value="ERROR">ERROR (异常)</option>
-          </select>
+            onChange={(val) => { setLevel(val); setPage(1); }}
+            minWidth="min-w-[130px]"
+          />
 
-          <select
+          <CustomSelect
+            options={serviceOptions}
             value={sourceService}
-            onChange={(e) => { setSourceService(e.target.value); setPage(1); }}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-600 bg-white text-slate-700"
-          >
-            <option value="ALL">全部来源服务</option>
-            <option value="educloud-user">educloud-user (用户)</option>
-            <option value="educloud-course">educloud-course (课程)</option>
-            <option value="educloud-order">educloud-order (订单)</option>
-            <option value="educloud-payment">educloud-payment (支付)</option>
-            <option value="educloud-search">educloud-search (搜索)</option>
-          </select>
+            onChange={(val) => { setSourceService(val); setPage(1); }}
+            minWidth="min-w-[170px]"
+          />
 
           <input
             type="date"
             value={startDate}
             onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-600 bg-white text-slate-700"
+            className="px-3.5 py-2 text-xs md:text-sm rounded-xl border border-ink-200 dark:border-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 bg-white dark:bg-ink-900 text-ink-700 dark:text-ink-300 shadow-sm"
           />
 
           <button
@@ -248,8 +256,16 @@ export default function Logs() {
               </div>
               <div className="pt-2">
                 <span className="text-slate-500 block mb-1">Payload JSON</span>
-                <pre className="p-3 bg-slate-900 text-emerald-400 rounded-xl font-mono text-[11px] overflow-auto max-h-48 whitespace-pre-wrap">
-                  {selectedLog.detail || '{}'}
+                <pre className="p-3 bg-slate-900 text-emerald-400 rounded-xl font-mono text-[11px] overflow-auto max-h-56 whitespace-pre-wrap">
+                  {(() => {
+                    try {
+                      const str = selectedLog.detail || '{}';
+                      const obj = typeof str === 'string' ? JSON.parse(str) : str;
+                      return JSON.stringify(obj, null, 2);
+                    } catch {
+                      return selectedLog.detail || '{}';
+                    }
+                  })()}
                 </pre>
               </div>
             </div>

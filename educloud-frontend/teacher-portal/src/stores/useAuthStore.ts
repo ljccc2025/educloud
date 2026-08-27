@@ -23,6 +23,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const res = await api.login(email, password);
+      if (res.user.role !== 'teacher') {
+        localStorage.removeItem('teacher_token');
+        set({ user: null, token: null, loading: false, error: '当前账号非教师身份，无法登录教师端' });
+        throw new Error('当前账号非教师身份，无法登录教师端');
+      }
       set({ user: res.user, token: res.token, loading: false });
     } catch (err) {
       set({ error: apiErrorText(err), loading: false });
@@ -42,6 +47,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true });
     try {
       const user = await api.getCurrentUser();
+      if (user.role !== 'teacher') {
+        localStorage.removeItem('teacher_token');
+        set({ user: null, token: null, loading: false });
+        return;
+      }
       set({ user, loading: false });
     } catch {
       localStorage.removeItem('teacher_token');

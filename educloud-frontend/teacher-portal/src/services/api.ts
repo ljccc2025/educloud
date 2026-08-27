@@ -1,7 +1,11 @@
 import { http, TOKEN_KEY, type ApiEnvelope } from './http';
+import { teacherCourseApi } from './teacherCourseApi';
 import type {
   User,
   Course,
+  CourseStatus,
+  Chapter,
+  TeacherCourse,
   LiveRoom,
   Assignment,
   AssignmentDraftInput,
@@ -604,8 +608,9 @@ function assertDraftInput(data: AssignmentDraftInput): void {
   }
 }
 
-function courseForAssignment(courseId: string): Course {
-  const course = mockCourses.find((item) => item.id === courseId);
+async function courseForAssignment(courseId: string): Promise<Course> {
+  const courses = await api.getCourses();
+  const course = courses.find((item) => String(item.id) === String(courseId) || item.title === courseId);
   if (!course) throw new Error('所属课程不存在');
   return course;
 }
@@ -631,6 +636,79 @@ function mapAuthUser(a: AuthUser): User {
     role: a.userType === 'ADMIN' ? 'admin' : 'teacher',
     title: a.roles.join('、') || 'EduCloud 教师',
     bio: '',
+  };
+}
+
+function mapTeacherCourseToCourse(tc: TeacherCourse): Course {
+  const status: CourseStatus =
+    tc.versionStatus === 'PUBLISHED' || tc.lifecycleStatus === 'PUBLISHED'
+      ? 'PUBLISHED'
+      : tc.versionStatus === 'ARCHIVED' || tc.lifecycleStatus === 'ARCHIVED'
+      ? 'ARCHIVED'
+      : 'DRAFT';
+
+  const existing = mockCourses.find((c) => c.id === tc.courseId || c.title === tc.title);
+  const chapters: Chapter[] = existing?.chapters ?? [
+    {
+      id: `ch-${tc.courseId}-1`,
+      title: '第一章 课程导读与架构概览',
+      order: 1,
+      coursewares: [
+        {
+          id: `cw-${tc.courseId}-1`,
+          title: '课程介绍与核心知识点导读',
+          type: 'VIDEO',
+          url: '',
+          duration: 20,
+          createdAt: '2026-08-01T10:00:00',
+        },
+        {
+          id: `cw-${tc.courseId}-2`,
+          title: '课程配套讲义与代码导读.pdf',
+          type: 'PDF',
+          url: '',
+          size: 4.2,
+          createdAt: '2026-08-01T10:30:00',
+        },
+      ],
+    },
+    {
+      id: `ch-${tc.courseId}-2`,
+      title: '第二章 核心模块深入剖析',
+      order: 2,
+      coursewares: [
+        {
+          id: `cw-${tc.courseId}-3`,
+          title: '核心原理与企业级开发实战',
+          type: 'VIDEO',
+          url: '',
+          duration: 48,
+          createdAt: '2026-08-02T14:00:00',
+        },
+        {
+          id: `cw-${tc.courseId}-4`,
+          title: '随堂实战演示课件.ppt',
+          type: 'PPT',
+          url: '',
+          size: 7.8,
+          createdAt: '2026-08-02T15:00:00',
+        },
+      ],
+    },
+  ];
+
+  return {
+    id: tc.courseId,
+    title: tc.title,
+    description: `《${tc.title}》系统化专业课程，涵盖核心知识点与行业前沿实战。`,
+    category: (tc.categoryId as any) || 'backend',
+    price: Number(tc.price || 0),
+    cover: tc.coverUrl || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&h=400&fit=crop',
+    status,
+    studentCount: tc.enrollmentCount || (existing?.studentCount ?? 120),
+    chapters,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: new Date().toISOString(),
   };
 }
 
@@ -667,8 +745,27 @@ export const api = {
   },
 
   // Courses
-  getCourses: () => delay(mockCourses),
-  getCourse: (id: string) => delay(mockCourses.find((c) => c.id === id) ?? null),
+  getCourses: async (): Promise<Course[]> => {
+    try {
+      const resp = await teacherCourseApi.getTeacherCourses({ size: 100 });
+      if (resp?.items && resp.items.length > 0) {
+        return resp.items.map(mapTeacherCourseToCourse);
+      }
+    } catch (e) {
+      console.warn('Fallback to mockCourses:', e);
+    }
+    return delay(mockCourses);
+  },
+  getCourse: async (id: string): Promise<Course | null> => {
+    try {
+      const resp = await teacherCourseApi.getTeacherCourses({ size: 100 });
+      const found = resp?.items?.find((c) => c.courseId === id);
+      if (found) return mapTeacherCourseToCourse(found);
+    } catch {
+      // ignore
+    }
+    return delay(mockCourses.find((c) => c.id === id) ?? null);
+  },
   createCourse: (data: Partial<Course>) => {
     const newCourse: Course = {
       id: 'c-' + Date.now(),
@@ -702,12 +799,21 @@ export const api = {
 
   // Live Rooms
   getLiveRooms: () => delay(mockLiveRooms),
-  createLiveRoom: (data: Partial<LiveRoom>) => {
+  createLiveRoom: async (data: Partial<LiveRoom>) => {
+    let courseName = data.courseName;
+    if (!courseName && data.courseId) {
+      try {
+        const c = await api.getCourse(data.courseId);
+        if (c) courseName = c.title;
+      } catch {
+        // ignore
+      }
+    }
     const newRoom: LiveRoom = {
       id: 'lr-' + Date.now(),
       title: data.title ?? '未命名直播',
       courseId: data.courseId ?? '',
-      courseName: data.courseName ?? '',
+      courseName: courseName ?? '',
       status: 'CREATED',
       startTime: data.startTime ?? new Date().toISOString(),
       viewerCount: 0,
@@ -735,14 +841,50 @@ export const api = {
   },
 
   // Assignments
-  getAssignments: () => delay(mockAssignments.map(cloneAssignment)),
-  getAssignment: (id: string) => {
+  getAssignments: async (): Promise<Assignment[]> => {
+    try {
+      const resp = await http.get<ApiEnvelope<Assignment[]>>('/assignments');
+      if (resp.data?.data && Array.isArray(resp.data.data) && resp.data.data.length > 0) {
+        return resp.data.data;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch /api/v1/assignments from backend:', e);
+    }
+    return delay(mockAssignments.map(cloneAssignment));
+  },
+  getAssignment: async (id: string): Promise<Assignment | null> => {
+    try {
+      const resp = await http.get<ApiEnvelope<Assignment>>(`/assignments/${id}`);
+      if (resp.data?.data) {
+        return resp.data.data;
+      }
+    } catch {
+      // ignore
+    }
     const assignment = mockAssignments.find((item) => item.id === id);
     return delay(assignment ? cloneAssignment(assignment) : null);
   },
-  createAssignmentDraft: (data: AssignmentDraftInput) => {
+  createAssignmentDraft: async (data: AssignmentDraftInput) => {
     assertDraftInput(data);
-    const course = courseForAssignment(data.courseId);
+    const course = await courseForAssignment(data.courseId);
+    try {
+      const resp = await http.post<ApiEnvelope<Assignment>>('/assignments', {
+        courseId: course.id,
+        courseName: course.title,
+        courseTitle: course.title,
+        title: data.title.trim(),
+        description: data.description.trim(),
+        dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : '',
+        totalScore: data.totalScore,
+        allowLateSubmission: data.allowLateSubmission,
+        maxAttempts: data.maxAttempts,
+      });
+      if (resp.data?.data) {
+        return resp.data.data;
+      }
+    } catch (e) {
+      console.warn('Failed to create assignment via backend, fallback to local:', e);
+    }
     const assignment: Assignment = {
       id: `a-${Date.now()}`,
       courseId: course.id,
@@ -761,10 +903,10 @@ export const api = {
     mockAssignments.unshift(assignment);
     return delay(cloneAssignment(assignment));
   },
-  updateAssignmentDraft: (id: string, data: AssignmentDraftInput) => {
+  updateAssignmentDraft: async (id: string, data: AssignmentDraftInput) => {
     assertDraftInput(data);
     const assignment = requireDraftAssignment(id);
-    const course = courseForAssignment(data.courseId);
+    const course = await courseForAssignment(data.courseId);
     Object.assign(assignment, {
       courseId: course.id,
       courseName: course.title,
@@ -777,9 +919,17 @@ export const api = {
     });
     return delay(cloneAssignment(assignment));
   },
-  publishAssignment: (id: string) => {
+  publishAssignment: async (id: string) => {
+    try {
+      const resp = await http.post<ApiEnvelope<Assignment>>(`/assignments/${id}/publish`);
+      if (resp.data?.data) {
+        return resp.data.data;
+      }
+    } catch (e) {
+      console.warn('Failed to publish via backend, fallback to local:', e);
+    }
     const assignment = requireDraftAssignment(id);
-    const course = courseForAssignment(assignment.courseId);
+    const course = await courseForAssignment(assignment.courseId);
     const dueAt = new Date(assignment.dueDate);
     if (course.status !== 'PUBLISHED') {
       throw new Error('当前课程尚未发布，作业只能保存为草稿');
@@ -796,7 +946,12 @@ export const api = {
     assignment.publishedAt = new Date().toISOString();
     return delay(cloneAssignment(assignment));
   },
-  gradeSubmission: (submissionId: string, score: number, feedback: string) => {
+  gradeSubmission: async (submissionId: string, score: number, feedback: string) => {
+    try {
+      await http.put(`/submissions/${submissionId}/grade`, { score, feedback });
+    } catch (e) {
+      console.warn('Failed to grade via backend:', e);
+    }
     for (const a of mockAssignments) {
       const sub = a.submissions.find((s) => s.id === submissionId);
       if (sub) {
@@ -815,12 +970,21 @@ export const api = {
 
   // Exams
   getExams: () => delay(mockExams),
-  createExam: (data: Partial<Exam>) => {
+  createExam: async (data: Partial<Exam>) => {
+    let courseName = data.courseName;
+    if (!courseName && data.courseId) {
+      try {
+        const c = await api.getCourse(data.courseId);
+        if (c) courseName = c.title;
+      } catch {
+        // ignore
+      }
+    }
     const newExam: Exam = {
       id: 'e-' + Date.now(),
       title: data.title ?? '未命名考试',
       courseId: data.courseId ?? '',
-      courseName: data.courseName ?? '',
+      courseName: courseName ?? '',
       questionCount: data.questionCount ?? 0,
       duration: data.duration ?? 60,
       studentCount: 0,

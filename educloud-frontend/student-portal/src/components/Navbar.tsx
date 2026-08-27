@@ -41,9 +41,11 @@ export default function Navbar() {
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const desktopSearchRef = useRef<HTMLDivElement>(null);
   const mobileSearchRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
   const rafId = useRef<number>(0);
 
   useEffect(() => {
@@ -96,7 +98,7 @@ export default function Navbar() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // 点击外部关闭联想下拉
+  // 点击外部关闭联想下拉与用户菜单
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -107,6 +109,9 @@ export default function Navbar() {
         !mobileSearchRef.current.contains(target)
       ) {
         setSuggestOpen(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(target)) {
+        setUserDropdownOpen(false);
       }
     };
 
@@ -307,22 +312,99 @@ export default function Navbar() {
                 >
                   <ShoppingCart size={19} />
                 </Link>
-                <Link
-                  to="/profile"
-                  aria-label="个人中心"
-                  className="flex items-center gap-2 ml-1 p-0.5 rounded-full hover:bg-ink-100/60 dark:hover:bg-ink-800/60 transition-colors"
-                >
-                  <img
-                    src={user?.avatarUrl ?? user?.avatar ?? ''}
-                    alt="用户头像"
-                    onError={(e) => {
-                      const img = e.currentTarget;
-                      img.onerror = null;
-                      img.src = FALLBACK_AVATAR;
-                    }}
-                    className="block h-8 w-8 rounded-full bg-indigo-100 border border-ink-200 dark:border-ink-700 object-cover"
-                  />
-                </Link>
+                <div className="relative ml-1" ref={userDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setUserDropdownOpen((v) => !v)}
+                    aria-label="用户菜单"
+                    className="flex items-center gap-2 p-0.5 rounded-full hover:ring-2 hover:ring-indigo-300 dark:hover:ring-indigo-700 transition-all focus:outline-none"
+                  >
+                    <img
+                      src={user?.avatarUrl ?? user?.avatar ?? ''}
+                      alt="用户头像"
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        img.onerror = null;
+                        img.src = FALLBACK_AVATAR;
+                      }}
+                      className="block h-8 w-8 rounded-full bg-indigo-100 border border-ink-200 dark:border-ink-700 object-cover"
+                    />
+                  </button>
+
+                  {userDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-ink-900 border border-ink-100 dark:border-ink-800 shadow-xl shadow-ink-900/10 dark:shadow-black/40 py-2 z-50 animate-fade-in">
+                      <div className="px-4 py-3 border-b border-ink-100 dark:border-ink-800 flex items-center gap-3">
+                        <img
+                          src={user?.avatarUrl ?? user?.avatar ?? ''}
+                          alt="用户头像"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            img.onerror = null;
+                            img.src = FALLBACK_AVATAR;
+                          }}
+                          className="h-10 w-10 rounded-full bg-indigo-100 border border-ink-200 object-cover flex-shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-sm text-ink-900 dark:text-white truncate">
+                            {user?.realName || user?.username || '学员'}
+                          </p>
+                          <span className="inline-block px-2 py-0.5 mt-0.5 text-[10px] font-medium bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full">
+                            学员身份
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="py-1">
+                        <Link
+                          to="/profile"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-700 dark:text-ink-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-800 transition-colors"
+                        >
+                          <User size={16} className="text-ink-400" />
+                          个人中心
+                        </Link>
+                        <Link
+                          to="/my-courses"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-700 dark:text-ink-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-800 transition-colors"
+                        >
+                          <BookOpen size={16} className="text-ink-400" />
+                          我的课程
+                        </Link>
+                        <Link
+                          to="/orders"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-700 dark:text-ink-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-800 transition-colors"
+                        >
+                          <ShoppingCart size={16} className="text-ink-400" />
+                          我的订单
+                        </Link>
+                        <Link
+                          to="/assignments"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-700 dark:text-ink-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-800 transition-colors"
+                        >
+                          <ClipboardList size={16} className="text-ink-400" />
+                          作业与考试
+                        </Link>
+                      </div>
+
+                      <div className="pt-1 border-t border-ink-100 dark:border-ink-800">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserDropdownOpen(false);
+                            handleLogout();
+                          }}
+                          className="flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left transition-colors font-medium"
+                        >
+                          <LogOut size={16} />
+                          退出登录
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <Link to="/login" className="btn-primary py-2 px-5 text-sm hidden sm:inline-flex">

@@ -66,18 +66,22 @@ function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     try {
-      const resp = await axios.post<ApiEnvelope<{ accessToken: string }>>(
+      const resp = await axios.post<ApiEnvelope<{ accessToken: string; user?: { userType?: string } }>>(
         '/api/v1/auth/refresh',
         null,
         { withCredentials: true, timeout: 15000 },
       );
       const token = resp.data?.data?.accessToken ?? null;
-      if (token) localStorage.setItem(TOKEN_KEY, token);
-      else {
+      const userType = resp.data?.data?.user?.userType;
+      // 跨端隔离校验：仅当身份明确为 STUDENT 时才采纳刷新结果，防止多标签页串号
+      if (token && (!userType || userType === 'STUDENT')) {
+        localStorage.setItem(TOKEN_KEY, token);
+        return token;
+      } else {
         localStorage.removeItem(TOKEN_KEY);
         window.dispatchEvent(new Event('auth:session-expired'));
+        return null;
       }
-      return token;
     } catch {
       localStorage.removeItem(TOKEN_KEY);
       window.dispatchEvent(new Event('auth:session-expired'));

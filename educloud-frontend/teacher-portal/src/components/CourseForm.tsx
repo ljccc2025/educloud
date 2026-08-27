@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Upload, Save, Loader2, Trash2 } from 'lucide-react';
 import type { Category, CourseDraft, CourseDraftInput, CourseLevel } from '../types';
+import CustomSelect, { type SelectOption } from './CustomSelect';
 import { cn } from '../utils/cn';
 import { apiErrorText } from '../services/http';
 import { teacherCourseApi } from '../services/teacherCourseApi';
@@ -162,29 +163,23 @@ export default function CourseForm({
           <label className="block text-sm font-medium text-ink-700 mb-2">
             课程分类 <span className="text-amber-600">*</span>
           </label>
-          <select
+          <CustomSelect
+            options={flatCategories.map((c) => ({ value: c.id, label: c.name }))}
             value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="input-field appearance-none cursor-pointer"
-            required
-          >
-            <option value="" disabled>请选择分类</option>
-            {flatCategories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+            onChange={setCategoryId}
+            placeholder="请选择分类"
+            minWidth="w-full"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-ink-700 mb-2">课程难度</label>
-          <select
+          <CustomSelect
+            options={levels.map((l) => ({ value: l.value, label: l.label }))}
             value={level}
-            onChange={(e) => setLevel(e.target.value as CourseLevel)}
-            className="input-field appearance-none cursor-pointer"
-          >
-            {levels.map((l) => (
-              <option key={l.value} value={l.value}>{l.label}</option>
-            ))}
-          </select>
+            onChange={(val) => setLevel(val as CourseLevel)}
+            placeholder="请选择难度"
+            minWidth="w-full"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-ink-700 mb-2">课程定价（元）</label>

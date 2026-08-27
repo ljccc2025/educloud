@@ -9,26 +9,26 @@ spring:
     timeout-per-shutdown-phase: 20s
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_content?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-    username: content_app
-    password: ${EDUCLOUD_CONTENT_DB_PASSWORD:}
+    username: ${EDUCLOUD_CONTENT_DB_USERNAME:content_app}
+    password: ${EDUCLOUD_CONTENT_DB_PASSWORD:b2b6c6a9387119adf22914f13320eed100c19ec5edcdc760}
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD:c4d463f0a8cd8a0daf3558ec08e772f2cb2d26c4aabd52b6}
       timeout: 2s
   rabbitmq:
     host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_DEFAULT_USER:}
-    password: ${RABBITMQ_DEFAULT_PASS:}
+    username: ${RABBITMQ_DEFAULT_USER:educloud_local}
+    password: ${RABBITMQ_DEFAULT_PASS:14451aa84db1b5ac47576ea9058d287c8e5ef5cb58675f42}
     virtual-host: ${RABBITMQ_DEFAULT_VHOST:educloud}
   cloud:
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-      username: ${EDUCLOUD_CONTENT_NACOS_USERNAME:}
-      password: ${EDUCLOUD_CONTENT_NACOS_PASSWORD:}
+      username: ${EDUCLOUD_CONTENT_NACOS_USERNAME:${NACOS_ADMIN_USERNAME:nacos}}
+      password: ${EDUCLOUD_CONTENT_NACOS_PASSWORD:${NACOS_ADMIN_PASSWORD:nacos}}
       discovery:
         namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
         group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
@@ -53,7 +53,7 @@ educloud:
       timeout: ${EDUCLOUD_CONTENT_COURSE_TIMEOUT:3s}
       token-endpoint: ${EDUCLOUD_CONTENT_USER_TOKEN_ENDPOINT:http://127.0.0.1:8082}
     jwt:
-      jwks-location: ${CONTENT_JWKS_LOCATION:}
+      jwks-location: ${CONTENT_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
       issuer: ${EDUCLOUD_CONTENT_JWT_ISSUER:https://issuer.educloud.local}
       audience: ${EDUCLOUD_CONTENT_JWT_AUDIENCE:educloud-api}
     internal:

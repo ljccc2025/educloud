@@ -15,8 +15,17 @@ interface AuthState {
   clearError: () => void;
 }
 
+const getCachedUser = (): StudentUser | null => {
+  try {
+    const raw = localStorage.getItem('student_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
+  user: getCachedUser(),
   token: localStorage.getItem('student_token'),
   loading: false,
   error: null,
@@ -24,6 +33,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const { token, user } = await authApi.login(loginName, password);
+      if (user.userType && user.userType !== 'STUDENT') {
+        localStorage.removeItem('student_token');
+        localStorage.removeItem('student_user');
+        set({ user: null, token: null, loading: false, error: '当前账号非学员身份，无法登录学员端' });
+        return false;
+      }
+      localStorage.setItem('student_user', JSON.stringify(user));
       set({ user, token, loading: false });
       return true;
     } catch (e) {
@@ -37,6 +53,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // 本地始终清理。
     }
+    localStorage.removeItem('student_token');
+    localStorage.removeItem('student_user');
     set({ user: null, token: null });
   },
   restore: async () => {
@@ -44,15 +62,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true });
     try {
       const user = await authApi.me();
+      if (user.userType && user.userType !== 'STUDENT') {
+        localStorage.removeItem('student_token');
+        localStorage.removeItem('student_user');
+        set({ user: null, token: null, loading: false });
+        return;
+      }
+      localStorage.setItem('student_user', JSON.stringify(user));
       set({ user, loading: false });
     } catch {
       localStorage.removeItem('student_token');
+      localStorage.removeItem('student_user');
       set({ user: null, token: null, loading: false });
     }
   },
   refresh: async () => {
     if (!get().token) return;
     const user = await authApi.me();
+    localStorage.setItem('student_user', JSON.stringify(user));
     set({ user });
   },
   clearError: () => set({ error: null }),

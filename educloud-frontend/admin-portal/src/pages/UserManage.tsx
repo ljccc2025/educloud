@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { Search, Filter, ChevronLeft, ChevronRight, Trash2, Ban, CheckCircle } from 'lucide-react';
 import DataTable, { type Column } from '../components/DataTable';
+import CustomSelect from '../components/CustomSelect';
+import { UserAvatar } from '../components/UserAvatar';
 import { useUserStore } from '../stores/useUserStore';
 import type { User } from '../types';
 import { cn } from '../utils/cn';
@@ -16,6 +18,19 @@ const roleLabel: Record<User['role'], string> = {
   TEACHER: '教师',
   ADMIN: '管理员',
 };
+
+const roleOptions = [
+  { value: 'ALL', label: '全部角色' },
+  { value: 'STUDENT', label: '学员' },
+  { value: 'TEACHER', label: '教师' },
+  { value: 'ADMIN', label: '管理员' },
+];
+
+const statusOptions = [
+  { value: 'ALL', label: '全部状态' },
+  { value: 'ACTIVE', label: '正常' },
+  { value: 'DISABLED', label: '已禁用' },
+];
 
 export default function UserManage() {
   const {
@@ -48,9 +63,12 @@ export default function UserManage() {
       header: '用户',
       render: (u) => (
         <div className="flex items-center gap-3">
-          <img src={u.avatar} alt={u.username} className="w-9 h-9 bg-ink-100 border border-ink-200" />
+          <UserAvatar name={u.nickname || u.username} src={u.avatarUrl} size="md" />
           <div>
-            <div className="font-medium text-ink-900">{u.username}</div>
+            <div className="font-medium text-ink-900 flex items-center gap-1.5">
+              <span>{u.username}</span>
+              {u.nickname && <span className="text-xs text-ink-400 font-normal">({u.nickname})</span>}
+            </div>
             <div className="text-xs text-ink-400">{u.phone}</div>
           </div>
         </div>
@@ -134,7 +152,7 @@ export default function UserManage() {
       </div>
 
       {/* Filters */}
-      <div className="card-editorial p-4 md:p-5 animate-fade-up opacity-0 animation-delay-100">
+      <div className="card-editorial p-4 md:p-5 animate-fade-up opacity-0 animation-delay-100 relative z-30 overflow-visible">
         <div className="flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
@@ -147,28 +165,19 @@ export default function UserManage() {
             />
           </div>
           <div className="flex gap-3">
-            <div className="relative">
-              <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="input-field pl-9 pr-8 appearance-none cursor-pointer min-w-[140px]"
-              >
-                <option value="ALL">全部角色</option>
-                <option value="STUDENT">学员</option>
-                <option value="TEACHER">教师</option>
-                <option value="ADMIN">管理员</option>
-              </select>
-            </div>
-            <select
+            <CustomSelect
+              options={roleOptions}
+              value={role}
+              onChange={setRole}
+              prefixIcon={Filter}
+              minWidth="min-w-[140px]"
+            />
+            <CustomSelect
+              options={statusOptions}
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="input-field appearance-none cursor-pointer min-w-[120px]"
-            >
-              <option value="ALL">全部状态</option>
-              <option value="ACTIVE">正常</option>
-              <option value="DISABLED">已禁用</option>
-            </select>
+              onChange={setStatus}
+              minWidth="min-w-[120px]"
+            />
           </div>
         </div>
       </div>

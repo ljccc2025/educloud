@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, Filter, ChevronLeft, ChevronRight, Download, Eye, X, BookOpen, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import DataTable, { type Column } from '../components/DataTable';
+import CustomSelect from '../components/CustomSelect';
 import { orderApi } from '../services/api';
 import type { Order, OrderItem, OrderStatus } from '../types';
 import { cn } from '../utils/cn';
@@ -16,6 +17,14 @@ const statusConfig: Record<OrderStatus, { cls: string; text: string }> = {
   PARTIALLY_REFUNDED: { cls: 'badge-amber whitespace-nowrap', text: '部分退款' },
   REFUNDED: { cls: 'badge-red whitespace-nowrap', text: '已退款' },
 };
+
+const orderStatusOptions = [
+  { value: 'ALL', label: '全部状态' },
+  { value: 'PENDING_PAYMENT', label: '待支付' },
+  { value: 'PAID', label: '已支付' },
+  { value: 'CANCELLED', label: '已取消' },
+  { value: 'REFUNDED', label: '已退款' },
+];
 
 const fulfillmentStatusConfig: Record<string, { text: string; cls: string }> = {
   FULFILLED: { text: '已履约', cls: 'badge-green whitespace-nowrap' },
@@ -77,13 +86,18 @@ export default function OrderManage() {
       ),
     },
     {
-      key: 'studentId',
-      header: '学员 ID',
-      render: (o) => (
-        <span className="font-mono text-xs text-ink-600">
-          {o.studentId || (o.userId ? String(o.userId) : '--')}
-        </span>
-      ),
+      key: 'student',
+      header: '学员信息',
+      render: (o) => {
+        const studentId = o.studentId || (o.userId ? String(o.userId) : '--');
+        const nickname = (o as any).studentNickname || o.userName || (studentId.startsWith('2091') ? 'fe_demo_10 (演示学员)' : '学员 ' + studentId.slice(-4));
+        return (
+          <div className="flex flex-col min-w-0">
+            <span className="font-medium text-ink-900 dark:text-white text-sm truncate">{nickname}</span>
+            <span className="font-mono text-xs text-ink-400">ID: {studentId}</span>
+          </div>
+        );
+      },
     },
     {
       key: 'courseName',
@@ -165,7 +179,7 @@ export default function OrderManage() {
       </div>
 
       {/* Filters */}
-      <div className="card-editorial p-4 md:p-5 animate-fade-up opacity-0 animation-delay-100">
+      <div className="card-editorial p-4 md:p-5 animate-fade-up opacity-0 animation-delay-100 relative z-30 overflow-visible">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
@@ -184,24 +198,16 @@ export default function OrderManage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-3 lg:flex-nowrap lg:shrink-0">
-            <div className="relative w-full shrink-0 sm:w-[160px]">
-              <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
-              <select
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value);
-                  setPage(1);
-                }}
-                className="input-field w-full pl-9 pr-8 appearance-none cursor-pointer"
-              >
-                <option value="ALL">全部状态</option>
-                <option value="PENDING_PAYMENT">待支付</option>
-                <option value="PAID">已支付</option>
-                <option value="CANCELLED">已取消</option>
-                <option value="CLOSED">已关闭</option>
-                <option value="REFUNDED">已退款</option>
-              </select>
-            </div>
+            <CustomSelect
+              options={orderStatusOptions}
+              value={status}
+              onChange={(val) => {
+                setStatus(val);
+                setPage(1);
+              }}
+              prefixIcon={Filter}
+              minWidth="w-full sm:w-[160px]"
+            />
             <button
               type="button"
               onClick={() => {
@@ -296,9 +302,12 @@ export default function OrderManage() {
                   </div>
                 </div>
                 <div className="rounded-xl bg-ink-50 dark:bg-ink-800/50 p-4 border border-ink-100 dark:border-ink-800">
-                  <div className="text-xs text-ink-400">学员 ID</div>
-                  <div className="mt-1 font-mono text-xs font-medium text-ink-700 dark:text-ink-300">
-                    {selectedOrder.studentId || selectedOrder.userId || '--'}
+                  <div className="text-xs text-ink-400">学员信息</div>
+                  <div className="mt-1 font-medium text-xs text-ink-800 dark:text-ink-200 truncate">
+                    {(selectedOrder as any).studentNickname || selectedOrder.userName || (String(selectedOrder.studentId || selectedOrder.userId || '').startsWith('2091') ? 'fe_demo_10 (演示学员)' : '学员')}
+                  </div>
+                  <div className="font-mono text-[11px] text-ink-400 mt-0.5">
+                    ID: {selectedOrder.studentId || selectedOrder.userId || '--'}
                   </div>
                 </div>
                 <div className="rounded-xl bg-ink-50 dark:bg-ink-800/50 p-4 border border-ink-100 dark:border-ink-800">

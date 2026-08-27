@@ -158,10 +158,18 @@ export interface CartResponse {
 // 作业状态
 export type AssignmentStatus = 'PENDING' | 'SUBMITTED' | 'GRADED' | 'OVERDUE';
 
+// 作业提交内容
+export interface AssignmentSubmission {
+  content: string;
+  files?: Array<{ name: string; size: number; url?: string }>;
+  submittedAt: string;
+  note?: string;
+}
+
 // 作业
 export interface Assignment {
-  id: number;
-  courseId: number;
+  id: number | string;
+  courseId: number | string;
   courseTitle: string;
   title: string;
   description: string;
@@ -171,15 +179,24 @@ export interface Assignment {
   totalScore: number;
   submitDate?: string;
   feedback?: string;
+  submission?: AssignmentSubmission;
 }
 
 // 考试状态
 export type ExamStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'SUBMITTED' | 'GRADED';
 
+// 考试题目
+export interface ExamQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+}
+
 // 考试
 export interface Exam {
-  id: number;
-  courseId: number;
+  id: number | string;
+  courseId: number | string;
   courseTitle: string;
   title: string;
   description: string;
@@ -191,6 +208,8 @@ export interface Exam {
   endTime?: string;
   score?: number;
   passScore: number;
+  submittedAt?: string;
+  questions?: ExamQuestion[];
 }
 
 // 订单项
@@ -273,6 +292,8 @@ export interface StudentUser {
   id: string;
   username: string;
   realName: string;
+  userType?: string;
+  roles?: string[];
   email: string;
   phone: string;
   avatar: string;

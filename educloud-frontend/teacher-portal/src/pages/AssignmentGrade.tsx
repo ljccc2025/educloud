@@ -7,7 +7,9 @@ import {
   Inbox,
   Pencil,
   Plus,
+  Search,
   Send,
+  X,
 } from 'lucide-react';
 import { api } from '../services/api';
 import AssignmentPublishModal from '../components/AssignmentPublishModal';
@@ -31,6 +33,7 @@ export default function AssignmentGrade() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Record<string, string>>({});
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   const [showPublishModal, setShowPublishModal] = useState(false);
@@ -63,10 +66,11 @@ export default function AssignmentGrade() {
 
   const selected = assignments.find((a) => a.id === selectedId);
   const rememberedSubmissionId = selected ? selectedSubmissionIds[selected.id] : undefined;
+  const submissionsList = selected?.submissions || [];
   const selectedSubmissionId = selected
-    ? selected.submissions.some((submission) => submission.id === rememberedSubmissionId)
+    ? submissionsList.some((submission) => submission.id === rememberedSubmissionId)
       ? rememberedSubmissionId ?? ''
-      : selected.submissions[0]?.id ?? ''
+      : submissionsList[0]?.id ?? ''
     : '';
 
   const closePublishModal = () => {
@@ -140,77 +144,126 @@ export default function AssignmentGrade() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Assignment list */}
         <div className="lg:col-span-1">
-          <div className="card-editorial p-4 sticky top-24">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-400 mb-3">
-              作业列表
-            </h3>
-            <div className="space-y-2">
+          <div className="card-editorial p-4 sticky top-24 max-h-[calc(100vh-140px)] flex flex-col">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-400">
+                作业列表
+              </h3>
+              {assignments.length > 0 && (
+                <span className="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md font-medium">
+                  共 {assignments.length} 项
+                </span>
+              )}
+            </div>
+
+            {/* Search filter if assignments > 3 */}
+            {assignments.length > 3 && (
+              <div className="relative mb-3">
+                <Search className="w-3.5 h-3.5 text-ink-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="搜索作业或课程..."
+                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-ink-200 rounded-lg focus:outline-none focus:border-indigo-600 focus:bg-white transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2 custom-scrollbar min-h-0">
               {loading ? (
                 <p className="text-sm text-ink-400 py-4 text-center">加载中…</p>
-              ) : (
-                assignments.map((a) => {
-                  const pending = a.submissionCount - a.gradedCount;
-                  const isActive = selectedId === a.id;
-                  const status = assignmentStatusConfig[a.status];
+              ) : assignments.filter((a) => {
+                  if (!searchQuery.trim()) return true;
+                  const q = searchQuery.toLowerCase().trim();
                   return (
-                    <button
-                      key={a.id}
-                      onClick={() => setSelectedId(a.id)}
-                      className={cn(
-                        'w-full text-left p-3 border transition-all rounded-lg',
-                        isActive
-                          ? 'border-indigo-800 bg-indigo-50/50'
-                          : 'border-ink-100 hover:border-ink-300 bg-white'
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className={cn(
-                          'text-sm font-medium line-clamp-2',
-                          isActive ? 'text-indigo-800' : 'text-ink-800'
-                        )}>
-                          {a.title}
-                        </p>
-                        <span className={cn(status.className, 'shrink-0')}>{status.label}</span>
-                      </div>
-                      <p className="text-xs text-ink-400 mt-1">{a.courseName}</p>
-                      <div className="flex items-center gap-3 mt-2 text-xs">
-                        {a.status === 'DRAFT' ? (
-                          <span className="flex items-center gap-1 text-amber-700">
-                            <Pencil className="h-3 w-3" />
-                            尚未发布
-                          </span>
-                        ) : (
-                          <>
-                            <span className="flex items-center gap-1 text-ink-500">
-                              <ClipboardCheck className="w-3 h-3" />
-                              {a.submissionCount}
-                            </span>
-                            {a.submissionCount === 0 ? (
-                              <span className="flex items-center gap-1 text-indigo-600">
-                                <Inbox className="h-3 w-3" />
-                                等待提交
-                              </span>
-                            ) : pending > 0 ? (
-                              <span className="flex items-center gap-1 text-amber-600">
-                                <AlertCircle className="w-3 h-3" />
-                                {pending} 待批
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-green-600">
-                                <CheckCircle2 className="w-3 h-3" />
-                                已批完
-                              </span>
-                            )}
-                          </>
-                        )}
-                        <span className="flex items-center gap-1 text-ink-400 ml-auto">
-                          <Clock className="w-3 h-3" />
-                          {a.dueDate ? dayjs(a.dueDate).format('MM-DD') : '未设置'}
-                        </span>
-                      </div>
-                    </button>
+                    (a.title && a.title.toLowerCase().includes(q)) ||
+                    (a.courseName && a.courseName.toLowerCase().includes(q))
                   );
-                })
+                }).length === 0 ? (
+                <p className="text-xs text-ink-400 py-6 text-center">无匹配作业</p>
+              ) : (
+                assignments
+                  .filter((a) => {
+                    if (!searchQuery.trim()) return true;
+                    const q = searchQuery.toLowerCase().trim();
+                    return (
+                      (a.title && a.title.toLowerCase().includes(q)) ||
+                      (a.courseName && a.courseName.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((a) => {
+                    const pending = a.submissionCount - a.gradedCount;
+                    const isActive = selectedId === a.id;
+                    const status = assignmentStatusConfig[a.status];
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => setSelectedId(a.id)}
+                        className={cn(
+                          'w-full text-left p-3 border transition-all rounded-xl',
+                          isActive
+                            ? 'border-indigo-800 bg-indigo-50/60 shadow-xs'
+                            : 'border-ink-100 hover:border-ink-300 bg-white'
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={cn(
+                            'text-sm font-medium line-clamp-2',
+                            isActive ? 'text-indigo-900 font-semibold' : 'text-ink-800'
+                          )}>
+                            {a.title}
+                          </p>
+                          <span className={cn(status.className, 'shrink-0 text-[10px] px-1.5 py-0.5')}>{status.label}</span>
+                        </div>
+                        <p className="text-xs text-ink-400 mt-1 truncate">{a.courseName}</p>
+                        <div className="flex items-center gap-2 mt-2 text-xs">
+                          {a.status === 'DRAFT' ? (
+                            <span className="flex items-center gap-1 text-amber-700">
+                              <Pencil className="h-3 w-3" />
+                              尚未发布
+                            </span>
+                          ) : (
+                            <>
+                              <span className="flex items-center gap-1 text-ink-500 font-medium">
+                                <ClipboardCheck className="w-3 h-3" />
+                                {a.submissionCount}
+                              </span>
+                              {a.submissionCount === 0 ? (
+                                <span className="flex items-center gap-1 text-ink-400">
+                                  <Inbox className="h-3 w-3" />
+                                  等待提交
+                                </span>
+                              ) : pending > 0 ? (
+                                <span className="flex items-center gap-1 text-amber-600 font-medium">
+                                  <AlertCircle className="w-3 h-3" />
+                                  {pending} 待批
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-green-600 font-medium">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  已批完
+                                </span>
+                              )}
+                            </>
+                          )}
+                          <span className="flex items-center gap-1 text-ink-400 ml-auto">
+                            <Clock className="w-3 h-3" />
+                            {a.dueDate ? dayjs(a.dueDate).format('MM-DD') : '未设置'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })
               )}
             </div>
           </div>
@@ -344,9 +397,9 @@ export default function AssignmentGrade() {
                 </div>
               </div>
 
-              {selected.submissions.length > 0 ? (
+              {submissionsList.length > 0 ? (
                 <GradeSheet
-                  submissions={selected.submissions}
+                  submissions={submissionsList}
                   totalScore={selected.totalScore}
                   selectedSubmissionId={selectedSubmissionId}
                   onSelectSubmission={(submissionId) =>

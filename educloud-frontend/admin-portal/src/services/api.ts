@@ -75,8 +75,9 @@ function generateUsers(): User[] {
     return {
       id: i + 1,
       username: pinyin,
+      nickname: name,
       email: `${pinyin}@educloud.cn`,
-      avatar: avatar(name),
+      avatar: '',
       role,
       status: i % 13 === 0 ? 'DISABLED' : 'ACTIVE',
       phone: `138${String(10000000 + i).padStart(8, '0')}`,

@@ -375,10 +375,13 @@ public class CourseAuditService {
                         .eq(CourseAuditSubmissionEntity::getStatus, SUBMISSION_PENDING)
                         .orderByDesc(CourseAuditSubmissionEntity::getSubmittedAt));
         List<CourseAuditResponse> items = result.getRecords().stream()
-                .map(submission -> CourseAuditResponse.from(
-                        submission,
-                        courseMapper.selectById(submission.getCourseId()),
-                        versionMapper.selectById(submission.getCourseVersionId())))
+                .map(submission -> {
+                    CourseEntity course = courseMapper.selectById(submission.getCourseId());
+                    CourseVersionEntity version = versionMapper.selectById(submission.getCourseVersionId());
+                    CourseVersionEntity publishedVersion = (course != null && course.getPublishedVersionId() != null)
+                            ? versionMapper.selectById(course.getPublishedVersionId()) : null;
+                    return CourseAuditResponse.from(submission, course, version, publishedVersion);
+                })
                 .toList();
         return PageResponse.of(items, page, pageSize, result.getTotal());
     }
@@ -386,10 +389,11 @@ public class CourseAuditService {
     /** 审核快照与历史（GET /course-audits/{id}）：提交记录 + 课程/版本快照。 */
     public CourseAuditResponse getDetail(Long auditId) {
         CourseAuditSubmissionEntity submission = requireSubmission(auditId);
-        return CourseAuditResponse.from(
-                submission,
-                courseMapper.selectById(submission.getCourseId()),
-                versionMapper.selectById(submission.getCourseVersionId()));
+        CourseEntity course = courseMapper.selectById(submission.getCourseId());
+        CourseVersionEntity version = versionMapper.selectById(submission.getCourseVersionId());
+        CourseVersionEntity publishedVersion = (course != null && course.getPublishedVersionId() != null)
+                ? versionMapper.selectById(course.getPublishedVersionId()) : null;
+        return CourseAuditResponse.from(submission, course, version, publishedVersion);
     }
 
     private CourseAuditSubmissionEntity requireSubmission(Long auditId) {

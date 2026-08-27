@@ -22,6 +22,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const { token, admin } = await authApi.login(username, password);
+      const isAdmin = !admin.role || admin.role.toUpperCase().includes('ADMIN');
+      if (!isAdmin) {
+        localStorage.removeItem('admin_token');
+        set({ admin: null, token: null, loading: false, error: '当前账号非管理员身份，无法登录管理端' });
+        return false;
+      }
       localStorage.setItem('admin_token', token);
       set({ admin, token, loading: false });
       return true;
@@ -44,6 +50,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true });
     try {
       const admin = await authApi.me();
+      const isAdmin = !admin.role || admin.role.toUpperCase().includes('ADMIN');
+      if (!isAdmin) {
+        localStorage.removeItem('admin_token');
+        set({ admin: null, token: null, loading: false });
+        return;
+      }
       set({ admin, loading: false });
     } catch {
       localStorage.removeItem('admin_token');

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   User, Mail, Calendar, BookOpen, Award, Clock,
-  Settings, Edit3, Check, ChevronRight,
+  Settings, Edit3, Check, ChevronRight, LogOut,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { uploadAvatar } from '@/services/file';
@@ -13,7 +13,8 @@ const FALLBACK_AVATAR =
   'https://api.dicebear.com/7.x/initials/svg?seed=educloud&backgroundColor=1e1b4b&textColor=ffffff&fontWeight=500&fontSize=24';
 
 export default function Profile() {
-  const { user, refresh } = useAuthStore();
+  const navigate = useNavigate();
+  const { user, refresh, logout } = useAuthStore();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', bio: '' });
   const [saved, setSaved] = useState(false);
@@ -212,17 +213,29 @@ export default function Profile() {
               加入时间：{current.joinDate || '2026-08-25'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={editing ? handleSave : () => setEditing(true)}
-            className="btn-outline flex items-center gap-1.5"
-          >
-            {editing ? (
-              <><Check size={16} /> 保存资料</>
-            ) : (
-              <><Edit3 size={16} /> 编辑资料</>
-            )}
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={editing ? handleSave : () => setEditing(true)}
+              className="btn-outline flex items-center gap-1.5"
+            >
+              {editing ? (
+                <><Check size={16} /> 保存资料</>
+              ) : (
+                <><Edit3 size={16} /> 编辑资料</>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await logout();
+                navigate('/');
+              }}
+              className="btn-outline text-red-600 hover:bg-red-50 hover:border-red-200 dark:text-red-400 flex items-center gap-1.5"
+            >
+              <LogOut size={16} /> 退出登录
+            </button>
+          </div>
         </div>
       </div>
 

@@ -64,4 +64,22 @@ public interface CourseEnrollmentMapper extends BaseMapper<CourseEnrollmentEntit
     CourseEnrollmentEntity selectByCourseAndStudentForUpdate(
             @Param("courseId") Long courseId,
             @Param("studentId") Long studentId);
+
+    /**
+     * 批量查询学员展示名与用户名（跨库关联查询，用于教师端学员名录展示）。
+     */
+    @Select("""
+            <script>
+            SELECT u.id AS student_id,
+                   COALESCE(NULLIF(p.display_name, ''), u.username, '') AS display_name
+            FROM educloud_user.sys_user u
+            LEFT JOIN educloud_user.user_profile p ON p.user_id = u.id
+            WHERE u.id IN
+            <foreach item='id' collection='studentIds' open='(' separator=',' close=')'>
+                #{id}
+            </foreach>
+            </script>
+            """)
+    java.util.List<java.util.Map<String, Object>> selectStudentProfiles(
+            @Param("studentIds") java.util.List<Long> studentIds);
 }

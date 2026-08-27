@@ -14,7 +14,27 @@ export interface CourseInfo {
   cover: string;
 }
 
-const STORAGE_KEY = 'educloud:mock-checkout:v1';
+import { useAuthStore } from '@/stores/useAuthStore';
+
+const getCheckoutStorageKey = (): string => {
+  try {
+    const user = useAuthStore.getState().user;
+    if (user?.id) return `educloud:mock-checkout:${user.id}:v1`;
+    const token = localStorage.getItem('student_token');
+    if (token) {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]));
+        const uid = payload.userId || payload.sub || payload.id;
+        if (uid) return `educloud:mock-checkout:${uid}:v1`;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return 'educloud:mock-checkout:anonymous:v1';
+};
+
 const OUTCOME_KEY = 'educloud:mock-payment-outcome';
 const CONFIRM_DELAY_MS = 650;
 
@@ -59,7 +79,7 @@ const isValidState = (obj: unknown): obj is PersistedState => {
 const loadState = (): PersistedState => {
   if (typeof window === 'undefined') return emptyState();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(getCheckoutStorageKey());
     if (!raw) return emptyState();
     const parsed: unknown = JSON.parse(raw);
     return isValidState(parsed) ? parsed : emptyState();
@@ -71,7 +91,7 @@ const loadState = (): PersistedState => {
 const saveState = (state: PersistedState) => {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(getCheckoutStorageKey(), JSON.stringify(state));
   } catch {
     // 忽略配额超限或隐私模式存储异常
   }

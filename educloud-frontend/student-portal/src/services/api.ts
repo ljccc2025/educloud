@@ -426,6 +426,8 @@ function mapAuthUser(a: AuthUser): StudentUser {
     id: a.id,
     username: a.username,
     realName: a.displayName || a.username,
+    userType: a.userType,
+    roles: a.roles,
     email: '',
     phone: '',
     avatar: a.avatarUrl ?? avatar(a.username),

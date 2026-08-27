@@ -91,6 +91,12 @@ export interface Assignment {
 
 export type SubmissionStatus = 'SUBMITTED' | 'GRADED' | 'LATE';
 
+export interface SubmissionFile {
+  name: string;
+  size?: number;
+  url?: string;
+}
+
 export interface Submission {
   id: string;
   assignmentId: string;
@@ -98,6 +104,8 @@ export interface Submission {
   studentName: string;
   studentAvatar: string;
   content: string;
+  note?: string;
+  files?: SubmissionFile[];
   submittedAt: string;
   score?: number;
   feedback?: string;

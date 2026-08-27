@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import DataTable, { type Column } from '../components/DataTable';
+import CustomSelect, { type SelectOption } from '../components/CustomSelect';
 import { financeApi } from '../services/api';
 import { paymentAdminApi, type RefundDetail, type ReconciliationBatch, type ReconciliationDiff } from '../services/paymentAdminApi';
 import { analyticsAdminApi } from '../services/analyticsAdminApi';
@@ -30,6 +31,20 @@ import type { FinanceStats, MonthlyRevenue, Order } from '../types';
 import { useChartColors } from '../hooks/useChartColors';
 
 type FinanceTab = 'OVERVIEW' | 'REFUND_AUDIT' | 'RECONCILIATION';
+
+const channelOptions: SelectOption[] = [
+  { value: 'MOCK', label: 'MOCK 沙箱' },
+  { value: 'ALIPAY', label: '支付宝 (Alipay)' },
+  { value: 'WECHAT', label: '微信支付 (WeChatPay)' },
+];
+
+const resolveActionOptions: SelectOption[] = [
+  { value: 'MANUAL_REPAIR', label: '人工补录/同步单据 (MANUAL_REPAIR)' },
+  { value: 'REFUND_OFFLINE', label: '线下原路退款 (REFUND_OFFLINE)' },
+  { value: 'ADJUST_AMOUNT', label: '账务差额调账 (ADJUST_AMOUNT)' },
+  { value: 'MANUAL_SYNC', label: '强制渠道重查同步 (MANUAL_SYNC)' },
+  { value: 'IGNORE', label: '忽略差错 (IGNORE)' },
+];
 
 export default function Finance() {
   const [activeTab, setActiveTab] = useState<FinanceTab>('OVERVIEW');
@@ -461,15 +476,12 @@ export default function Finance() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-ink-600 mb-1">支付渠道</label>
-                <select
+                <CustomSelect
+                  options={channelOptions}
                   value={reconcileChannel}
-                  onChange={(e) => setReconcileChannel(e.target.value as any)}
-                  className="input-base text-sm px-3 py-1.5"
-                >
-                  <option value="MOCK">MOCK 沙箱</option>
-                  <option value="ALIPAY">支付宝 (Alipay)</option>
-                  <option value="WECHAT">微信支付 (WeChatPay)</option>
-                </select>
+                  onChange={(val) => setReconcileChannel(val as any)}
+                  minWidth="w-full"
+                />
               </div>
               <div className="self-end">
                 <button
@@ -666,17 +678,12 @@ export default function Finance() {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-ink-600 mb-1">平账动作</label>
-                <select
+                <CustomSelect
+                  options={resolveActionOptions}
                   value={resolveAction}
-                  onChange={(e) => setResolveAction(e.target.value)}
-                  className="input-base text-sm w-full p-2"
-                >
-                  <option value="MANUAL_REPAIR">人工补录/同步单据 (MANUAL_REPAIR)</option>
-                  <option value="REFUND_OFFLINE">线下原路退款 (REFUND_OFFLINE)</option>
-                  <option value="ADJUST_AMOUNT">账务差额调账 (ADJUST_AMOUNT)</option>
-                  <option value="MANUAL_SYNC">强制渠道重查同步 (MANUAL_SYNC)</option>
-                  <option value="IGNORE">忽略差错 (IGNORE)</option>
-                </select>
+                  onChange={setResolveAction}
+                  minWidth="w-full"
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-ink-600 mb-1">平账说明备注</label>

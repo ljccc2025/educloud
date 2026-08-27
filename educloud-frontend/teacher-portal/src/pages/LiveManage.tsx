@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Calendar, Radio, Clock, CheckCircle2 } from 'lucide-react';
 import { useLiveStore } from '../stores/useLiveStore';
 import { useCourseStore } from '../stores/useCourseStore';
 import LivePreview from '../components/LivePreview';
+import CustomSelect, { type SelectOption } from '../components/CustomSelect';
 import type { LiveStatus } from '../types';
 import { cn } from '../utils/cn';
 import dayjs from 'dayjs';
@@ -19,6 +20,19 @@ export default function LiveManage() {
   const [newCourseId, setNewCourseId] = useState('');
   const [newStartTime, setNewStartTime] = useState('');
   const [newDesc, setNewDesc] = useState('');
+
+  const liveCourseOptions: SelectOption[] = useMemo(() => {
+    const published = courses.filter((c) => c.status === 'PUBLISHED');
+    return [
+      { value: '', label: '请选择课程' },
+      ...published.map((c) => ({
+        value: c.id,
+        label: c.title,
+        image: c.cover,
+        badge: `${c.studentCount} 学员`,
+      })),
+    ];
+  }, [courses]);
 
   useEffect(() => {
     fetchLiveRooms();
@@ -94,14 +108,13 @@ export default function LiveManage() {
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-ink-700">关联课程</label>
-                  <select
+                  <CustomSelect
+                    options={liveCourseOptions}
                     value={newCourseId}
-                    onChange={(e) => setNewCourseId(e.target.value)}
-                    className="input-field cursor-pointer appearance-none"
-                  >
-                    <option value="">请选择课程</option>
-                    {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-                  </select>
+                    onChange={setNewCourseId}
+                    placeholder="请选择课程"
+                    minWidth="w-full"
+                  />
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-ink-700">开播时间</label>

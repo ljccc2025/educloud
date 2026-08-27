@@ -46,7 +46,7 @@ spring:
           uri: lb://educloud-content
           order: 60
           predicates:
-            - Path=/api/v1/chapters/**,/api/v1/coursewares/**,/api/v1/content-revisions/**,/api/v1/assignments/**,/api/v1/submissions/**,/api/v1/exams/**,/api/v1/exam-attempts/**,/api/v1/community/**,/api/v1/content-audits/**,/api/v1/admin/content-audits/**,/api/v1/student/courses/**
+            - Path=/api/v1/chapters,/api/v1/chapters/**,/api/v1/coursewares,/api/v1/coursewares/**,/api/v1/content-revisions,/api/v1/content-revisions/**,/api/v1/assignments,/api/v1/assignments/**,/api/v1/submissions,/api/v1/submissions/**,/api/v1/exams,/api/v1/exams/**,/api/v1/exam-attempts,/api/v1/exam-attempts/**,/api/v1/community,/api/v1/community/**,/api/v1/content-audits,/api/v1/content-audits/**,/api/v1/admin/content-audits/**,/api/v1/student/courses/**
         - id: content-drafts
           uri: lb://educloud-content
           order: 65
@@ -107,18 +107,18 @@ spring:
           enabled: false
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-      username: ${NACOS_GATEWAY_USERNAME:}
-      password: ${NACOS_GATEWAY_PASSWORD:}
+      username: ${NACOS_GATEWAY_USERNAME:nacos}
+      password: ${NACOS_GATEWAY_PASSWORD:nacos}
       config:
-        namespace: ${NACOS_GATEWAY_NAMESPACE:}
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
         group: ${NACOS_GATEWAY_CONFIG_GROUP:EDUCLOUD_GATEWAY}
-        username: ${NACOS_GATEWAY_USERNAME:}
-        password: ${NACOS_GATEWAY_PASSWORD:}
+        username: ${NACOS_GATEWAY_USERNAME:nacos}
+        password: ${NACOS_GATEWAY_PASSWORD:nacos}
       discovery:
-        namespace: ${NACOS_GATEWAY_NAMESPACE:}
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
         group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
-        username: ${NACOS_GATEWAY_USERNAME:}
-        password: ${NACOS_GATEWAY_PASSWORD:}
+        username: ${NACOS_GATEWAY_USERNAME:nacos}
+        password: ${NACOS_GATEWAY_PASSWORD:nacos}
         register-enabled: true
   data:
     redis:
@@ -132,25 +132,25 @@ educloud:
     environment: ${EDUCLOUD_ENVIRONMENT:local}
     security:
       jwks-json: ${GATEWAY_JWKS_JSON:}
-      jwks-location: ${GATEWAY_JWKS_LOCATION:}
-      issuer: ${GATEWAY_JWT_ISSUER:}
+      jwks-location: ${GATEWAY_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
+      issuer: ${GATEWAY_JWT_ISSUER:https://issuer.educloud.local}
       audience: ${GATEWAY_JWT_AUDIENCE:educloud-api}
       clock-skew: ${GATEWAY_JWT_CLOCK_SKEW:30s}
     ratelimit:
-      hmac-secret-base64: ${GATEWAY_RATE_LIMIT_HMAC_SECRET:}
+      hmac-secret-base64: ${GATEWAY_RATE_LIMIT_HMAC_SECRET:dGVzdC1yYXRlLWxpbWl0LXNlY3JldC0zMi1ieXRlcy1sb25nISE=}
     web:
-      allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175}
+      allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,http://192.168.100.136:5173,http://192.168.100.136:5174,http://192.168.100.136:5175}
       trusted-proxy-cidrs: []
       trusted-proxy-hops: 1
       connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MILLIS:2000}ms
       response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:15s}
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
-      namespace: ${NACOS_GATEWAY_NAMESPACE:}
+      namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
       config-group: ${NACOS_GATEWAY_CONFIG_GROUP:EDUCLOUD_GATEWAY}
       discovery-group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
-      username: ${NACOS_GATEWAY_USERNAME:}
-      password: ${NACOS_GATEWAY_PASSWORD:}
+      username: ${NACOS_GATEWAY_USERNAME:nacos}
+      password: ${NACOS_GATEWAY_PASSWORD:nacos}
 
 management:
   server:

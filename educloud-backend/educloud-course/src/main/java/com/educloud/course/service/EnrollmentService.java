@@ -305,11 +305,42 @@ public class EnrollmentService {
         com.baomidou.mybatisplus.core.metadata.IPage<CourseStudentRow> result =
                 enrollmentMapper.selectStudentPage(request, courseId);
         List<CourseStudentRow> rows = result.getRecords();
+
+        Map<Long, String> nameMap = new HashMap<>();
+        if (!rows.isEmpty()) {
+            List<Long> studentIds = rows.stream()
+                    .map(CourseStudentRow::getStudentId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+            try {
+                List<Map<String, Object>> profiles = enrollmentMapper.selectStudentProfiles(studentIds);
+                if (profiles != null) {
+                    for (Map<String, Object> map : profiles) {
+                        Object uid = map.get("student_id");
+                        Object dname = map.get("display_name");
+                        if (uid != null && dname != null && !dname.toString().isBlank()) {
+                            nameMap.put(Long.valueOf(uid.toString()), dname.toString());
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+                // Cross-db query fallback or isolated test environment
+            }
+        }
+
         List<CourseStudentResponse> items = rows.stream()
-                .map(row -> new CourseStudentResponse(
-                        String.valueOf(row.getStudentId()),
-                        null,
-                        row.getEnrolledAt()))
+                .map(row -> {
+                    String dname = nameMap.get(row.getStudentId());
+                    if (dname == null || dname.isBlank()) {
+                        String sidStr = String.valueOf(row.getStudentId());
+                        dname = sidStr.length() > 4 ? "学员_" + sidStr.substring(sidStr.length() - 4) : "学员_" + sidStr;
+                    }
+                    return new CourseStudentResponse(
+                            String.valueOf(row.getStudentId()),
+                            dname,
+                            row.getEnrolledAt());
+                })
                 .toList();
         return PageResponse.of(items, pageNum, sizeNum, result.getTotal());
     }

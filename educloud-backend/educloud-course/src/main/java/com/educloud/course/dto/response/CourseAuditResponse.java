@@ -5,13 +5,12 @@ import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseVersionEntity;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /**
- * 课程审核响应（M05 任务 9）：审核提交快照 + 课程/版本快照（列表/详情/审批/驳回/撤回共用）。
- *
- * <p>依据：规格 §6 —— Snowflake ID（auditId/courseId/versionId/coverFileId/categoryId）
- * 一律 String（前端禁止 Number()）；price 金额序列化为字符串；版本内部不可变字段
- * （title/level 等）作为审核上下文下发，但课程详情 API 不下发本快照（§6 课程详情契约）。</p>
+ * 课程审核响应（M05 任务 9）：审核提交快照 + 课程/版本快照 + 智能变更识别 Diff（列表/详情/审批/驳回/撤回共用）。
  */
 public record CourseAuditResponse(
         String auditId,
@@ -34,10 +33,51 @@ public record CourseAuditResponse(
         LocalDateTime withdrawnAt,
         String reviewedBy,
         LocalDateTime reviewedAt,
-        String reason) {
+        String reason,
+        String changeSummary,
+        List<String> changes,
+        String previousCoverFileId,
+        String previousPrice,
+        String previousTitle) {
 
     public static CourseAuditResponse from(
             CourseAuditSubmissionEntity submission, CourseEntity course, CourseVersionEntity version) {
+        return from(submission, course, version, null);
+    }
+
+    public static CourseAuditResponse from(
+            CourseAuditSubmissionEntity submission, CourseEntity course, CourseVersionEntity version, CourseVersionEntity previousPublishedVersion) {
+        List<String> diffList = new ArrayList<>();
+        if (previousPublishedVersion == null || previousPublishedVersion.getId().equals(version != null ? version.getId() : null)) {
+            diffList.add("✨ 新课首次发布");
+        } else if (version != null) {
+            if (!Objects.equals(version.getCoverFileId(), previousPublishedVersion.getCoverFileId())) {
+                diffList.add("📷 修改课程封面");
+            }
+            if (version.getPrice() != null && (previousPublishedVersion.getPrice() == null || version.getPrice().compareTo(previousPublishedVersion.getPrice()) != 0)) {
+                diffList.add("💰 调整定价 (¥" + (previousPublishedVersion.getPrice() == null ? "0.00" : previousPublishedVersion.getPrice().toPlainString()) + " → ¥" + version.getPrice().toPlainString() + ")");
+            }
+            if (!Objects.equals(version.getTitle(), previousPublishedVersion.getTitle())) {
+                diffList.add("📝 修改标题 (" + previousPublishedVersion.getTitle() + " → " + version.getTitle() + ")");
+            }
+            if (!Objects.equals(version.getSubtitle(), previousPublishedVersion.getSubtitle())) {
+                diffList.add("📝 修改副标题");
+            }
+            if (!Objects.equals(version.getDescription(), previousPublishedVersion.getDescription())) {
+                diffList.add("📄 更新课程简介");
+            }
+            if (!Objects.equals(version.getLevel(), previousPublishedVersion.getLevel())) {
+                diffList.add("🎯 调整难度 (" + previousPublishedVersion.getLevel() + " → " + version.getLevel() + ")");
+            }
+            if (!Objects.equals(version.getCategoryId(), previousPublishedVersion.getCategoryId())) {
+                diffList.add("🏷️ 调整课程分类");
+            }
+            if (diffList.isEmpty()) {
+                diffList.add("📦 课程内容迭代与更新");
+            }
+        }
+        String summary = String.join("，", diffList);
+
         return new CourseAuditResponse(
                 String.valueOf(submission.getId()),
                 String.valueOf(submission.getCourseId()),
@@ -62,6 +102,11 @@ public record CourseAuditResponse(
                 submission.getWithdrawnAt(),
                 submission.getReviewedBy() == null ? null : String.valueOf(submission.getReviewedBy()),
                 submission.getReviewedAt(),
-                submission.getReason());
+                submission.getReason(),
+                summary,
+                diffList,
+                previousPublishedVersion == null || previousPublishedVersion.getCoverFileId() == null ? null : String.valueOf(previousPublishedVersion.getCoverFileId()),
+                previousPublishedVersion == null || previousPublishedVersion.getPrice() == null ? null : previousPublishedVersion.getPrice().toPlainString(),
+                previousPublishedVersion == null ? null : previousPublishedVersion.getTitle());
     }
 }

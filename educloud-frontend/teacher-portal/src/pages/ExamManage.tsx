@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, FileQuestion, Clock, Users, Play, Pencil, Eye } from 'lucide-react';
+import CustomSelect from '../components/CustomSelect';
 import { api } from '../services/api';
-import type { Exam, ExamStatus } from '../types';
+import type { Course, Exam, ExamStatus } from '../types';
 import { cn } from '../utils/cn';
 import dayjs from 'dayjs';
 
@@ -15,6 +16,7 @@ const statusConfig: Record<ExamStatus, { label: string; cls: string }> = {
 
 export default function ExamManage() {
   const [exams, setExams] = useState<Exam[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -24,11 +26,25 @@ export default function ExamManage() {
   const [newScheduledAt, setNewScheduledAt] = useState('');
 
   useEffect(() => {
-    api.getExams().then((data) => {
-      setExams(data);
+    Promise.all([api.getExams(), api.getCourses()]).then(([examData, courseData]) => {
+      setExams(examData);
+      setCourses(courseData);
       setLoading(false);
     });
   }, []);
+
+  const examCourseOptions = useMemo(() => {
+    const published = courses.filter((c) => c.status === 'PUBLISHED');
+    return [
+      { value: '', label: '请选择课程' },
+      ...published.map((c) => ({
+        value: c.id,
+        label: c.title,
+        image: c.cover,
+        badge: `${c.studentCount} 学员`,
+      })),
+    ];
+  }, [courses]);
 
   useEffect(() => {
     if (!showCreate) return undefined;
@@ -89,17 +105,13 @@ export default function ExamManage() {
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-ink-700">关联课程</label>
-                  <select
+                  <CustomSelect
+                    options={examCourseOptions}
                     value={newCourseId}
-                    onChange={(e) => setNewCourseId(e.target.value)}
-                    className="input-field cursor-pointer appearance-none"
-                  >
-                    <option value="">请选择课程</option>
-                    <option value="c-001">Spring Boot 3 实战</option>
-                    <option value="c-002">Python 数据分析与可视化</option>
-                    <option value="c-003">React 18 + TypeScript</option>
-                    <option value="c-005">机器学习入门</option>
-                  </select>
+                    onChange={setNewCourseId}
+                    placeholder="请选择课程"
+                    minWidth="w-full"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

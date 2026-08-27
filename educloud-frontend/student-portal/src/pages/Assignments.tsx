@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
-import { assignmentApi } from '@/services/api';
+import { FileText, Clock, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { studentAssignmentService } from '@/services/studentAssignmentService';
+import AssignmentSubmitModal from '@/components/assignments/AssignmentSubmitModal';
+import AssignmentViewModal from '@/components/assignments/AssignmentViewModal';
 import type { Assignment, AssignmentStatus } from '@/types';
 import { cn } from '@/utils/cn';
 import dayjs from 'dayjs';
@@ -17,13 +19,35 @@ export default function Assignments() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<AssignmentStatus | 'all'>('all');
+  const [activeSubmitAssignment, setActiveSubmitAssignment] = useState<Assignment | null>(null);
+  const [activeViewAssignment, setActiveViewAssignment] = useState<Assignment | null>(null);
+
+  const loadAssignments = async () => {
+    try {
+      const data = await studentAssignmentService.getAssignments();
+      setAssignments(data);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    assignmentApi.getAll().then((data) => {
-      setAssignments(data);
-      setLoading(false);
-    });
+    void loadAssignments();
   }, []);
+
+  const handleOpenSubmit = (a: Assignment) => {
+    setActiveSubmitAssignment(a);
+  };
+
+  const handleOpenView = (a: Assignment) => {
+    setActiveViewAssignment(a);
+  };
+
+  const handleSubmittedSuccess = (updated: Assignment) => {
+    setAssignments((prev) =>
+      prev.map((item) => (String(item.id) === String(updated.id) ? updated : item))
+    );
+  };
 
   const filtered = assignments.filter((a) => filter === 'all' || a.status === filter);
 
@@ -55,17 +79,19 @@ export default function Assignments() {
             type="button"
             onClick={() => setFilter(tab.value)}
             className={cn(
-              'px-5 py-3 text-sm font-medium transition-colors border rounded-xl',
+              'px-5 py-3 text-sm font-medium transition-colors border rounded-xl cursor-pointer',
               filter === tab.value
-                ? 'bg-indigo-800 text-white border-indigo-800'
+                ? 'bg-indigo-800 text-white border-indigo-800 shadow-sm'
                 : 'bg-white text-ink-600 border-ink-200 hover:border-indigo-800 hover:text-indigo-800'
             )}
           >
             {tab.label}
-            <span className={cn(
-              'ml-2 text-xs',
-              filter === tab.value ? 'text-white/70' : 'text-ink-400'
-            )}>
+            <span
+              className={cn(
+                'ml-2 text-xs',
+                filter === tab.value ? 'text-white/70' : 'text-ink-400'
+              )}
+            >
               {counts[tab.value]}
             </span>
           </button>
@@ -81,24 +107,25 @@ export default function Assignments() {
           <div className="overflow-x-auto">
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>作业名称</th>
-                  <th>所属课程</th>
-                  <th>截止时间</th>
-                  <th>状态</th>
-                  <th>得分</th>
-                  <th className="text-right">操作</th>
+                <tr className="border-b border-ink-100 bg-slate-50/50">
+                  <th className="py-4 px-4 text-left">作业名称</th>
+                  <th className="py-4 px-4 text-left">所属课程</th>
+                  <th className="py-4 px-4 text-center">截止时间</th>
+                  <th className="py-4 px-4 text-center">状态</th>
+                  <th className="py-4 px-4 text-center">得分</th>
+                  <th className="py-4 px-4 text-center w-32 whitespace-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((assignment) => {
                   const config = statusConfig[assignment.status];
                   const StatusIcon = config.icon;
-                  const isOverdue = (assignment.status === 'PENDING' || assignment.status === 'OVERDUE') &&
+                  const isOverdue =
+                    (assignment.status === 'PENDING' || assignment.status === 'OVERDUE') &&
                     dayjs(assignment.dueDate).isBefore(dayjs());
                   return (
-                    <tr key={assignment.id}>
-                      <td>
+                    <tr key={assignment.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-4 px-4 align-middle">
                         <div className="flex items-center gap-3">
                           <FileText size={18} className="text-ink-300 flex-shrink-0" />
                           <div>
@@ -109,50 +136,63 @@ export default function Assignments() {
                           </div>
                         </div>
                       </td>
-                      <td>
-                        <Link
-                          to={`/courses/${assignment.courseId}`}
-                          className="text-indigo-800 link-underline"
-                        >
+                      <td className="py-4 px-4 text-left align-middle">
+                        <span className="font-medium text-ink-800">
                           {assignment.courseTitle}
-                        </Link>
+                        </span>
                       </td>
-                      <td>
-                        <span className={cn(
-                          'text-sm',
-                          isOverdue ? 'text-red-600 font-medium' : 'text-ink-600'
-                        )}>
-                          {assignment.dueDate}
+                      <td className="py-4 px-4 text-center align-middle whitespace-nowrap">
+                        <span
+                          className={cn(
+                            'text-sm',
+                            isOverdue ? 'text-red-600 font-medium' : 'text-ink-600'
+                          )}
+                        >
+                          {dayjs(assignment.dueDate).isValid()
+                            ? dayjs(assignment.dueDate).format('YYYY-MM-DD HH:mm')
+                            : assignment.dueDate}
                           {isOverdue && ' (已逾期)'}
                         </span>
                       </td>
-                      <td>
-                        <span className={config.className}>
+                      <td className="py-4 px-4 text-center align-middle whitespace-nowrap">
+                        <span className={cn(config.className, 'inline-flex items-center gap-1')}>
                           <StatusIcon size={12} />
                           {config.label}
                         </span>
                       </td>
-                      <td>
+                      <td className="py-4 px-4 text-center align-middle whitespace-nowrap">
                         {assignment.score !== undefined ? (
-                          <span className="font-semibold text-ink-900">
+                          <span className="font-bold text-emerald-600">
                             {assignment.score}
                             <span className="text-ink-400 font-normal">/{assignment.totalScore}</span>
                           </span>
                         ) : (
-                          <span className="text-ink-300">--</span>
+                          <span className="text-ink-400">/{assignment.totalScore}</span>
                         )}
                       </td>
-                      <td className="text-right">
+                      <td className="py-4 px-4 text-center align-middle whitespace-nowrap w-32">
                         {assignment.status === 'PENDING' || assignment.status === 'OVERDUE' ? (
-                          <button type="button" className="btn-primary !px-4 !py-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSubmit(assignment)}
+                            className="btn-primary !px-3.5 !py-1.5 text-xs whitespace-nowrap min-w-[84px] inline-flex items-center justify-center cursor-pointer"
+                          >
                             去提交
                           </button>
                         ) : assignment.status === 'SUBMITTED' ? (
-                          <button type="button" className="btn-outline !px-4 !py-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenView(assignment)}
+                            className="btn-outline !px-3.5 !py-1.5 text-xs whitespace-nowrap min-w-[84px] inline-flex items-center justify-center cursor-pointer"
+                          >
                             查看提交
                           </button>
                         ) : (
-                          <button type="button" className="btn-outline !px-4 !py-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenView(assignment)}
+                            className="btn-outline !px-3.5 !py-1.5 text-xs whitespace-nowrap min-w-[84px] inline-flex items-center justify-center cursor-pointer"
+                          >
                             查看批改
                           </button>
                         )}
@@ -170,6 +210,30 @@ export default function Assignments() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Assignment Submit Modal */}
+      {activeSubmitAssignment && (
+        <AssignmentSubmitModal
+          assignment={activeSubmitAssignment}
+          isOpen={Boolean(activeSubmitAssignment)}
+          onClose={() => setActiveSubmitAssignment(null)}
+          onSubmitSuccess={handleSubmittedSuccess}
+          onSubmitService={studentAssignmentService.submitAssignment}
+        />
+      )}
+
+      {/* Assignment View Modal */}
+      {activeViewAssignment && (
+        <AssignmentViewModal
+          assignment={activeViewAssignment}
+          isOpen={Boolean(activeViewAssignment)}
+          onClose={() => setActiveViewAssignment(null)}
+          onResubmit={(a) => {
+            setActiveViewAssignment(null);
+            setActiveSubmitAssignment(a);
+          }}
+        />
       )}
     </div>
   );

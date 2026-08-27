@@ -20,10 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useThemeStore } from '../stores/useThemeStore';
-
-// M04 审查修复：presigned 头像 URL 5 分钟过期后破图，onError 兜底回退占位头像。
-const FALLBACK_AVATAR =
-  'https://api.dicebear.com/7.x/initials/svg?seed=educloud&backgroundColor=1e1b4b&textColor=ffffff';
+import { UserAvatar } from '../components/UserAvatar';
 
 const navItems = [
   { to: '/', label: '数据看板', icon: LayoutDashboard, end: true },
@@ -90,19 +87,14 @@ export default function AdminLayout() {
       {/* User */}
       <div className="border-t border-ink-200/60 p-4">
         <div className="flex items-center gap-3 mb-3 px-1">
-          <img
-            src={admin?.avatarUrl ?? admin?.avatar}
-            alt={admin?.realName}
-            onError={(e) => {
-              const img = e.currentTarget;
-              img.onerror = null;
-              img.src = FALLBACK_AVATAR;
-            }}
-            className="w-9 h-9 rounded-full bg-ink-100 border border-ink-300 object-cover"
+          <UserAvatar
+            name={admin?.realName ?? admin?.username ?? '管理员'}
+            src={admin?.avatarUrl}
+            size="md"
           />
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-ink-800 truncate">
-              {admin?.realName ?? '管理员'}
+              {admin?.realName ?? admin?.username ?? '管理员'}
             </div>
             <div className="text-xs text-ink-500 dark:text-ink-400 truncate">{admin?.email}</div>
           </div>
@@ -173,19 +165,14 @@ export default function AdminLayout() {
               <span className="absolute top-2 right-2 w-2 h-2 bg-brand-500 rounded-full shadow-glow-purple" />
             </button>
             <div className="hidden sm:flex items-center gap-2.5 pl-3 ml-1 border-l border-ink-300">
-              <img
-                src={admin?.avatarUrl ?? admin?.avatar}
-                alt={admin?.realName}
-                onError={(e) => {
-                  const img = e.currentTarget;
-                  img.onerror = null;
-                  img.src = FALLBACK_AVATAR;
-                }}
-                className="w-8 h-8 rounded-full bg-ink-100 border border-ink-300 object-cover"
+              <UserAvatar
+                name={admin?.realName ?? admin?.username ?? '管理员'}
+                src={admin?.avatarUrl}
+                size="sm"
               />
               <div className="text-sm">
                 <span className="font-medium text-ink-800">
-                  {admin?.realName ?? '管理员'}
+                  {admin?.realName ?? admin?.username ?? '管理员'}
                 </span>
               </div>
             </div>
