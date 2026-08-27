@@ -274,6 +274,73 @@ class ActivityFeedConsumerTest {
     }
 
     @Test
+    @DisplayName("作业批改专用队列：消息缺省 eventType → 按 AssignmentGraded 兜底映射")
+    void testAssignmentQueueDefaultsEventType() {
+        String json = """
+                {
+                  "eventId": "EVT_ASG_002",
+                  "assignmentId": "asg_3002",
+                  "assignmentTitle": "Docker 部署作业",
+                  "userId": "3002",
+                  "score": 88,
+                  "occurredAt": "2026-08-27T15:00:00"
+                }
+                """;
+
+        consumer.onAssignmentEvent(message(json));
+
+        verify(activityFeedService).recordActivity(
+                eq("3002"), eq("STUDENT"), eq("ASSIGNMENT_GRADED"), eq("ASSIGNMENT"),
+                eq("asg_3002"), eq("Docker 部署作业"), any(),
+                eq("EVT_ASG_002_ASSIGNMENT_GRADED"), eq(LocalDateTime.of(2026, 8, 27, 15, 0)));
+    }
+
+    @Test
+    @DisplayName("重复 eventId 二次到达 → 短路跳过，仅记录一次动态")
+    void testDuplicateEventIdShortCircuited() {
+        String json = """
+                {
+                  "eventId": "EVT_DUP_001",
+                  "eventType": "EnrollmentCreated",
+                  "courseId": "course_105",
+                  "studentId": "stu_1005",
+                  "teacherId": "teacher_05"
+                }
+                """;
+
+        consumer.handle(message(json), "educloud-course");
+        consumer.handle(message(json), "educloud-course");
+        consumer.handle(message(json), "educloud-payment");
+
+        // 学生 + 教师各一条，重复到达不重复记录
+        verify(activityFeedService, times(1)).recordActivity(
+                eq("stu_1005"), eq("STUDENT"), eq("ENROLLED"), any(), any(), any(), any(),
+                eq("EVT_DUP_001_ENROLLED"), any(LocalDateTime.class));
+        verify(activityFeedService, times(1)).recordActivity(
+                eq("teacher_05"), eq("TEACHER"), eq("STUDENT_ENROLLED"), any(), any(), any(), any(),
+                eq("EVT_DUP_001_STUDENT_ENROLLED"), any(LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("无 eventId 的消息不去重，多次到达均尝试写入（库级唯一键兼底）")
+    void testMessagesWithoutEventIdNotDeduplicated() {
+        String json = """
+                {
+                  "eventType": "EnrollmentCreated",
+                  "courseId": "course_106",
+                  "studentId": "stu_1006"
+                }
+                """;
+
+        consumer.handle(message(json), "educloud-course");
+        consumer.handle(message(json), "educloud-course");
+
+        verify(activityFeedService, times(2)).recordActivity(
+                eq("stu_1006"), eq("STUDENT"), eq("ENROLLED"), any(), any(), any(), any(),
+                isNull(), any(LocalDateTime.class));
+    }
+
+    @Test
     @DisplayName("缺失 occurredAt → 兜底当前时间，不阻断写入")
     void testMissingOccurredAtFallbackNow() {
         String json = """

@@ -14,18 +14,20 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * 角色化动态流消费者（规格 2026-08-27-activity-feed-certificate-design.md §5）。
  *
- * <p>订阅课程/支付/内容领域事件交换机上的动态流专用队列，解析事件后映射为
+ * <p>订阅课程/支付/内容/作业领域事件交换机上的各域专用队列，解析事件后映射为
  * {@code activity_feed} 记录（事件 → 动态映射见规格 §4.2）：</p>
  * <ul>
  *   <li>选课事件（{@code EnrollmentCreated}/{@code PaymentSuccess}/{@code OrderPaid}）
  *       → 学生 {@code ENROLLED} + 教师 {@code STUDENT_ENROLLED}（教师从事件课程归属字段解析）</li>
- *   <li>作业批改事件（{@code AssignmentGraded}）→ 学生 {@code ASSIGNMENT_GRADED}</li>
+ *   <li>作业批改事件（{@code AssignmentGraded}，routing key {@code assignment.graded}，
+ *       发布在全域总线 {@code educloud.events}）→ 学生 {@code ASSIGNMENT_GRADED}</li>
  *   <li>课程发布事件（{@code CoursePublished}）→ 教师 {@code COURSE_PUBLISHED}；
  *       兼容映射 {@code CourseCreated} → {@code COURSE_CREATED}</li>
  *   <li>其余事件类型暂未映射：记日志跳过，不阻断</li>
@@ -34,6 +36,10 @@ import java.util.Map;
  * <p>容错（规格 §9）：监听方法接收原始 {@link Message} 手动解析，兼容
  * EventEnvelope（payload 在 {@code data} 内）与扁平 DTO 两种结构；任何解析/映射
  * 异常仅记日志不抛出，避免坏消息无限重投。</p>
+ *
+ * <p>重复 eventId 处理：同一事件多次到达（重投/多队列镜像）时，先经内存级
+ * 有界 LRU 缓存短路跳过，再由 {@code activity_feed.uk_source_event} 唯一约束兼底，
+ * 保证仅记录一条动态。</p>
  */
 @Slf4j
 @Component
@@ -44,8 +50,20 @@ public class ActivityFeedConsumer {
     private static final String ROLE_TEACHER = "TEACHER";
     private static final DateTimeFormatter SPACE_DATETIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    /** 近期已处理 eventId 缓存容量（有界，超出按最久未访问淘汰）。 */
+    private static final int SEEN_EVENT_IDS_CAPACITY = 1024;
+
     private final ActivityFeedService activityFeedService;
     private final ObjectMapper objectMapper;
+
+    /** 有界 LRU：同一 eventId 短时间内重复到达时直接短路，避免穿透到库。 */
+    private final Map<String, Boolean> seenEventIds = Collections.synchronizedMap(
+            new LinkedHashMap<String, Boolean>(32, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+                    return size() > SEEN_EVENT_IDS_CAPACITY;
+                }
+            });
 
     @RabbitListener(queues = RabbitMqConfig.QUEUE_ACTIVITY_FEED_COURSE)
     public void onCourseEvent(Message message) {
@@ -59,11 +77,28 @@ public class ActivityFeedConsumer {
 
     @RabbitListener(queues = RabbitMqConfig.QUEUE_ACTIVITY_FEED_CONTENT)
     public void onContentEvent(Message message) {
-        handle(message, "educloud-content");
+        handle(message, "educloud-content", null);
+    }
+
+    /** 作业批改专用队列：绑定全域总线 educloud.events 的 assignment.graded 路由。 */
+    @RabbitListener(queues = RabbitMqConfig.QUEUE_ACTIVITY_FEED_ASSIGNMENT)
+    public void onAssignmentEvent(Message message) {
+        // 该路由消息可能不携 eventType 字段（如 notification 同源的 AssignmentGradedEvent 扁平结构），
+        // 路由键本身已确定事件语义，缺省时按 AssignmentGraded 处理。
+        handle(message, "educloud-content", "AssignmentGraded");
     }
 
     /** 解析单条消息并映射为动态；包级可见便于单测。 */
     void handle(Message message, String sourceHint) {
+        handle(message, sourceHint, null);
+    }
+
+    /**
+     * 解析单条消息并映射为动态；包级可见便于单测。
+     *
+     * @param defaultEventType 消息缺省 eventType 时的兑底类型（可为 null）
+     */
+    void handle(Message message, String sourceHint, String defaultEventType) {
         if (message == null || message.getBody() == null || message.getBody().length == 0) {
             log.warn("ActivityFeedConsumer received empty message from [{}], skipped", sourceHint);
             return;
@@ -76,10 +111,20 @@ public class ActivityFeedConsumer {
             }
             String eventType = text(root, "eventType");
             String eventId = text(root, "eventId");
+            if ((eventType == null || eventType.isBlank()) && defaultEventType != null) {
+                eventType = defaultEventType;
+            }
             LocalDateTime occurredAt = parseTime(text(root, "occurredAt"));
             if (eventType == null || eventType.isBlank()) {
                 log.warn("ActivityFeedConsumer received event without eventType from [{}], skipped: eventId={}",
                         sourceHint, eventId);
+                return;
+            }
+
+            // 重复 eventId 短路：同一事件多次到达仅记录一条动态（库级兼底见 uk_source_event）。
+            if (eventId != null && seenEventIds.putIfAbsent(eventId, Boolean.TRUE) != null) {
+                log.info("ActivityFeedConsumer skipped duplicate eventId [{}] from [{}], eventType={}",
+                        eventId, sourceHint, eventType);
                 return;
             }
 
