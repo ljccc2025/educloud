@@ -121,18 +121,28 @@ public class CourseEventPublisher {
      * 免费选课成功（M05 任务 13）：同事务写 EnrollmentCreated outbox 行。
      * aggregateType=Enrollment、aggregateId=enrollmentId、aggregateVersion=enrollment.version；
      * payload 固定 courseId/studentId/source/version/enrolledAt（LinkedHashMap 保序可测）。
+     * 动态流阶段 2 补发：teacherId（课程归属教师）与 courseTitle（课程标题快照），
+     * 供 analytics 教师侧/学生侧报名动态映射（规格 §4.1）；均可为 null（消费者降级）。
      */
     public void enrollmentCreated(
             Long enrollmentId,
             Long courseId,
             Long studentId,
             String source,
+            Long teacherId,
+            String courseTitle,
             long aggregateVersion,
             LocalDateTime enrolledAt) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("courseId", courseId);
         payload.put("studentId", studentId);
         payload.put("source", source);
+        if (teacherId != null) {
+            payload.put("teacherId", teacherId);
+        }
+        if (courseTitle != null) {
+            payload.put("courseTitle", courseTitle);
+        }
         payload.put("version", aggregateVersion);
         payload.put("enrolledAt", enrolledAt.toString());
         String payloadJson;

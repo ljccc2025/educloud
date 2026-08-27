@@ -174,11 +174,23 @@ public class RabbitMqConfig {
         return BindingBuilder.bind(analyticsAuditQueue).to(auditEventsExchange).with("audit.*");
     }
 
-    // 动态流队列用 "#" 通配绑定：既兼容既有 "course.*" 风格 routing key，
-    // 也兼容 Outbox 投递器 aggregateType.aggregateId（如 Course.1001）风格。
+    // 动态流课程域队列：course 服务 Outbox 投递器将课程/选课/评价事件发布到全域总线
+    // educloud.events（routing key 为 aggregateType.aggregateId，如 Enrollment.70001 /
+    // Course.1001 / CourseReview.3001），故按聚合前缀定向绑定（非 "#"，避免与
+    // 作业批改/支付队列重复消费）。兼容既有 "course.*" 风格 routing key。
     @Bean
-    public Binding activityFeedCourseBinding(Queue activityFeedCourseQueue, TopicExchange courseEventsExchange) {
-        return BindingBuilder.bind(activityFeedCourseQueue).to(courseEventsExchange).with("#");
+    public Binding activityFeedCourseEnrollmentBinding(Queue activityFeedCourseQueue, TopicExchange domainEventsExchange) {
+        return BindingBuilder.bind(activityFeedCourseQueue).to(domainEventsExchange).with("Enrollment.#");
+    }
+
+    @Bean
+    public Binding activityFeedCourseLifecycleBinding(Queue activityFeedCourseQueue, TopicExchange domainEventsExchange) {
+        return BindingBuilder.bind(activityFeedCourseQueue).to(domainEventsExchange).with("Course.#");
+    }
+
+    @Bean
+    public Binding activityFeedCourseReviewBinding(Queue activityFeedCourseQueue, TopicExchange domainEventsExchange) {
+        return BindingBuilder.bind(activityFeedCourseQueue).to(domainEventsExchange).with("CourseReview.#");
     }
 
     @Bean

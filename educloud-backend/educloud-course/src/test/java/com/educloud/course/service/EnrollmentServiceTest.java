@@ -49,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -144,7 +145,7 @@ class EnrollmentServiceTest {
 
         verify(courseMapper).incrementEnrollmentCount(101L, 7L);
         verify(eventPublisher).enrollmentCreated(
-                eq(501L), eq(101L), eq(5001L), eq("FREE"), eq(0L), any(LocalDateTime.class));
+                eq(501L), eq(101L), eq(5001L), eq("FREE"), eq(1001L), isNull(), eq(0L), any(LocalDateTime.class));
         verify(courseMetrics).recordEnrollmentCreated();
         verify(auditWriter).write("ENROLLMENT_CREATED", "enrollment", "501",
                 5001L, Set.of("STUDENT"), "SUCCESS", null);
@@ -168,7 +169,7 @@ class EnrollmentServiceTest {
         assertThat(response.enrolledAt()).isEqualTo(enrolledAt);
         verify(enrollmentMapper, never()).insert(any(CourseEnrollmentEntity.class));
         verify(courseMapper, never()).incrementEnrollmentCount(anyLong(), anyLong());
-        verify(eventPublisher, never()).enrollmentCreated(any(), any(), any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).enrollmentCreated(any(), any(), any(), any(), any(), any(), anyLong(), any());
     }
 
     @Test
@@ -194,7 +195,7 @@ class EnrollmentServiceTest {
         // 兜底重查走当前读方法（不是一致读 selectOne）。
         verify(enrollmentMapper).selectByCourseAndStudentForUpdate(101L, 5001L);
         verify(courseMapper, never()).incrementEnrollmentCount(anyLong(), anyLong());
-        verify(eventPublisher, never()).enrollmentCreated(any(), any(), any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).enrollmentCreated(any(), any(), any(), any(), any(), any(), anyLong(), any());
     }
 
     // ---------------------------------------------------------------- 选课：拒绝路径
@@ -212,7 +213,7 @@ class EnrollmentServiceTest {
                 });
         verify(enrollmentMapper, never()).insert(any(CourseEnrollmentEntity.class));
         verify(courseMapper, never()).incrementEnrollmentCount(anyLong(), anyLong());
-        verify(eventPublisher, never()).enrollmentCreated(any(), any(), any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).enrollmentCreated(any(), any(), any(), any(), any(), any(), anyLong(), any());
     }
 
     @Test
@@ -265,7 +266,7 @@ class EnrollmentServiceTest {
                     assertThat(exception.errorCode()).isEqualTo(CommonErrorCode.VERSION_CONFLICT);
                     assertThat(exception.errorCode().httpStatus()).isEqualTo(409);
                 });
-        verify(eventPublisher, never()).enrollmentCreated(any(), any(), any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).enrollmentCreated(any(), any(), any(), any(), any(), any(), anyLong(), any());
     }
 
     // ---------------------------------------------------------------- 我的课程

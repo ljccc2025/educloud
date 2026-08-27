@@ -184,7 +184,7 @@ class CourseEventPublisherTest {
     @Test
     void enrollmentCreatedWritesOutboxRowWithEnrollmentAggregateAndPayload() throws Exception {
         publisher.enrollmentCreated(
-                ENROLLMENT_ID, COURSE_ID, STUDENT_ID, "FREE", 1L, OCCURRED_AT);
+                ENROLLMENT_ID, COURSE_ID, STUDENT_ID, "FREE", TEACHER_ID, "微服务实践", 1L, OCCURRED_AT);
 
         CapturedWrite write = captureWrite();
         assertThat(write.aggregateType).isEqualTo("Enrollment");
@@ -199,6 +199,8 @@ class CourseEventPublisherTest {
         assertThat(payload.get("courseId").asLong()).isEqualTo(COURSE_ID);
         assertThat(payload.get("studentId").asLong()).isEqualTo(STUDENT_ID);
         assertThat(payload.get("source").asText()).isEqualTo("FREE");
+        assertThat(payload.get("teacherId").asLong()).isEqualTo(TEACHER_ID);
+        assertThat(payload.get("courseTitle").asText()).isEqualTo("微服务实践");
         assertThat(payload.get("version").asLong()).isEqualTo(1L);
         assertThat(payload.get("enrolledAt").asText()).isEqualTo(OCCURRED_AT.toString());
     }

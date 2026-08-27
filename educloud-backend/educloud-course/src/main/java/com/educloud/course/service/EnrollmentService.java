@@ -138,7 +138,8 @@ public class EnrollmentService {
             // 幂等：已存在（M05 可达状态仅 ACTIVE）返回现状，不重复计数、不发事件。
             return toResponse(existing);
         }
-        return insertAndPublish(course, studentId, roles);
+        // 动态流：报名事件补携课程标题快照与归属教师（规格 §4.1 学生/教师报名动态）。
+        return insertAndPublish(course, studentId, roles, version.getTitle(), course.getOwnerTeacherId());
     }
 
     /**
@@ -196,14 +197,27 @@ public class EnrollmentService {
                 course.getId(),
                 studentId,
                 "ORDER",
+                course.getOwnerTeacherId(),
+                resolvePublishedTitle(course),
                 enrollment.getVersion(),
                 now);
         courseMetrics.recordEnrollmentCreated();
         return enrollment;
     }
 
+    /** 报名事件标题快照：尽力解析已发布版本标题，缺失返回 null（消费者降级，不阻断开课）。 */
+    private String resolvePublishedTitle(CourseEntity course) {
+        if (course.getPublishedVersionId() == null) {
+            return null;
+        }
+        CourseVersionEntity version = versionMapper.selectById(course.getPublishedVersionId());
+        return version != null ? version.getTitle() : null;
+    }
+
     /** 插入新 enrollment + 计数递增 + EnrollmentCreated；uk 冲突 → 重查返回现状。 */
-    private EnrollmentResponse insertAndPublish(CourseEntity course, Long studentId, Set<String> roles) {
+    private EnrollmentResponse insertAndPublish(
+            CourseEntity course, Long studentId, Set<String> roles,
+            String courseTitle, Long teacherId) {
         LocalDateTime now = LocalDateTime.now();
         CourseEnrollmentEntity enrollment = new CourseEnrollmentEntity();
         enrollment.setCourseId(course.getId());
@@ -243,6 +257,8 @@ public class EnrollmentService {
                 course.getId(),
                 studentId,
                 SOURCE_FREE,
+                teacherId,
+                courseTitle,
                 enrollment.getVersion(),
                 now);
         courseMetrics.recordEnrollmentCreated();

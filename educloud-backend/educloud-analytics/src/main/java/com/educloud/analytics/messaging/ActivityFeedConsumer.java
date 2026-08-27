@@ -131,10 +131,13 @@ public class ActivityFeedConsumer {
             switch (eventType.toLowerCase()) {
                 case "enrollmentcreated", "paymentsuccess", "orderpaid" -> mapEnrollment(root, eventId, occurredAt);
                 case "assignmentgraded", "assignment.graded" -> mapAssignmentGraded(root, eventId, occurredAt);
+                case "assignmentsubmitted", "assignment.submitted" -> mapAssignmentSubmitted(root, eventId, occurredAt);
                 case "coursecompleted" -> mapCourseCompleted(root, eventId, occurredAt);
                 case "certificateissued" -> mapCertificateIssued(root, eventId, occurredAt);
+                case "coursereviewed", "course.reviewed" -> mapCourseReviewed(root, eventId, occurredAt);
                 case "coursepublished" -> mapCourseLifecycle(root, eventId, occurredAt, "COURSE_PUBLISHED");
                 case "coursecreated" -> mapCourseLifecycle(root, eventId, occurredAt, "COURSE_CREATED");
+                case "courseupdated" -> mapCourseLifecycle(root, eventId, occurredAt, "COURSE_UPDATED");
                 default -> log.info("ActivityFeedConsumer skipped unmapped event type [{}] from [{}]: eventId={}",
                         eventType, sourceHint, eventId);
             }
@@ -203,6 +206,49 @@ public class ActivityFeedConsumer {
                 studentId, ROLE_STUDENT, "CERTIFICATE_ISSUED", "COURSE",
                 text(root, "courseId"), text(root, "courseTitle", "title"),
                 extra.isEmpty() ? null : extra, suffix(eventId, "CERTIFICATE_ISSUED"), occurredAt);
+    }
+
+    /** 作业提交 → 学生交作业动态（规格 §4.1 ASSIGNMENT_SUBMITTED）。 */
+    private void mapAssignmentSubmitted(JsonNode root, String eventId, LocalDateTime occurredAt) {
+        String studentId = text(root, "studentId", "userId");
+        if (studentId == null || studentId.isBlank()) {
+            log.warn("AssignmentSubmitted event without studentId/userId skipped: eventId={}", eventId);
+            return;
+        }
+        activityFeedService.recordActivity(
+                studentId, ROLE_STUDENT, "ASSIGNMENT_SUBMITTED", "ASSIGNMENT",
+                text(root, "assignmentId"), text(root, "assignmentTitle", "title"),
+                null, suffix(eventId, "ASSIGNMENT_SUBMITTED"), occurredAt);
+    }
+
+    /** 课程评价 → 学生评价动态 + 教师侧学员评价动态（规格 §4.1）。 */
+    private void mapCourseReviewed(JsonNode root, String eventId, LocalDateTime occurredAt) {
+        String studentId = text(root, "studentId", "userId");
+        String courseId = text(root, "courseId");
+        String courseTitle = text(root, "courseTitle", "title");
+        String teacherId = text(root, "teacherId");
+
+        if (studentId != null && !studentId.isBlank()) {
+            Map<String, Object> extra = new LinkedHashMap<>();
+            putIfPresent(extra, "rating", root, "rating");
+            activityFeedService.recordActivity(
+                    studentId, ROLE_STUDENT, "COURSE_REVIEWED", "COURSE", courseId, courseTitle,
+                    extra.isEmpty() ? null : extra, suffix(eventId, "COURSE_REVIEWED"), occurredAt);
+        } else {
+            log.warn("CourseReviewed event without studentId skipped: eventId={}", eventId);
+        }
+
+        if (teacherId != null && !teacherId.isBlank()) {
+            Map<String, Object> teacherExtra = new LinkedHashMap<>();
+            teacherExtra.put("studentId", studentId);
+            putIfPresent(teacherExtra, "rating", root, "rating");
+            activityFeedService.recordActivity(
+                    teacherId, ROLE_TEACHER, "STUDENT_REVIEWED", "COURSE", courseId, courseTitle,
+                    teacherExtra, suffix(eventId, "STUDENT_REVIEWED"), occurredAt);
+        } else {
+            log.warn("CourseReviewed event without teacherId, teacher-side activity skipped: eventId={}, courseId={}",
+                    eventId, courseId);
+        }
     }
 
     /** 作业批改 → 学生作业批改动态。 */
