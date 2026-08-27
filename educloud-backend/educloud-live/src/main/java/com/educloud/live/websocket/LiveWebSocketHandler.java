@@ -29,8 +29,21 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class LiveWebSocketHandler extends TextWebSocketHandler {
 
+    /** 弹幕文本最大长度（字符），超出直接拒绝并返回错误提示 */
+    public static final int MAX_MESSAGE_LENGTH = 200;
+
+    /** 弹幕发送最小间隔（毫秒）：每用户每 5 秒最多 1 条弹幕 */
+    public static final long MIN_INTERVAL_MS = 5000L;
+
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
     private final ConcurrentHashMap<Long, Set<WebSocketSession>> roomSessions = new ConcurrentHashMap<>();
+
+    /**
+     * 弹幕频率限制状态：connectionId/sessionId -> 最近一次弹幕发送时间戳。
+     * 内存实现，单实例部署足够；多实例部署时需替换为 Redis（key: live:chat:rate:{userId}）
+     * 以保证跨实例限流一致，并注意与 WebSocket 会话生命周期对齐清理。
+     */
+    private final ConcurrentHashMap<String, Long> lastChatSendAt = new ConcurrentHashMap<>();
 
     private final LiveBroadcastService broadcastService;
     private final LiveMessageService liveMessageService;
@@ -103,6 +116,26 @@ public class LiveWebSocketHandler extends TextWebSocketHandler {
                     return;
                 }
 
+                // 长度限制：超过 200 字符直接拒绝（选择拒绝而非截断：截断会静默篡改用户内容且易造成歧义，
+                // 明确拒绝并返回错误提示更透明，与现有禁言拦截的 ERROR 返回风格保持一致）
+                if (content.length() > MAX_MESSAGE_LENGTH) {
+                    log.warn("Chat rejected: too long, roomId={}, userId={}, length={}", roomId, userId, content.length());
+                    session.sendMessage(new TextMessage("{\"type\":\"ERROR\",\"payload\":{\"code\":\"LIVE_CHAT_TOO_LONG\",\"message\":\"弹幕内容超出长度限制（最多" + MAX_MESSAGE_LENGTH + "字符）\"}}"));
+                    return;
+                }
+
+                // 频率限制：每用户每 5 秒最多 1 条弹幕（按连接维度 sessionId 统计）
+                String sessionKey = session.getId() != null ? session.getId() : "user-" + userId;
+                long now = System.currentTimeMillis();
+                Long lastSendTime = lastChatSendAt.get(sessionKey);
+                if (lastSendTime != null && now - lastSendTime < MIN_INTERVAL_MS) {
+                    log.warn("Chat rejected: rate limited, roomId={}, userId={}, intervalMs={}",
+                            roomId, userId, now - lastSendTime);
+                    session.sendMessage(new TextMessage("{\"type\":\"ERROR\",\"payload\":{\"code\":\"LIVE_CHAT_RATE_LIMITED\",\"message\":\"发言过于频繁，请稍后再试\"}}"));
+                    return;
+                }
+                lastChatSendAt.put(sessionKey, now);
+
                 LiveMessageEntity saved = liveMessageService.saveMessage(
                         roomId, userId, userName, role, LiveMessageType.CHAT, content);
 
@@ -143,6 +176,11 @@ public class LiveWebSocketHandler extends TextWebSocketHandler {
         Long userId = (Long) session.getAttributes().get(LiveWebSocketInterceptor.ATTR_USER_ID);
         String userName = (String) session.getAttributes().get(LiveWebSocketInterceptor.ATTR_USER_NAME);
         LiveSenderRole role = (LiveSenderRole) session.getAttributes().get(LiveWebSocketInterceptor.ATTR_USER_ROLE);
+
+        // 清理频率限制状态，避免连接维度内存泄漏
+        if (session.getId() != null) {
+            lastChatSendAt.remove(session.getId());
+        }
 
         if (roomId != null) {
             Set<WebSocketSession> sessions = roomSessions.get(roomId);
