@@ -32,6 +32,9 @@ public final class IdentityHeaderWebFilter implements WebFilter, Ordered {
             "x-permissions",
             "x-authenticated-user");
 
+    /** 网关注入的可信真实客户端 IP 头（客户端传入的同名头会被先剥离再覆盖写入） */
+    private static final String X_REAL_IP_HEADER = "X-Real-IP";
+
     private final ClientIpResolver clientIpResolver;
     private final GatewayErrorWriter errorWriter;
 
@@ -52,7 +55,12 @@ public final class IdentityHeaderWebFilter implements WebFilter, Ordered {
         exchange.getAttributes().put(GatewayExchangeAttributes.CLIENT_IP, clientIp);
 
         ServerHttpRequest request = exchange.getRequest().mutate()
-                .headers(IdentityHeaderWebFilter::removeUntrustedHeaders)
+                .headers(headers -> {
+                    removeUntrustedHeaders(headers);
+                    // 注入网关解析出的可信真实客户端 IP（BUG-040/071/077）：覆盖任何客户端传入值，
+                    // 本部署网关是唯一入口，下游只能看到网关写入的 X-Real-IP。
+                    headers.set(X_REAL_IP_HEADER, clientIp);
+                })
                 .build();
         return chain.filter(exchange.mutate().request(request).build());
     }
@@ -67,6 +75,7 @@ public final class IdentityHeaderWebFilter implements WebFilter, Ordered {
             String lower = name.toLowerCase(Locale.ROOT);
             if ("forwarded".equals(lower)
                     || lower.startsWith("x-forwarded-")
+                    || "x-real-ip".equals(lower)
                     || IDENTITY_HEADERS.contains(lower)
                     || lower.startsWith("x-educloud-identity-")) {
                 headers.remove(name);

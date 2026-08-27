@@ -36,6 +36,8 @@ class GatewayApplicationContextTest {
                         "--spring.cloud.nacos.discovery.register-enabled=false",
                         "--educloud.gateway.environment=local",
                         "--educloud.gateway.security.jwks-json=" + jwks,
+                        // application.yml 默认配置了 jwks-location，必须显式清空以满足"只能配置一个 JWKS 来源"校验
+                        "--educloud.gateway.security.jwks-location=",
                         "--educloud.gateway.security.issuer=https://issuer.educloud.local",
                         "--educloud.gateway.security.audience=educloud-api",
                         "--educloud.gateway.ratelimit.hmac-secret-base64=" + hmacSecret,
