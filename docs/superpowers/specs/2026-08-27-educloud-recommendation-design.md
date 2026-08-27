@@ -44,9 +44,9 @@
 
 ### 2.3 安全模型
 
-- 网关统一 JWT 鉴权，服务内 `JwksLoader` + `JwtDecoderConfiguration` 解析 `X-User-Id`（复用 analytics 模块的 `security/` 模式：`AnalyticsJwtValidator` → 本模块实现 `RecommendationJwtValidator`）。
+- 网关统一 JWT 鉴权并放行匿名 GET；服务内效仿 course 模块：oauth2-resource-server 校验 JWT + common `SecurityContextFacade.currentUser()` 获取 `AuthenticatedUser`（未登录为 empty）。
 - **推荐读取**：公开可访问（未登录 → 无个性化）；登录用户自动带个性化（同类目策略、排除已购与 DISLIKE）。
-- **反馈写入**：必须登录，`userId` 取自 JWT，禁止前端传参伪造。
+- **反馈写入**：必须登录，`userId` 取自认证上下文，禁止前端传参伪造。
 
 ### 2.4 目录结构
 
@@ -54,28 +54,25 @@
 educloud-recommendation/src/main/java/com/educloud/recommendation/
 ├─ RecommendationApplication.java
 ├─ config/
-│  ├─ MyBatisConfig.java            # 三数据源：主库 + course 只读 + analytics 只读
-│  └─ SecurityConfig.java
+│  ├─ MyBatisConfig.java            # 主数据源
+│  ├─ SecurityConfig.java           # oauth2-resource-server
+│  └─ RecommendationProperties.java
 ├─ controller/RecommendationController.java
 ├─ service/
 │  ├─ RecommendationService.java    # 推荐引擎
 │  ├─ FeedbackService.java          # 不感兴趣反馈
 │  └─ RuleConfigService.java        # 规则配置读取（本地缓存 60s）
-├─ support/CrossDbCourseAccessor.java  # 4 个跨库只读查询
+├─ support/CrossDbCourseAccessor.java  # 跨库只读查询
 ├─ entity/
 │  ├─ RecommendationRuleConfigEntity.java
 │  └─ RecommendationFeedbackEntity.java
 ├─ mapper/
 │  ├─ RecommendationRuleConfigMapper.java
 │  └─ RecommendationFeedbackMapper.java
-├─ dto/
-│  ├─ response/RecommendationItem.java
-│  ├─ response/RecommendationResponse.java
-│  └─ request/FeedbackRequest.java
-└─ security/
-   ├─ RecommendationJwtValidator.java
-   ├─ JwksLoader.java
-   └─ JwtDecoderConfiguration.java
+└─ dto/
+   ├─ response/RecommendationItem.java
+   ├─ response/RecommendationResponse.java
+   └─ request/FeedbackRequest.java
 ```
 
 ## 3. 数据模型
@@ -119,22 +116,25 @@ CREATE TABLE recommendation_feedback (
 
 ### 4.1 数据源
 
-`MyBatisConfig` 配置三数据源（参照 analytics `CrossDbBatchExtractor` 先例）：
+主数据源单库 + 跨库 SQL（与 analytics `CrossDbBatchExtractor` 先例一致，不配置多数据源）：
 
 | 数据源 | 连接库 | 用途 |
 |---|---|---|
 | 主数据源 | `educloud_recommendation` | 规则配置、反馈读写 |
-| course 只读 | `educloud_course` | 课程可见性 / 分类 / 发布时间 / 选课 |
-| analytics 只读 | `educloud_analytics` | 课程互动统计（热门度） |
+| 跨库 SQL（只读） | `educloud_course` | 课程可见性 / 分类 / 发布时间 / 选课 / 热门度 |
+
+> 应用账号需具备 `educloud_course` 只读 SELECT 权限（VM 部署时授权）。
 
 ### 4.2 查询清单（`CrossDbCourseAccessor`，全部只读 SQL + `RowMapper`）
 
 | # | 查询 | 来源库 | 说明 |
 |---|---|---|---|
-| 1 | 可见课程基础信息 | course | `course.status = 'PUBLISHED'` 且未归档；字段：id / title / category_id / published_at / price_cents / cover_url（**字段名以 course 表实际结构为准，实现时先核对**） |
-| 2 | 热门度 | analytics | `course_engagement_stats`：enrollment_count / avg_rating，按 course_id 批量 IN 查询 |
-| 3 | 用户已购/已学课程及分类 | course | `course_enrollment` JOIN `course`，按 user_id 查 |
-| 4 | 目标课程分类 | course | 相关课程场景，单条按 course_id 查 |
+| 1 | 可见课程基础信息 | course | `course.lifecycle_status = 'PUBLISHED'` 且 `published_version_id` 非空；JOIN `course_version`（跟随 published_version_id）与 `course_category`；字段：id / title / category_id / category_name / published_at / price / cover_file_id / enrollment_count / rating_avg |
+| 2 | 用户已购/已学课程 | course | `course_enrollment`（ACTIVE）按 student_id 查课程 ID 集合 |
+| 3 | 已购课程上下文 | course | `course_enrollment` JOIN course/version/category，取课程名 + 分类（同类目理由文案用，LIMIT 50） |
+| 4 | 封面直链 | file | `file_object` 按 cover_file_id 批量查 bucket / object_key，组装 MinIO 公开直链（与 content 模块头像反查同模式） |
+
+> **热门度说明**：`course` 表自带 `enrollment_count` 与 `rating_avg`（course 服务维护的实时冗余字段），POPULAR 打分直接使用，不依赖 analytics。
 
 ### 4.3 容错规则
 
@@ -161,7 +161,7 @@ CREATE TABLE recommendation_feedback (
    - 该用户 DISLIKE 过的课程（feedback 表，仅登录）；
    - 相关课程场景：排除目标课程自身。
 4. **分策略打分**：
-   - POPULAR：`score = enrollment_count × 0.7 + avg_rating × 10`，降序（数据源：查询 2；查询失败则跳过该策略）。**avg_rating 为 NULL（无评分）时按 0 计算**，score 永不为 NULL。
+   - POPULAR：`score = enrollment_count × 0.7 + avg_rating × 10`，降序（数据源：`course` 表自带 `enrollment_count` / `rating_avg`，查询失败则跳过该策略）。**avg_rating 为 NULL（无评分）时按 0 计算**，score 永不为 NULL。
    - NEW：`published_at` 降序（数据源：查询 1）。
    - SIMILAR：登录且存在已购课程 → 已购课程的 category_id 集合；相关课程场景 → 目标课程 category_id。同分类课程按热门度排序。无已购 / 未登录 / 目标课程无分类 → 跳过。
 5. **按权重分配条数**：每策略配额 = 四舍五入（limit × weight / 权重总和）；四舍五入导致的差额加到权重最大的策略。某策略不足时，空缺由其余策略按权重序补齐。
@@ -231,7 +231,7 @@ CREATE TABLE recommendation_feedback (
 
 ### 6.3 网关
 
-`RouteGroups.java` 注册 `/api/v1/recommendations/**` → `educloud-recommendation`（lb 路由），并放行 CORS。
+路由已预留（`RouteGroups.RECOMMENDATION` + yml `recommendation-core`）；仅需 `AccessPolicy.PUBLIC_READ` 将 `/api/v1/recommendations/courses` 改为 `/api/v1/recommendations/**`（PUBLIC_READ 仅匹配 GET/HEAD，POST feedback 仍要求认证）。
 
 ## 7. 前端改造（student-portal）
 
