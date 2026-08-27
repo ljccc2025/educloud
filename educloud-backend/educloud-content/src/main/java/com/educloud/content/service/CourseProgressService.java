@@ -197,9 +197,10 @@ public class CourseProgressService {
 
             CourseCertificateEntity certificate =
                     certificateService.issueCertificate(studentId, courseId, courseTitle);
-            eventPublisher.courseCompleted(courseId, studentId, 1L, completedAt);
+            eventPublisher.courseCompleted(courseId, studentId, courseTitle, 1L, completedAt);
             eventPublisher.certificateIssued(
-                    certificate.getCertNo(), courseId, studentId, teacherId, 1L, certificate.getIssuedAt());
+                    certificate.getCertNo(), courseId, studentId, teacherId, courseTitle, 1L,
+                    certificate.getIssuedAt());
         } catch (Exception e) {
             log.warn("Completion certificate issuance failed, progress report unaffected: "
                     + "studentId={}, courseId={}", studentId, courseId, e);

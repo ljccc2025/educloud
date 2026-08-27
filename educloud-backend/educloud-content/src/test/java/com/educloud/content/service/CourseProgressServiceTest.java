@@ -162,10 +162,11 @@ class CourseProgressServiceTest {
 
         assertThat(resp.getProgressPercent()).isEqualTo(100);
         verify(certificateService).issueCertificate(2001L, 101L, "Spring Boot 微服务实践");
-        verify(eventPublisher).courseCompleted(eq(101L), eq(2001L), anyLong(), any(LocalDateTime.class));
+        verify(eventPublisher).courseCompleted(
+                eq(101L), eq(2001L), eq("Spring Boot 微服务实践"), anyLong(), any(LocalDateTime.class));
         verify(eventPublisher).certificateIssued(
-                eq("CERT-20260827-000001"), eq(101L), eq(2001L), eq(3001L), anyLong(),
-                eq(issued.getIssuedAt()));
+                eq("CERT-20260827-000001"), eq(101L), eq(2001L), eq(3001L),
+                eq("Spring Boot 微服务实践"), anyLong(), eq(issued.getIssuedAt()));
     }
 
     @Test
@@ -201,8 +202,8 @@ class CourseProgressServiceTest {
 
         assertThat(resp.getProgressPercent()).isEqualTo(100);
         verify(certificateService, never()).issueCertificate(any(), any(), any());
-        verify(eventPublisher, never()).courseCompleted(any(), any(), anyLong(), any());
-        verify(eventPublisher, never()).certificateIssued(any(), any(), any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).courseCompleted(any(), any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).certificateIssued(any(), any(), any(), any(), any(), anyLong(), any());
     }
 
     @Test
@@ -241,7 +242,7 @@ class CourseProgressServiceTest {
 
         assertThat(resp).isNotNull();
         assertThat(resp.getProgressPercent()).isEqualTo(100);
-        verify(eventPublisher, never()).courseCompleted(any(), any(), anyLong(), any());
-        verify(eventPublisher, never()).certificateIssued(any(), any(), any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).courseCompleted(any(), any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).certificateIssued(any(), any(), any(), any(), any(), anyLong(), any());
     }
 }

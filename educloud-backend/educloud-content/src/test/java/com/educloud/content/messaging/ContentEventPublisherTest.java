@@ -109,7 +109,7 @@ class ContentEventPublisherTest {
 
     @Test
     void courseCompletedWritesOutboxRow() throws Exception {
-        publisher.courseCompleted(1001L, 77L, 2L, OCCURRED_AT);
+        publisher.courseCompleted(1001L, 77L, "Spring Boot 实践", 2L, OCCURRED_AT);
 
         assertThat(captured.aggregateType()).isEqualTo("LearningProgress");
         assertThat(captured.aggregateId()).isEqualTo("1001");
@@ -119,12 +119,13 @@ class ContentEventPublisherTest {
         JsonNode payload = objectMapper.readTree(captured.payloadJson());
         assertThat(payload.get("courseId").asLong()).isEqualTo(1001L);
         assertThat(payload.get("studentId").asLong()).isEqualTo(77L);
+        assertThat(payload.get("courseTitle").asText()).isEqualTo("Spring Boot 实践");
         assertThat(payload.get("completedAt").asText()).isEqualTo(OCCURRED_AT.toString());
     }
 
     @Test
     void certificateIssuedWritesOutboxRowWithTeacherId() throws Exception {
-        publisher.certificateIssued("CERT-2026-0001", 1001L, 77L, 2001L, 3L, OCCURRED_AT);
+        publisher.certificateIssued("CERT-2026-0001", 1001L, 77L, 2001L, "Spring Boot 实践", 3L, OCCURRED_AT);
 
         assertThat(captured.aggregateType()).isEqualTo("Certificate");
         assertThat(captured.aggregateId()).isEqualTo("CERT-2026-0001");
@@ -135,6 +136,7 @@ class ContentEventPublisherTest {
         assertThat(payload.get("courseId").asLong()).isEqualTo(1001L);
         assertThat(payload.get("studentId").asLong()).isEqualTo(77L);
         assertThat(payload.get("teacherId").asLong()).isEqualTo(2001L);
+        assertThat(payload.get("courseTitle").asText()).isEqualTo("Spring Boot 实践");
         assertThat(payload.get("issuedAt").asText()).isEqualTo(OCCURRED_AT.toString());
     }
 

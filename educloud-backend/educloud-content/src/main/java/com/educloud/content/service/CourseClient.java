@@ -131,7 +131,7 @@ public class CourseClient {
             return null;
         }
 
-        Map<?, ?> envelope = getForObject("/api/v1/courses/{courseId}", Map.class, courseId);
+        Map<?, ?> envelope = getPublicForObject("/api/v1/courses/{courseId}", Map.class, courseId);
         if (envelope == null || !(envelope.get("data") instanceof Map<?, ?> data)) {
             return null;
         }
@@ -155,11 +155,28 @@ public class CourseClient {
     }
 
     private <T> T getForObject(String uriTemplate, Class<T> responseType, Object... uriVariables) {
+        return executeGet(uriTemplate, responseType, true, uriVariables);
+    }
+
+    /**
+     * permitAll 公开接口调用：不携带服务令牌。课程公开详情 {@code /api/v1/courses/{id}}
+     * 对匿名开放；若附带无效/过期的服务 Bearer 令牌，资源服务器会因令牌校验失败返回 401，
+     * 故公开快照查询必须不带 Authorization 头。
+     */
+    private <T> T getPublicForObject(String uriTemplate, Class<T> responseType, Object... uriVariables) {
+        return executeGet(uriTemplate, responseType, false, uriVariables);
+    }
+
+    private <T> T executeGet(String uriTemplate, Class<T> responseType, boolean authenticate,
+                             Object... uriVariables) {
         try {
-            return restClient.get()
+            RestClient.RequestHeadersSpec<?> spec = restClient.get()
                     .uri(uriTemplate, uriVariables)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken())
-                    .accept(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.APPLICATION_JSON);
+            if (authenticate) {
+                spec = spec.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken());
+            }
+            return spec
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (request, response) -> {
                         int code = response.getStatusCode().value();

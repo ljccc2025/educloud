@@ -198,6 +198,73 @@ class ActivityFeedConsumerTest {
     }
 
     @Test
+    @DisplayName("完课事件（EventEnvelope 结构）→ 学生 COURSE_COMPLETED 动态")
+    void testCourseCompletedMapsStudentActivity() {
+        String json = """
+                {
+                  "eventId": "EVT_CPL_001",
+                  "eventType": "CourseCompleted",
+                  "sourceService": "educloud-content",
+                  "occurredAt": "2026-08-28T00:19:11",
+                  "data": {
+                    "courseId": "9000000000000000215",
+                    "studentId": "2091648316809035778",
+                    "courseTitle": "大模型应用开发"
+                  }
+                }
+                """;
+
+        consumer.handle(message(json), "educloud-content");
+
+        verify(activityFeedService).recordActivity(
+                eq("2091648316809035778"), eq("STUDENT"), eq("COURSE_COMPLETED"), eq("COURSE"),
+                eq("9000000000000000215"), eq("大模型应用开发"), isNull(),
+                eq("EVT_CPL_001_COURSE_COMPLETED"), eq(LocalDateTime.of(2026, 8, 28, 0, 19, 11)));
+    }
+
+    @Test
+    @DisplayName("证书颁发事件 → 学生 CERTIFICATE_ISSUED 动态（含证书号扩展字段）")
+    void testCertificateIssuedMapsStudentActivity() {
+        String json = """
+                {
+                  "eventId": "EVT_CRT_001",
+                  "eventType": "CertificateIssued",
+                  "certificateNo": "CERT-20260828-0001",
+                  "courseId": "9000000000000000215",
+                  "studentId": "2091648316809035778",
+                  "teacherId": "9000000000000000001",
+                  "courseTitle": "大模型应用开发",
+                  "occurredAt": "2026-08-28T00:19:11"
+                }
+                """;
+
+        consumer.handle(message(json), "educloud-content");
+
+        ArgumentCaptor<Map<String, Object>> extraCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(activityFeedService).recordActivity(
+                eq("2091648316809035778"), eq("STUDENT"), eq("CERTIFICATE_ISSUED"), eq("COURSE"),
+                eq("9000000000000000215"), eq("大模型应用开发"), extraCaptor.capture(),
+                eq("EVT_CRT_001_CERTIFICATE_ISSUED"), eq(LocalDateTime.of(2026, 8, 28, 0, 19, 11)));
+        assertThat(extraCaptor.getValue()).containsEntry("certificateNo", "CERT-20260828-0001");
+    }
+
+    @Test
+    @DisplayName("完课事件缺学员 → 跳过且不抛异常")
+    void testCourseCompletedWithoutStudentSkipped() {
+        String json = """
+                {
+                  "eventId": "EVT_CPL_002",
+                  "eventType": "CourseCompleted",
+                  "courseId": "course_215"
+                }
+                """;
+
+        consumer.handle(message(json), "educloud-content");
+
+        verifyNoInteractions(activityFeedService);
+    }
+
+    @Test
     @DisplayName("作业批改事件 → 学生 ASSIGNMENT_GRADED 动态（含分数扩展字段）")
     void testAssignmentGradedMapsStudentActivity() {
         String json = """

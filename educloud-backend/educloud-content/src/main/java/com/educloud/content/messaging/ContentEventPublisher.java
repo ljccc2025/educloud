@@ -100,15 +100,18 @@ public class ContentEventPublisher {
 
     /**
      * 完课事件（角色化动态流阶段 3 使用）：学生完成课程学习时发布。
+     * courseTitle 为课程标题快照，供动态流展示（规格 §4.1 文案模板）。
      */
     public void courseCompleted(
             Long courseId,
             Long studentId,
+            String courseTitle,
             long aggregateVersion,
             LocalDateTime completedAt) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("courseId", courseId);
         payload.put("studentId", studentId);
+        payload.put("courseTitle", courseTitle);
         payload.put("aggregateVersion", aggregateVersion);
         payload.put("completedAt", completedAt.toString());
         writeOutbox("LearningProgress", String.valueOf(courseId), "CourseCompleted", aggregateVersion, payload);
@@ -116,12 +119,14 @@ public class ContentEventPublisher {
 
     /**
      * 证书颁发事件（角色化动态流阶段 3 使用）：完课证书生成后发布。
+     * courseTitle 为课程标题快照，供证书动态展示（规格 §4.1 文案模板）。
      */
     public void certificateIssued(
             String certificateNo,
             Long courseId,
             Long studentId,
             Long teacherId,
+            String courseTitle,
             long aggregateVersion,
             LocalDateTime issuedAt) {
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -129,6 +134,7 @@ public class ContentEventPublisher {
         payload.put("courseId", courseId);
         payload.put("studentId", studentId);
         payload.put("teacherId", teacherId);
+        payload.put("courseTitle", courseTitle);
         payload.put("aggregateVersion", aggregateVersion);
         payload.put("issuedAt", issuedAt.toString());
         writeOutbox("Certificate", certificateNo, "CertificateIssued", aggregateVersion, payload);

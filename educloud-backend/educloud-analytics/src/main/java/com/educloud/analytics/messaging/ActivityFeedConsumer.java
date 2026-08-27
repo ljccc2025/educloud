@@ -131,6 +131,8 @@ public class ActivityFeedConsumer {
             switch (eventType.toLowerCase()) {
                 case "enrollmentcreated", "paymentsuccess", "orderpaid" -> mapEnrollment(root, eventId, occurredAt);
                 case "assignmentgraded", "assignment.graded" -> mapAssignmentGraded(root, eventId, occurredAt);
+                case "coursecompleted" -> mapCourseCompleted(root, eventId, occurredAt);
+                case "certificateissued" -> mapCertificateIssued(root, eventId, occurredAt);
                 case "coursepublished" -> mapCourseLifecycle(root, eventId, occurredAt, "COURSE_PUBLISHED");
                 case "coursecreated" -> mapCourseLifecycle(root, eventId, occurredAt, "COURSE_CREATED");
                 default -> log.info("ActivityFeedConsumer skipped unmapped event type [{}] from [{}]: eventId={}",
@@ -173,6 +175,34 @@ public class ActivityFeedConsumer {
             log.warn("Enrollment event without teacherId, teacher-side activity skipped: eventId={}, courseId={}",
                     eventId, courseId);
         }
+    }
+
+    /** 完课 → 学生完课动态（规格 §4.1 COURSE_COMPLETED）。 */
+    private void mapCourseCompleted(JsonNode root, String eventId, LocalDateTime occurredAt) {
+        String studentId = text(root, "studentId", "userId");
+        if (studentId == null || studentId.isBlank()) {
+            log.warn("CourseCompleted event without studentId skipped: eventId={}", eventId);
+            return;
+        }
+        activityFeedService.recordActivity(
+                studentId, ROLE_STUDENT, "COURSE_COMPLETED", "COURSE",
+                text(root, "courseId"), text(root, "courseTitle", "title"),
+                null, suffix(eventId, "COURSE_COMPLETED"), occurredAt);
+    }
+
+    /** 证书颁发 → 学生证书动态（规格 §4.1 CERTIFICATE_ISSUED）。 */
+    private void mapCertificateIssued(JsonNode root, String eventId, LocalDateTime occurredAt) {
+        String studentId = text(root, "studentId", "userId");
+        if (studentId == null || studentId.isBlank()) {
+            log.warn("CertificateIssued event without studentId skipped: eventId={}", eventId);
+            return;
+        }
+        Map<String, Object> extra = new LinkedHashMap<>();
+        putIfPresent(extra, "certificateNo", root, "certificateNo");
+        activityFeedService.recordActivity(
+                studentId, ROLE_STUDENT, "CERTIFICATE_ISSUED", "COURSE",
+                text(root, "courseId"), text(root, "courseTitle", "title"),
+                extra.isEmpty() ? null : extra, suffix(eventId, "CERTIFICATE_ISSUED"), occurredAt);
     }
 
     /** 作业批改 → 学生作业批改动态。 */
