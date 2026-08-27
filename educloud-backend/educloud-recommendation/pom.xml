@@ -47,6 +47,12 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
+        <!-- M13: 与 course 一致引入 tracing bridge，提供 io.micrometer.tracing.Tracer
+             （common ServletRequestContextAccessor 构造签名依赖该 API，测试亦需编译）。 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
