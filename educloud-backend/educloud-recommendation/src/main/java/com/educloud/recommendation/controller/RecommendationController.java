@@ -60,7 +60,7 @@ public class RecommendationController {
                     RecommendationErrorCode.RECOMMENDATION_COURSE_ID_REQUIRED,
                     RecommendationErrorCode.RECOMMENDATION_COURSE_ID_REQUIRED.defaultMessage());
         }
-        Long userId = jwt == null ? null : Long.valueOf(jwt.getSubject());
+        Long userId = userId(jwt);
         Set<Long> disliked = feedbackService.dislikedCourseIds(userId);
         return responses.success(recommendationService.recommend(userId, courseId, limit, disliked));
     }
@@ -74,16 +74,25 @@ public class RecommendationController {
                     "当前仅支持 DISLIKE");
         }
         // 安全链已保证 authenticated，jwt 非空；非数字 sub 视为无效令牌（与 course
-        // JwtSecurityUtils.userId 的 401 语义一致）。
-        long userId;
-        try {
-            userId = Long.parseLong(jwt.getSubject());
-        } catch (NumberFormatException exception) {
-            throw new BusinessException(
-                    CommonErrorCode.UNAUTHENTICATED,
-                    "JWT subject must be a numeric userId: " + jwt.getSubject());
-        }
+        // JwtSecurityUtils.userId 的 401 语义一致，统一走 userId(Jwt)）。
+        Long userId = userId(jwt);
         feedbackService.dislike(userId, request.getCourseId(), request.getReason());
         return responses.success(null);
+    }
+
+    /**
+     * 解析 JWT sub（userId，数字字符串）为 Long；匿名请求（jwt 为 null）返回 null；
+     * 非数字 sub 视为无效令牌抛 UNAUTHENTICATED（与 course JwtSecurityUtils.userId 的
+     * 401 语义一致）。
+     */
+    private Long userId(Jwt jwt) {
+        if (jwt == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(jwt.getSubject());
+        } catch (NumberFormatException exception) {
+            throw new BusinessException(CommonErrorCode.UNAUTHENTICATED, "无效令牌");
+        }
     }
 }

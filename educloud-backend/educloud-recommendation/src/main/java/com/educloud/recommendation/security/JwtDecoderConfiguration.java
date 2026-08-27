@@ -26,7 +26,7 @@ import java.time.Duration;
  *
  * <p>启动时静态加载 User 公钥 JWKS（{@link JwksLoader}：classpath: 测试默认或 file:
  * 生产），RS256 + kid 选择；validator = 时间戳 + issuer + {@link
- * RecommendationJwtValidator}（aud 契约，audience 默认 educloud-web）。JWKS 缺失即
+ * RecommendationJwtValidator}（aud 契约，audience 默认 educloud-api）。JWKS 缺失即
  * 启动失败（fail-fast，与 course/file 一致）。</p>
  */
 @Configuration(proxyBeanMethods = false)

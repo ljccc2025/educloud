@@ -3,6 +3,7 @@ package com.educloud.recommendation.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.educloud.recommendation.entity.RecommendationRuleConfigEntity;
 import com.educloud.recommendation.mapper.RecommendationRuleConfigMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -24,6 +25,9 @@ public class RuleConfigService {
     public static final String SIMILAR = "SIMILAR";
 
     private final RecommendationRuleConfigMapper configMapper;
+
+    /** 规则配置本地缓存 TTL（秒）；由 yml educloud.recommendation.cache-ttl-seconds 注入 */
+    @Value("${educloud.recommendation.cache-ttl-seconds:60}")
     private long cacheTtlSeconds = 60;
 
     /** 本地缓存的启用规则列表，volatile 保证跨线程可见 */
