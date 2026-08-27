@@ -139,6 +139,21 @@ public class AlipayEasySdkPlugin implements PaymentChannelPlugin {
     }
 
     @Override
+    public UnifiedRefundResult queryRefund(RefundContext context) {
+        // P2-7 修复：退款查单消歧。沙箱模拟渠道已退；接入真实渠道后调 alipay.trade.refund.query，
+        // 按 refund_status 映射：REFUND_SUCCESS→SUCCESS，REFUND_CLOSED→FAILED，其余二义。
+        String channelRefundNo = "ALI_REF_" + context.getRefundId();
+        return UnifiedRefundResult.builder()
+                .success(true)
+                .status(RefundStatus.SUCCESS)
+                .channelRefundNo(channelRefundNo)
+                .refundAmountCents(context.getRefundAmountCents())
+                .refundedAt(LocalDateTime.now())
+                .rawResponse("{\"code\":\"10000\",\"msg\":\"Success\",\"refund_status\":\"REFUND_SUCCESS\"}")
+                .build();
+    }
+
+    @Override
     public UnifiedQueryResult queryPayment(String channelTradeNo, String paymentOrderId) {
         return UnifiedQueryResult.builder()
                 .success(true)

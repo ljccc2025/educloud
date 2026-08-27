@@ -26,6 +26,7 @@ import com.educloud.payment.spi.model.RefundContext;
 import com.educloud.payment.spi.model.UnifiedRefundResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -45,6 +46,13 @@ public class RefundServiceImpl implements RefundService {
     private final PaymentChannelFactory channelFactory;
     private final OutboxEventWriter outboxEventWriter;
     private final TransactionTemplate transactionTemplate;
+
+    /** P2-7 修复（08-26 审查）：PROCESSING 停留超时阈值（分钟），超过则由定时任务查单收敛。 */
+    public static final int PROCESSING_TIMEOUT_MINUTES = 2;
+    /** 定时查单收敛扫描周期（毫秒），默认 5 分钟，可用 educloud.payment.refund.reconcile-interval-ms 覆盖。 */
+    public static final long RECONCILE_INTERVAL_MS = 5 * 60 * 1000L;
+    /** 单轮扫描最多收敛的退款单数，防止任务过载。 */
+    private static final int RECONCILE_BATCH_SIZE = 100;
 
     @Override
     @Transactional
@@ -146,9 +154,11 @@ public class RefundServiceImpl implements RefundService {
             if (refund == null) {
                 throw new PaymentBizException(PaymentErrorCode.REFUND_NOT_FOUND, "退款申请不存在");
             }
-            if (refund.getStatus() != RefundStatus.APPLIED) {
+            // P2-7 修复：FAILED（渠道确认未退）允许重新审核；重新审核走同一三段式，
+            // 渠道侧以 refundId 作为幂等键（各渠道 refundNo 均派生自 refundId），重复发起不会重复退款。
+            if (refund.getStatus() != RefundStatus.APPLIED && refund.getStatus() != RefundStatus.FAILED) {
                 throw new PaymentBizException(PaymentErrorCode.REFUND_STATUS_INVALID,
-                        "当前退款单状态为 " + refund.getStatus() + "，不支持审核");
+                        "当前退款单状态为 " + refund.getStatus() + "，仅 APPLIED/FAILED 支持审核");
             }
 
             LocalDateTime now = LocalDateTime.now();
@@ -204,8 +214,146 @@ public class RefundServiceImpl implements RefundService {
         PaymentRefundEntity refund = decision.refund();
         PaymentOrderEntity paymentOrder = decision.paymentOrder();
 
-        // 阶段二（事务外）：调用渠道退款。
-        RefundContext context = RefundContext.builder()
+        // 阶段二（事务外）：调用渠道退款。P2-7 修复：失败（含超时/抛异常）先查单消歧，
+        // 不再直接钉死 FAILED——否则“渠道已退而系统 FAILED”将造成资金与状态长期不一致。
+        PaymentChannelPlugin plugin = channelFactory.getPlugin(refund.getChannelCode());
+        RefundContext context = buildRefundContext(refund, paymentOrder);
+
+        UnifiedRefundResult refundResult;
+        try {
+            refundResult = plugin.initiateRefund(context);
+        } catch (Exception e) {
+            // 渠道调用抛异常（如网络超时）：等同失败，进入查单消歧，绝不静默遗留 PROCESSING。
+            log.warn("Refund {} channel invocation threw: {}", refundId, e.getMessage());
+            refundResult = UnifiedRefundResult.builder()
+                    .success(false)
+                    .errorCode("CHANNEL_EXCEPTION")
+                    .errorMessage(String.valueOf(e.getMessage()))
+                    .build();
+        }
+
+        // 阶段三（短事务）：状态收敛 + 事件出箱 + 流水。
+        if (refundResult.isSuccess()) {
+            finalizeRefundSuccess(refund, paymentOrder, refundResult, context);
+        } else {
+            convergeAfterChannelFailure(refund, paymentOrder, plugin, context, refundResult);
+        }
+
+        return toDetailResponse(refund);
+    }
+
+    /** 审核阶段一的决策结果：退款单 + 加锁读到的支付单 + 是否驳回。 */
+    private record AuditDecision(PaymentRefundEntity refund, PaymentOrderEntity paymentOrder, boolean rejected) {
+    }
+
+    /** 阶段三收敛（成功）：CAS PROCESSING→SUCCESS 防重，事件只发一次，附退款流水。 */
+    private boolean finalizeRefundSuccess(PaymentRefundEntity refund, PaymentOrderEntity paymentOrder,
+                                          UnifiedRefundResult result, RefundContext context) {
+        Long refundId = refund.getId();
+        String channelRefundNo = result.getChannelRefundNo() != null
+                ? result.getChannelRefundNo()
+                : "REF_" + refundId;
+        LocalDateTime refundedAt = result.getRefundedAt() != null ? result.getRefundedAt() : LocalDateTime.now();
+
+        Boolean finalized = transactionTemplate.execute(status -> {
+            int updated = refundMapper.updateStatusCas(
+                    refundId, RefundStatus.PROCESSING, RefundStatus.SUCCESS, refundedAt, channelRefundNo);
+            if (updated == 0) {
+                return false;
+            }
+
+            PaymentRefundedEvent event = PaymentRefundedEvent.builder()
+                    .refundId(refundId)
+                    .paymentOrderId(refund.getPaymentOrderId())
+                    .orderId(refund.getOrderId())
+                    .userId(paymentOrder.getUserId())
+                    .refundAmountCents(refund.getRefundAmountCents())
+                    .refundedAt(refundedAt)
+                    .build();
+            outboxEventWriter.writeEvent("REFUND", refundId, "PaymentRefundedEvent", event);
+
+            PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
+                    .id(IdWorker.getId())
+                    .paymentOrderId(paymentOrder.getId())
+                    .transactionNo("TX_REF_" + refundId)
+                    .channelCode(refund.getChannelCode())
+                    .actionType("REFUND")
+                    .amountCents(refund.getRefundAmountCents())
+                    .feeCents(0L)
+                    .rawRequest(context.toString())
+                    .rawResponse(result.getRawResponse())
+                    .status("SUCCESS")
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            transactionMapper.insert(transaction);
+            return true;
+        });
+
+        if (Boolean.TRUE.equals(finalized)) {
+            refund.setStatus(RefundStatus.SUCCESS);
+            refund.setRefundedAt(refundedAt);
+            refund.setChannelRefundNo(channelRefundNo);
+            log.info("Refund {} successfully completed and broadcasted", refundId);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 渠道退款失败后的消歧与收敛（P2-7）：
+     * 查单确认已退→SUCCESS（事件只发一次）；确认未退→FAILED（允许重新审核）；
+     * 查单失败/结果二义→保持 PROCESSING，由定时任务 reconcileStuckRefunds 收敛。
+     */
+    private void convergeAfterChannelFailure(PaymentRefundEntity refund, PaymentOrderEntity paymentOrder,
+                                             PaymentChannelPlugin plugin, RefundContext context,
+                                             UnifiedRefundResult channelFailure) {
+        Long refundId = refund.getId();
+        UnifiedRefundResult queryResult = queryRefundSafely(plugin, context, refundId);
+        String channelError = channelFailure.getErrorMessage();
+
+        if (isQueryConfirmedRefunded(queryResult)) {
+            finalizeRefundSuccess(refund, paymentOrder, queryResult, context);
+            log.warn("Refund {} channel call failed ({}) but query confirms refunded, converged to SUCCESS",
+                    refundId, channelError);
+        } else if (isQueryConfirmedNotRefunded(queryResult)) {
+            Boolean failed = transactionTemplate.execute(status ->
+                    refundMapper.updateStatusOnlyCas(refundId, RefundStatus.PROCESSING, RefundStatus.FAILED) > 0);
+            if (Boolean.TRUE.equals(failed)) {
+                refund.setStatus(RefundStatus.FAILED);
+                log.error("Refund {} channel call failed ({}) and query confirms NOT refunded, marked FAILED (re-auditable)",
+                        refundId, channelError);
+            }
+        } else {
+            log.error("Refund {} channel call failed ({}) and refund query ambiguous (querySuccess={}, queryStatus={}), "
+                            + "stays PROCESSING for scheduled reconciliation",
+                    refundId, channelError, queryResult.isSuccess(), queryResult.getStatus());
+        }
+    }
+
+    /** 渠道查单安全包装：查单抛异常视为二义（success=false），由调用方决定保持 PROCESSING。 */
+    private UnifiedRefundResult queryRefundSafely(PaymentChannelPlugin plugin, RefundContext context, Long refundId) {
+        try {
+            return plugin.queryRefund(context);
+        } catch (Exception e) {
+            log.warn("Refund {} channel refund query threw: {}", refundId, e.getMessage());
+            return UnifiedRefundResult.builder()
+                    .success(false)
+                    .errorCode("QUERY_EXCEPTION")
+                    .errorMessage(String.valueOf(e.getMessage()))
+                    .build();
+        }
+    }
+
+    private static boolean isQueryConfirmedRefunded(UnifiedRefundResult r) {
+        return r != null && r.isSuccess() && r.getStatus() == RefundStatus.SUCCESS;
+    }
+
+    private static boolean isQueryConfirmedNotRefunded(UnifiedRefundResult r) {
+        return r != null && r.isSuccess() && r.getStatus() == RefundStatus.FAILED;
+    }
+
+    private RefundContext buildRefundContext(PaymentRefundEntity refund, PaymentOrderEntity paymentOrder) {
+        return RefundContext.builder()
                 .refundId(refund.getId())
                 .paymentOrderId(paymentOrder.getId())
                 .orderId(paymentOrder.getOrderId())
@@ -216,71 +364,71 @@ public class RefundServiceImpl implements RefundService {
                 .reason(refund.getReason())
                 .channel(refund.getChannelCode())
                 .build();
-
-        PaymentChannelPlugin plugin = channelFactory.getPlugin(refund.getChannelCode());
-        UnifiedRefundResult refundResult = plugin.initiateRefund(context);
-
-        // 阶段三（短事务）：状态收敛 + 事件出箱 + 流水。
-        if (refundResult.isSuccess()) {
-            String channelRefundNo = refundResult.getChannelRefundNo() != null
-                    ? refundResult.getChannelRefundNo()
-                    : "REF_" + refund.getId();
-            LocalDateTime refundedAt = refundResult.getRefundedAt() != null ? refundResult.getRefundedAt() : LocalDateTime.now();
-
-            Boolean finalized = transactionTemplate.execute(status -> {
-                int updated = refundMapper.updateStatusCas(
-                        refund.getId(), RefundStatus.PROCESSING, RefundStatus.SUCCESS, refundedAt, channelRefundNo);
-                if (updated == 0) {
-                    return false;
-                }
-
-                PaymentRefundedEvent event = PaymentRefundedEvent.builder()
-                        .refundId(refund.getId())
-                        .paymentOrderId(refund.getPaymentOrderId())
-                        .orderId(refund.getOrderId())
-                        .userId(paymentOrder.getUserId())
-                        .refundAmountCents(refund.getRefundAmountCents())
-                        .refundedAt(refundedAt)
-                        .build();
-
-                outboxEventWriter.writeEvent("REFUND", refund.getId(), "PaymentRefundedEvent", event);
-
-                PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
-                        .id(IdWorker.getId())
-                        .paymentOrderId(paymentOrder.getId())
-                        .transactionNo("TX_REF_" + refund.getId())
-                        .channelCode(refund.getChannelCode())
-                        .actionType("REFUND")
-                        .amountCents(refund.getRefundAmountCents())
-                        .feeCents(0L)
-                        .rawRequest(context.toString())
-                        .rawResponse(refundResult.getRawResponse())
-                        .status("SUCCESS")
-                        .createdAt(LocalDateTime.now())
-                        .build();
-                transactionMapper.insert(transaction);
-                return true;
-            });
-
-            if (Boolean.TRUE.equals(finalized)) {
-                refund.setStatus(RefundStatus.SUCCESS);
-                refund.setRefundedAt(refundedAt);
-                refund.setChannelRefundNo(channelRefundNo);
-                log.info("Refund {} successfully completed and broadcasted", refundId);
-            }
-        } else {
-            transactionTemplate.executeWithoutResult(status -> {
-                refund.setStatus(RefundStatus.FAILED);
-                refundMapper.updateById(refund);
-            });
-            log.error("Refund {} invocation failed: {}", refundId, refundResult.getErrorMessage());
-        }
-
-        return toDetailResponse(refund);
     }
 
-    /** 审核阶段一的决策结果：退款单 + 加锁读到的支付单 + 是否驳回。 */
-    private record AuditDecision(PaymentRefundEntity refund, PaymentOrderEntity paymentOrder, boolean rejected) {
+    /**
+     * 定时查单收敛（P2-7）：扫描 PROCESSING 停留超过 PROCESSING_TIMEOUT_MINUTES 分钟的退款单，
+     * 调渠道查单消歧：确认已退→SUCCESS（CAS 防重，事件只发一次）；确认未退→FAILED；
+     * 仍二义→保持 PROCESSING 并输出告警日志，下轮扫描重试。
+     */
+    @Scheduled(fixedDelayString = "${educloud.payment.refund.reconcile-interval-ms:" + RECONCILE_INTERVAL_MS + "}",
+            initialDelayString = "${educloud.payment.refund.reconcile-initial-delay-ms:60000}")
+    public void reconcileStuckRefunds() {
+        LocalDateTime timeoutBefore = LocalDateTime.now().minusMinutes(PROCESSING_TIMEOUT_MINUTES);
+        List<PaymentRefundEntity> stuck = refundMapper.selectList(
+                new LambdaQueryWrapper<PaymentRefundEntity>()
+                        .eq(PaymentRefundEntity::getStatus, RefundStatus.PROCESSING)
+                        .lt(PaymentRefundEntity::getUpdatedAt, timeoutBefore)
+                        .orderByAsc(PaymentRefundEntity::getId)
+                        .last("LIMIT " + RECONCILE_BATCH_SIZE));
+        if (stuck.isEmpty()) {
+            return;
+        }
+        log.warn("Refund reconciliation found {} PROCESSING refund(s) older than {} minute(s)",
+                stuck.size(), PROCESSING_TIMEOUT_MINUTES);
+        for (PaymentRefundEntity refund : stuck) {
+            try {
+                reconcileOne(refund);
+            } catch (Exception e) {
+                log.error("Refund {} reconciliation iteration failed: {}", refund.getId(), e.getMessage(), e);
+            }
+        }
+    }
+
+    private void reconcileOne(PaymentRefundEntity refund) {
+        PaymentOrderEntity paymentOrder = paymentOrderMapper.selectById(refund.getPaymentOrderId());
+        if (paymentOrder == null) {
+            log.error("Refund {} reconciliation skipped: payment order {} not found",
+                    refund.getId(), refund.getPaymentOrderId());
+            return;
+        }
+
+        PaymentChannelPlugin plugin;
+        try {
+            plugin = channelFactory.getPlugin(refund.getChannelCode());
+        } catch (PaymentBizException e) {
+            log.error("Refund {} reconciliation skipped: unsupported channel {}",
+                    refund.getId(), refund.getChannelCode());
+            return;
+        }
+
+        RefundContext context = buildRefundContext(refund, paymentOrder);
+        UnifiedRefundResult queryResult = queryRefundSafely(plugin, context, refund.getId());
+
+        if (isQueryConfirmedRefunded(queryResult)) {
+            boolean finalized = finalizeRefundSuccess(refund, paymentOrder, queryResult, context);
+            log.info("Refund {} reconciliation: query confirms refunded, converged to SUCCESS (finalized={})",
+                    refund.getId(), finalized);
+        } else if (isQueryConfirmedNotRefunded(queryResult)) {
+            boolean failed = Boolean.TRUE.equals(transactionTemplate.execute(status ->
+                    refundMapper.updateStatusOnlyCas(refund.getId(), RefundStatus.PROCESSING, RefundStatus.FAILED) > 0));
+            log.warn("Refund {} reconciliation: query confirms NOT refunded, marked FAILED (failed={})",
+                    refund.getId(), failed);
+        } else {
+            log.error("Refund {} reconciliation: query ambiguous (success={}, status={}), "
+                            + "stays PROCESSING (retry next scan)",
+                    refund.getId(), queryResult.isSuccess(), queryResult.getStatus());
+        }
     }
 
     @Override

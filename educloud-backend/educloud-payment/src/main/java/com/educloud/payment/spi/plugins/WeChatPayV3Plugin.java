@@ -140,6 +140,21 @@ public class WeChatPayV3Plugin implements PaymentChannelPlugin {
     }
 
     @Override
+    public UnifiedRefundResult queryRefund(RefundContext context) {
+        // P2-7 修复：退款查单消歧。沙箱模拟渠道已退；接入真实渠道后调微信退款查询接口，
+        // 按 status 映射：SUCCESS→SUCCESS，CLOSED/ABNORMAL→FAILED，其余二义。
+        String channelRefundNo = "WX_REF_" + context.getRefundId();
+        return UnifiedRefundResult.builder()
+                .success(true)
+                .status(RefundStatus.SUCCESS)
+                .channelRefundNo(channelRefundNo)
+                .refundAmountCents(context.getRefundAmountCents())
+                .refundedAt(LocalDateTime.now())
+                .rawResponse("{\"refund_id\":\"" + channelRefundNo + "\",\"status\":\"SUCCESS\"}")
+                .build();
+    }
+
+    @Override
     public UnifiedQueryResult queryPayment(String channelTradeNo, String paymentOrderId) {
         return UnifiedQueryResult.builder()
                 .success(true)

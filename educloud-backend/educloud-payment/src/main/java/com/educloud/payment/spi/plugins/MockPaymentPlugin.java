@@ -136,6 +136,22 @@ public class MockPaymentPlugin implements PaymentChannelPlugin {
     }
 
     @Override
+    public UnifiedRefundResult queryRefund(RefundContext context) {
+        // P2-7 修复：退款查单消歧。沙箱模拟渠道已退（与 initiateRefund 一致，按 refundId 幂等）；
+        // 接入真实渠道后改为调用渠道退款查询接口，并按返回码映射：确认已退→SUCCESS，
+        // 确认未退→FAILED，查单失败→success=false（二义，由定时任务保持 PROCESSING 重试）。
+        String channelRefundNo = "MOCK_REF_" + context.getRefundId();
+        return UnifiedRefundResult.builder()
+                .success(true)
+                .status(RefundStatus.SUCCESS)
+                .channelRefundNo(channelRefundNo)
+                .refundAmountCents(context.getRefundAmountCents())
+                .refundedAt(LocalDateTime.now())
+                .rawResponse("{\"status\":\"MOCK_REFUNDED\",\"refundNo\":\"" + channelRefundNo + "\"}")
+                .build();
+    }
+
+    @Override
     public UnifiedQueryResult queryPayment(String channelTradeNo, String paymentOrderId) {
         return UnifiedQueryResult.builder()
                 .success(true)
