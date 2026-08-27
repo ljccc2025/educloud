@@ -10,16 +10,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -41,6 +45,9 @@ class DomainNotificationConsumerTest {
 
     @Mock
     private ValueOperations<String, String> valueOperations;
+
+    @Mock
+    private JdbcTemplate jdbcTemplate;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -71,6 +78,72 @@ class DomainNotificationConsumerTest {
                 eq("/learn/101"),
                 eq(true)
         );
+    }
+
+    @Test
+    @DisplayName("支付成功事件无课程名时跨库解析真实课程名测试")
+    void handlePaymentSucceededResolvesRealCourseTitle() {
+        when(jdbcTemplate.queryForList(
+                "SELECT course_title_snapshot FROM educloud_order.trade_order_item WHERE order_id = ? LIMIT 1",
+                String.class, 123L)).thenReturn(List.of("React 18 从入门到精通"));
+
+        PaymentSucceededEvent event = PaymentSucceededEvent.builder()
+                .eventId("evt_pay_1002")
+                .orderId(123L)
+                .userId(1L)
+                .amount(new BigDecimal("299.00"))
+                .build();
+
+        consumer.handlePaymentSucceeded(event);
+
+        verify(jdbcTemplate).queryForList(
+                "SELECT course_title_snapshot FROM educloud_order.trade_order_item WHERE order_id = ? LIMIT 1",
+                String.class, 123L);
+
+        ArgumentCaptor<String> contentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notificationService).sendDirectNotification(
+                eq(1L),
+                eq(NotificationKind.PAYMENT),
+                eq("课程购买成功"),
+                contentCaptor.capture(),
+                eq("开始学习"),
+                eq("/my-courses"),
+                eq(true)
+        );
+        assertThat(contentCaptor.getValue())
+                .contains("React 18 从入门到精通")
+                .doesNotContain("精选课程");
+    }
+
+    @Test
+    @DisplayName("跨库查询失败时兜底为已购课程测试")
+    void handlePaymentSucceededFallsBackWhenCourseTitleQueryFails() {
+        when(jdbcTemplate.queryForList(
+                "SELECT course_title_snapshot FROM educloud_order.trade_order_item WHERE order_id = ? LIMIT 1",
+                String.class, 456L)).thenThrow(new RuntimeException("connection refused"));
+
+        PaymentSucceededEvent event = PaymentSucceededEvent.builder()
+                .eventId("evt_pay_1003")
+                .orderId(456L)
+                .userId(2L)
+                .amount(new BigDecimal("99.00"))
+                .build();
+
+        consumer.handlePaymentSucceeded(event);
+
+        ArgumentCaptor<String> contentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notificationService).sendDirectNotification(
+                eq(2L),
+                eq(NotificationKind.PAYMENT),
+                eq("课程购买成功"),
+                contentCaptor.capture(),
+                eq("开始学习"),
+                eq("/my-courses"),
+                eq(true)
+        );
+        assertThat(contentCaptor.getValue())
+                .contains("已购课程")
+                .doesNotContain("精选课程");
     }
 
     @Test

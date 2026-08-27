@@ -14,11 +14,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -28,6 +30,7 @@ public class DomainNotificationConsumer {
     private final NotificationService notificationService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final JdbcTemplate jdbcTemplate;
 
     private static final String IDEMPOTENCY_PREFIX = "educloud:notification:processed-event:";
     private static final Duration IDEMPOTENCY_TTL = Duration.ofDays(7);
@@ -92,7 +95,11 @@ public class DomainNotificationConsumer {
     public void handlePaymentSucceeded(PaymentSucceededEvent event) {
         if (event.getUserId() == null) return;
         String title = "课程购买成功";
-        String content = "您已成功购买《" + (event.getCourseTitle() != null ? event.getCourseTitle() : "精选课程") + "》，支付金额 ¥" + (event.getAmount() != null ? event.getAmount() : "0.00") + "。现在可以开始学习了！";
+        // 事件自带课程名优先；payment 事件恒不带 courseTitle，则跨库直查订单项标题快照
+        String courseTitle = event.getCourseTitle() != null
+                ? event.getCourseTitle()
+                : resolveCourseTitle(event.getOrderId());
+        String content = "您已成功购买《" + (courseTitle != null ? courseTitle : "已购课程") + "》，支付金额 ¥" + (event.getAmount() != null ? event.getAmount() : "0.00") + "。现在可以开始学习了！";
         String actionPath = event.getCourseId() != null ? "/learn/" + event.getCourseId() : "/my-courses";
         notificationService.sendDirectNotification(
                 event.getUserId(),
@@ -150,6 +157,20 @@ public class DomainNotificationConsumer {
                 "/assignments",
                 false
         );
+    }
+
+    /** 跨库解析真实课程名：educloud_order.trade_order_item 标题快照（订单多课程取第一条）；异常返回 null */
+    private String resolveCourseTitle(Long orderId) {
+        if (orderId == null) return null;
+        try {
+            List<String> titles = jdbcTemplate.queryForList(
+                    "SELECT course_title_snapshot FROM educloud_order.trade_order_item WHERE order_id = ? LIMIT 1",
+                    String.class, orderId);
+            return titles.isEmpty() ? null : titles.get(0);
+        } catch (Exception e) {
+            log.warn("Resolve course title from educloud_order failed, orderId={}: {}", orderId, e.getMessage());
+            return null;
+        }
     }
 
     private boolean tryAcquireIdempotency(String eventId) {
