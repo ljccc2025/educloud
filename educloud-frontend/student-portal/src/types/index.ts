@@ -334,3 +334,20 @@ export interface PaginatedResponse<T> {
   total: number;
   totalPages?: number;
 }
+
+// ---- M13 推荐模块 ----
+export interface RecommendationItem {
+  courseId: string;
+  title: string;
+  categoryId: string;
+  categoryName?: string;
+  coverUrl: string;
+  price: string; // 十进制金额字符串（元）
+  reason: string;
+  strategy: 'POPULAR' | 'NEW' | 'SIMILAR';
+}
+
+export interface RecommendationResponse {
+  configVersion: number;
+  items: RecommendationItem[];
+}
