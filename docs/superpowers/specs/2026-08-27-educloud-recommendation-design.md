@@ -199,7 +199,7 @@ CREATE TABLE recommendation_feedback (
         "title": "Python 入门",
         "categoryId": "3",
         "coverUrl": "http://192.168.100.136:9000/educloud-files/cover/xxx.png",
-        "priceCents": 16800,
+        "price": "168.00",
         "reason": "热门课程",
         "strategy": "POPULAR"
       }
