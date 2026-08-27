@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -64,7 +65,8 @@ public class CrossDbCourseAccessor {
                     JOIN educloud_course.course_version v ON v.id = c.published_version_id
                     JOIN educloud_course.course_category cat ON cat.id = v.category_id AND cat.status = 'VISIBLE'
                     WHERE c.lifecycle_status = 'PUBLISHED' AND c.published_version_id IS NOT NULL
-                    ORDER BY c.published_at DESC""";
+                    ORDER BY c.published_at DESC
+                    LIMIT 500""";
             return jdbcTemplate.query(sql, this::mapCourseRow);
         } catch (Exception e) {
             log.warn("Cross-db query educloud_course visible courses failed, fallback to empty: {}", e.getMessage());
@@ -123,13 +125,15 @@ public class CrossDbCourseAccessor {
                 String placeholders = String.join(",", Collections.nCopies(batch.size(), "?"));
                 String sql = "SELECT id, bucket, object_key FROM educloud_file.file_object"
                         + " WHERE id IN (" + placeholders + ") AND status = 'AVAILABLE'";
-                // 行映射器仅用于收集 url，返回值不参与结果集
-                jdbcTemplate.query(sql, (rs, rowNum) -> {
-                    long id = rs.getLong("id");
-                    String bucket = rs.getString("bucket");
-                    String objectKey = rs.getString("object_key");
-                    if (bucket != null && objectKey != null) {
-                        urls.put(id, "http://192.168.100.136:9000/" + bucket + "/" + objectKey);
+                // 结果提取器仅用于收集 url（返回值不参与结果集），消除 RowMapper 返回 null 反模式
+                jdbcTemplate.query(sql, (ResultSetExtractor<Void>) rs -> {
+                    while (rs.next()) {
+                        long id = rs.getLong("id");
+                        String bucket = rs.getString("bucket");
+                        String objectKey = rs.getString("object_key");
+                        if (bucket != null && objectKey != null) {
+                            urls.put(id, "http://192.168.100.136:9000/" + bucket + "/" + objectKey);
+                        }
                     }
                     return null;
                 }, batch.toArray());

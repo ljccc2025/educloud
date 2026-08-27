@@ -4,6 +4,7 @@ import com.educloud.recommendation.support.CrossDbCourseAccessor.CourseRow;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowMapper;
 
 import java.math.BigDecimal;
@@ -38,8 +39,11 @@ class CrossDbCourseAccessorTest {
         // findVisibleCourses 走 query(sql, RowMapper) 重载
         when(jdbcTemplate.query(anyString(), any(RowMapper.class)))
                 .thenThrow(new RuntimeException("db down"));
-        // findEnrolledCourseContexts / findCoverUrls 走 query(sql, RowMapper, Object...) 重载
+        // findEnrolledCourseContexts 走 query(sql, RowMapper, Object...) 重载
         when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+                .thenThrow(new RuntimeException("db down"));
+        // findCoverUrls 走 query(sql, ResultSetExtractor, Object...) 重载
+        when(jdbcTemplate.query(anyString(), any(ResultSetExtractor.class), any(Object[].class)))
                 .thenThrow(new RuntimeException("db down"));
         // findEnrolledCourseIds 走 queryForList(sql, Class, Object...) 重载
         when(jdbcTemplate.queryForList(anyString(), eq(Long.class), any(Object[].class)))
@@ -97,18 +101,19 @@ class CrossDbCourseAccessorTest {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         CrossDbCourseAccessor accessor = new CrossDbCourseAccessor(jdbcTemplate);
 
-        // findCoverUrls 走 query(sql, RowMapper, Object...) 重载，批次大小 1（少于 MAX_IN_IDS）
-        when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+        // findCoverUrls 走 query(sql, ResultSetExtractor, Object...) 重载，批次大小 1（少于 MAX_IN_IDS）
+        when(jdbcTemplate.query(anyString(), any(ResultSetExtractor.class), any(Object[].class)))
                 .thenAnswer(invocation -> {
                     @SuppressWarnings("unchecked")
-                    RowMapper<Void> rowMapper = invocation.getArgument(1);
+                    ResultSetExtractor<Void> extractor = invocation.getArgument(1);
                     ResultSet rs = mock(ResultSet.class);
+                    when(rs.next()).thenReturn(true, false);
                     when(rs.getLong("id")).thenReturn(7L);
                     when(rs.getString("bucket")).thenReturn("course-covers");
                     when(rs.getString("object_key")).thenReturn("cover/7.jpg");
-                    // 行映射器仅收集 url 到局部 map，返回 null 不参与结果集；此处返回值被调用方丢弃
-                    rowMapper.mapRow(rs, 0);
-                    return List.of();
+                    // 提取器仅收集 url 到局部 map，返回值不参与结果集；此处返回值被调用方丢弃
+                    extractor.extractData(rs);
+                    return null;
                 });
 
         Map<Long, String> urls = accessor.findCoverUrls(Set.of(7L));

@@ -41,7 +41,8 @@ public class FeedbackService {
                     new QueryWrapper<RecommendationFeedbackEntity>()
                             .select("course_id")
                             .eq("user_id", userId)
-                            .eq("action", "DISLIKE"));
+                            .eq("action", "DISLIKE")
+                            .last("LIMIT 500"));
             Set<Long> set = new HashSet<>();
             for (Object id : ids) {
                 set.add(((Number) id).longValue());
