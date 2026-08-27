@@ -50,4 +50,106 @@ public class ContentEventPublisher {
                 requestContextAccessor.requestId(),
                 requestContextAccessor.traceId().orElse(null));
     }
+
+    /**
+     * 作业提交事件（角色化动态流阶段 2）：学生提交作业后发布，
+     * 经 Outbox 投递到内容域交换机（routing key assignment.submitted）。
+     */
+    public void assignmentSubmitted(
+            String assignmentId,
+            String assignmentTitle,
+            String courseId,
+            Long studentId,
+            long aggregateVersion,
+            LocalDateTime submittedAt) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("assignmentId", assignmentId);
+        payload.put("assignmentTitle", assignmentTitle);
+        payload.put("courseId", courseId);
+        payload.put("studentId", studentId);
+        payload.put("aggregateVersion", aggregateVersion);
+        payload.put("submittedAt", submittedAt.toString());
+        writeOutbox("Assignment", assignmentId, "AssignmentSubmitted", aggregateVersion, payload);
+    }
+
+    /**
+     * 作业批改事件（角色化动态流阶段 2）：教师批改后发布，含 score/feedback，
+     * 经 Outbox 投递到全域总线 educloud.events（routing key assignment.graded，
+     * analytics 动态流作业队列与 notification 均按该路由键定向订阅）。
+     */
+    public void assignmentGraded(
+            String assignmentId,
+            String assignmentTitle,
+            String courseId,
+            Long studentId,
+            Integer score,
+            String feedback,
+            long aggregateVersion,
+            LocalDateTime gradedAt) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("assignmentId", assignmentId);
+        payload.put("assignmentTitle", assignmentTitle);
+        payload.put("courseId", courseId);
+        payload.put("studentId", studentId);
+        payload.put("score", score);
+        payload.put("feedback", feedback);
+        payload.put("aggregateVersion", aggregateVersion);
+        payload.put("gradedAt", gradedAt.toString());
+        writeOutbox("Assignment", assignmentId, "AssignmentGraded", aggregateVersion, payload);
+    }
+
+    /**
+     * 完课事件（角色化动态流阶段 3 使用）：学生完成课程学习时发布。
+     */
+    public void courseCompleted(
+            Long courseId,
+            Long studentId,
+            long aggregateVersion,
+            LocalDateTime completedAt) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("courseId", courseId);
+        payload.put("studentId", studentId);
+        payload.put("aggregateVersion", aggregateVersion);
+        payload.put("completedAt", completedAt.toString());
+        writeOutbox("LearningProgress", String.valueOf(courseId), "CourseCompleted", aggregateVersion, payload);
+    }
+
+    /**
+     * 证书颁发事件（角色化动态流阶段 3 使用）：完课证书生成后发布。
+     */
+    public void certificateIssued(
+            String certificateNo,
+            Long courseId,
+            Long studentId,
+            Long teacherId,
+            long aggregateVersion,
+            LocalDateTime issuedAt) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("certificateNo", certificateNo);
+        payload.put("courseId", courseId);
+        payload.put("studentId", studentId);
+        payload.put("teacherId", teacherId);
+        payload.put("aggregateVersion", aggregateVersion);
+        payload.put("issuedAt", issuedAt.toString());
+        writeOutbox("Certificate", certificateNo, "CertificateIssued", aggregateVersion, payload);
+    }
+
+    private void writeOutbox(String aggregateType, String aggregateId, String eventType,
+                             long aggregateVersion, Map<String, Object> payload) {
+        String payloadJson;
+        try {
+            payloadJson = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize " + eventType + " payload", e);
+        }
+        outboxWriter.write(
+                aggregateType,
+                aggregateId,
+                eventType,
+                1,
+                aggregateVersion,
+                payloadJson,
+                requestContextAccessor.requestId(),
+                requestContextAccessor.traceId().orElse(null));
+    }
 }

@@ -3,6 +3,7 @@ package com.educloud.content.service;
 import com.educloud.content.dto.request.AssignmentCreateRequest;
 import com.educloud.content.dto.request.AssignmentSubmitRequest;
 import com.educloud.content.dto.response.AssignmentResponse;
+import com.educloud.content.messaging.ContentEventPublisher;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
@@ -32,6 +33,7 @@ public class AssignmentService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final ContentEventPublisher contentEventPublisher;
 
     public Map<String, String> resolveStudentProfile(Long studentId, String givenName, String givenAvatar) {
         String finalName = (givenName != null && !givenName.isBlank() && !"学员".equals(givenName.trim())) ? givenName.trim() : null;
@@ -423,6 +425,16 @@ public class AssignmentService {
             throw new RuntimeException("提交作业失败: " + e.getMessage());
         }
 
+        // 动态流阶段 2：发布作业提交领域事件（Outbox 落库）；失败不阻断提交主流程。
+        try {
+            contentEventPublisher.assignmentSubmitted(
+                    assignmentId, assignment.getTitle(), assignment.getCourseId(),
+                    studentId, 1L, LocalDateTime.now());
+        } catch (Exception e) {
+            log.warn("Failed to publish AssignmentSubmitted event for assignment {} student {}",
+                    assignmentId, studentId, e);
+        }
+
         AssignmentResponse res = copyAssignment(assignment);
         res.setStatus("SUBMITTED");
         res.setSubmitDate(now);
@@ -466,6 +478,19 @@ public class AssignmentService {
                     assignment.setSubmissions(subs);
                     assignment.setGradedCount((int) subs.stream().filter(s -> "GRADED".equals(s.get("status"))).count());
                     redisTemplate.opsForHash().put(ASSIGNMENT_MAP_KEY, actualAssignmentId, objectMapper.writeValueAsString(assignment));
+                }
+
+                // 动态流阶段 2：发布作业批改领域事件（Outbox 落库，路由 assignment.graded）；
+                // 失败不阻断批改主流程。
+                try {
+                    contentEventPublisher.assignmentGraded(
+                            actualAssignmentId,
+                            assignment != null ? assignment.getTitle() : null,
+                            assignment != null ? assignment.getCourseId() : null,
+                            actualStudentId, score, feedback, 1L, LocalDateTime.now());
+                } catch (Exception e) {
+                    log.warn("Failed to publish AssignmentGraded event for assignment {} student {}",
+                            actualAssignmentId, actualStudentId, e);
                 }
             } catch (Exception e) {
                 log.error("Failed to grade submission", e);

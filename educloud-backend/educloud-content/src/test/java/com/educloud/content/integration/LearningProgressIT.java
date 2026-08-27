@@ -79,6 +79,7 @@ class LearningProgressIT {
         try (Connection connection = dataSource.getConnection()) {
             ScriptUtils.executeSqlScript(connection, new FileSystemResource(Path.of("../../deploy/sql/content/V000__technical_tables.sql")));
             ScriptUtils.executeSqlScript(connection, new FileSystemResource(Path.of("../../deploy/sql/content/V001__init_content_schema.sql")));
+            ScriptUtils.executeSqlScript(connection, new FileSystemResource(Path.of("../../deploy/sql/content/V003__outbox_claim_support.sql")));
         }
 
         MybatisConfiguration configuration = new MybatisConfiguration();

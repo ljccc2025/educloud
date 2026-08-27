@@ -44,4 +44,10 @@ public class OutboxEventEntity {
     private LocalDateTime publishedAt;
 
     private LocalDateTime archivedAt;
+
+    /** 认领实例标识（V003 迁移，CAS 认领防多实例重复投递）。 */
+    private String claimOwner;
+
+    /** 状态变更时间戳（V003 迁移，供过期认领回置判定）。 */
+    private LocalDateTime updatedAt;
 }
