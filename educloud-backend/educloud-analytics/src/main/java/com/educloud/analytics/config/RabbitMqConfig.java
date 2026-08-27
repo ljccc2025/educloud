@@ -23,6 +23,12 @@ public class RabbitMqConfig {
     public static final String QUEUE_ANALYTICS_AUDIT = "analytics.audit.events.queue";
     public static final String QUEUE_ANALYTICS_DLQ = "analytics.sync.dlq";
 
+    // 角色化动态流（规格 2026-08-27-activity-feed-certificate-design.md §5）：
+    // 独立队列订阅同一批领域事件交换机，与聚合消费互不影响。
+    public static final String QUEUE_ACTIVITY_FEED_COURSE = "analytics.activity.feed.course.queue";
+    public static final String QUEUE_ACTIVITY_FEED_PAYMENT = "analytics.activity.feed.payment.queue";
+    public static final String QUEUE_ACTIVITY_FEED_CONTENT = "analytics.activity.feed.content.queue";
+
     public static final String ROUTING_KEY_DLQ = "analytics.sync.dlq";
 
     @Bean
@@ -101,6 +107,30 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue activityFeedCourseQueue() {
+        return QueueBuilder.durable(QUEUE_ACTIVITY_FEED_COURSE)
+                .deadLetterExchange(EXCHANGE_ANALYTICS_DLX)
+                .deadLetterRoutingKey(ROUTING_KEY_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Queue activityFeedPaymentQueue() {
+        return QueueBuilder.durable(QUEUE_ACTIVITY_FEED_PAYMENT)
+                .deadLetterExchange(EXCHANGE_ANALYTICS_DLX)
+                .deadLetterRoutingKey(ROUTING_KEY_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Queue activityFeedContentQueue() {
+        return QueueBuilder.durable(QUEUE_ACTIVITY_FEED_CONTENT)
+                .deadLetterExchange(EXCHANGE_ANALYTICS_DLX)
+                .deadLetterRoutingKey(ROUTING_KEY_DLQ)
+                .build();
+    }
+
+    @Bean
     public Binding userBinding(Queue analyticsUserQueue, TopicExchange userEventsExchange) {
         return BindingBuilder.bind(analyticsUserQueue).to(userEventsExchange).with("user.*");
     }
@@ -123,6 +153,23 @@ public class RabbitMqConfig {
     @Bean
     public Binding auditBinding(Queue analyticsAuditQueue, TopicExchange auditEventsExchange) {
         return BindingBuilder.bind(analyticsAuditQueue).to(auditEventsExchange).with("audit.*");
+    }
+
+    // 动态流队列用 "#" 通配绑定：既兼容既有 "course.*" 风格 routing key，
+    // 也兼容 Outbox 投递器 aggregateType.aggregateId（如 Course.1001）风格。
+    @Bean
+    public Binding activityFeedCourseBinding(Queue activityFeedCourseQueue, TopicExchange courseEventsExchange) {
+        return BindingBuilder.bind(activityFeedCourseQueue).to(courseEventsExchange).with("#");
+    }
+
+    @Bean
+    public Binding activityFeedPaymentBinding(Queue activityFeedPaymentQueue, TopicExchange paymentEventsExchange) {
+        return BindingBuilder.bind(activityFeedPaymentQueue).to(paymentEventsExchange).with("#");
+    }
+
+    @Bean
+    public Binding activityFeedContentBinding(Queue activityFeedContentQueue, TopicExchange contentEventsExchange) {
+        return BindingBuilder.bind(activityFeedContentQueue).to(contentEventsExchange).with("#");
     }
 
     @Bean
