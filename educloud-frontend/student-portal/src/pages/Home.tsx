@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -108,9 +108,11 @@ export default function Home() {
     };
   }, []);
 
+  const courseById = useMemo(() => new Map(courses.map((c) => [c.id, c])), [courses]);
+
   /** 推荐项 → Course 形状（CourseCard 兼容；推荐项不在 store 时补齐全部字段默认值，缺失字段回退 store 同名课程） */
   const toCourseShape = (item: RecommendationItem): Course => {
-    const cached = courses.find((c) => c.id === item.courseId);
+    const cached = courseById.get(item.courseId);
     return {
       id: item.courseId,
       title: item.title,

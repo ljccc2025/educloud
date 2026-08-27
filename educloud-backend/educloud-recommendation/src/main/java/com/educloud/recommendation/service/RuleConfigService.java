@@ -92,7 +92,7 @@ public class RuleConfigService {
         int allocated = 0;
         for (RecommendationRuleConfigEntity rule : rules) {
             int weight = weightOf(rule);
-            int share = (int) Math.round(limit * (float) weight / totalWeight);
+            int share = (limit * weight + totalWeight / 2) / totalWeight;
             quota.put(rule.getRuleKey(), share);
             allocated += share;
         }

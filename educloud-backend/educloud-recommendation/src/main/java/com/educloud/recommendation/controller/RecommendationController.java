@@ -40,6 +40,11 @@ public class RecommendationController {
     private static final Set<String> SUPPORTED_CONTEXTS = Set.of("home", "course");
     private static final String DISLIKE_ACTION = "DISLIKE";
 
+    /** 便捷构造：域错误码 + 默认文案（与调用方显式传 defaultMessage 语义一致） */
+    private static BusinessException of(RecommendationErrorCode code) {
+        return new BusinessException(code, code.defaultMessage());
+    }
+
     private final RecommendationService recommendationService;
     private final FeedbackService feedbackService;
     private final ApiResponseFactory responses;
@@ -51,14 +56,10 @@ public class RecommendationController {
             @RequestParam(defaultValue = "10") Integer limit,
             @AuthenticationPrincipal Jwt jwt) {
         if (!SUPPORTED_CONTEXTS.contains(context)) {
-            throw new BusinessException(
-                    RecommendationErrorCode.RECOMMENDATION_CONTEXT_INVALID,
-                    RecommendationErrorCode.RECOMMENDATION_CONTEXT_INVALID.defaultMessage());
+            throw of(RecommendationErrorCode.RECOMMENDATION_CONTEXT_INVALID);
         }
         if ("course".equals(context) && courseId == null) {
-            throw new BusinessException(
-                    RecommendationErrorCode.RECOMMENDATION_COURSE_ID_REQUIRED,
-                    RecommendationErrorCode.RECOMMENDATION_COURSE_ID_REQUIRED.defaultMessage());
+            throw of(RecommendationErrorCode.RECOMMENDATION_COURSE_ID_REQUIRED);
         }
         Long userId = userId(jwt);
         Set<Long> disliked = feedbackService.dislikedCourseIds(userId);

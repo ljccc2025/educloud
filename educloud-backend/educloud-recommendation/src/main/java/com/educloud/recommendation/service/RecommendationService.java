@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,6 +35,8 @@ public class RecommendationService {
         if (visible.isEmpty()) {
             return RecommendationResponse.builder().configVersion(configVersion).items(List.of()).build();
         }
+        Map<Long, CourseRow> visibleById = visible.stream()
+                .collect(Collectors.toMap(CourseRow::getCourseId, Function.identity()));
         Map<Long, String> coverUrls = accessor.findCoverUrls(
                 visible.stream().map(CourseRow::getCoverFileId)
                         .filter(Objects::nonNull).collect(Collectors.toSet()));
@@ -56,9 +59,7 @@ public class RecommendationService {
         Set<Long> similarCategoryIds = new HashSet<>();
         String similarReason = null;
         if (courseId != null) {
-            CourseRow target = visible.stream()
-                    .filter(r -> r.getCourseId().equals(courseId))
-                    .findFirst().orElse(null);
+            CourseRow target = courseId == null ? null : visibleById.get(courseId);
             if (target != null) {
                 similarCategoryIds.add(target.getCategoryId());
                 similarReason = "与本课程同属「" + target.getCategoryName() + "」";
@@ -84,17 +85,23 @@ public class RecommendationService {
         int newQuota = quota.getOrDefault(RuleConfigService.NEW, 0);
         int popularQuota = quota.getOrDefault(RuleConfigService.POPULAR, 0);
 
-        take(similarCandidates, similarQuota, RuleConfigService.SIMILAR, similarReason, result, used, coverUrls);
         List<CourseRow> byNew = candidates.stream()
                 .sorted(Comparator.comparing(CourseRow::getPublishedAt,
                                 Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(CourseRow::getCourseId))
                 .toList();
-        take(byNew, newQuota, RuleConfigService.NEW, "新上架", result, used, coverUrls);
         List<CourseRow> byPopular = candidates.stream()
                 .sorted(Comparator.comparing(this::popularScore).reversed()
                         .thenComparing(CourseRow::getCourseId))
                 .toList();
+
+        // 双命中重写窗口：在 take 之前按各策略排名前缀计算配额窗口；hitWindow 与 take 使用
+        // 相同的「跳过已用课程再计数」语义（此处 used 尚未被任何 take 填充，窗口即排名前缀）
+        Set<Long> popularIds = hitWindow(byPopular, popularQuota, used);
+        Set<Long> newIds = hitWindow(byNew, newQuota, used);
+
+        take(similarCandidates, similarQuota, RuleConfigService.SIMILAR, similarReason, result, used, coverUrls);
+        take(byNew, newQuota, RuleConfigService.NEW, "新上架", result, used, coverUrls);
         take(byPopular, popularQuota, RuleConfigService.POPULAR, "热门课程", result, used, coverUrls);
 
         // 空缺补齐：按 POPULAR → NEW 顺序补足 safeLimit
@@ -115,8 +122,6 @@ public class RecommendationService {
         // POPULAR > NEW > SIMILAR 优先级取最高者。take 顺序 SIMILAR→NEW→POPULAR 会让双命中课程
         // 被低优先级策略先占用，此处按「各策略配额窗口」（排名前缀）重写为最高优先级标签：
         // 在 POPULAR 窗口内 → 热门课程；否则在 NEW 窗口内 → 新上架；否则保持原标签（通常为 SIMILAR）。
-        Set<Long> popularIds = hitWindow(byPopular, popularQuota);
-        Set<Long> newIds = hitWindow(byNew, newQuota);
         for (RecommendationItem item : result) {
             long id = Long.parseLong(item.getCourseId());
             if (popularIds.contains(id)) {
@@ -130,10 +135,8 @@ public class RecommendationService {
 
         // 最终确定性排序（规格 5.2 第 6 步）：score 降序，同分按 course_id 数值升序
         // 注意：scoreMap 为每个候选课程预计算的 popularScore，避免 RecommendationItem 无评分数
-        Map<Long, BigDecimal> scoreMap = new HashMap<>();
-        for (CourseRow row : visible) {
-            scoreMap.put(row.getCourseId(), popularScore(row));
-        }
+        Map<Long, BigDecimal> scoreMap = candidates.stream()
+                .collect(Collectors.toMap(CourseRow::getCourseId, this::popularScore));
         result.sort(Comparator.comparing((RecommendationItem item) ->
                         scoreMap.getOrDefault(Long.parseLong(item.getCourseId()), BigDecimal.ZERO))
                 .reversed()
@@ -145,11 +148,16 @@ public class RecommendationService {
                 .build();
     }
 
-    /** 策略命中窗口：排名列表中配额内的课程 ID 前缀（即该策略 take 会选中的课程集合） */
-    private Set<Long> hitWindow(List<CourseRow> rows, int quota) {
+    /** 策略命中窗口：排名列表中配额内的课程 ID 前缀（即该策略配额窗口的命中集合）。
+     *  与 take 相同的 used 计数语义：跳过 used 中已存在的课程再计数；窗口在 take 之前
+     *  计算（此时 used 为空），因此窗口即各策略的排名前缀。 */
+    private Set<Long> hitWindow(List<CourseRow> rows, int quota, Set<Long> used) {
         Set<Long> ids = new HashSet<>();
         for (int i = 0; i < rows.size() && ids.size() < quota; i++) {
-            ids.add(rows.get(i).getCourseId());
+            CourseRow row = rows.get(i);
+            if (!used.contains(row.getCourseId())) {
+                ids.add(row.getCourseId());
+            }
         }
         return ids;
     }

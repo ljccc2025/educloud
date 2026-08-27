@@ -32,6 +32,14 @@ public class CrossDbCourseAccessor {
     /** 单条 IN 子句最大占位符数，防止 SQL 占位符溢出（MySQL 上限 65535） */
     private static final int MAX_IN_IDS = 1000;
 
+    /** 课程只读查询共用 SELECT 列（findVisibleCourses / findEnrolledCourseContexts 复用，避免重复维护） */
+    private static final String COURSE_SELECT_COLUMNS = """
+            SELECT c.id AS course_id, v.title, v.category_id,
+                   cat.name AS category_name, c.published_at,
+                   v.price, v.cover_file_id,
+                   c.enrollment_count, c.rating_avg
+            """;
+
     /** 课程只读行：educloud_course 各表 JOIN 后的扁平结构 */
     @Data
     public static class CourseRow {
@@ -51,15 +59,12 @@ public class CrossDbCourseAccessor {
      */
     public List<CourseRow> findVisibleCourses() {
         try {
-            String sql = "SELECT c.id AS course_id, v.title, v.category_id,\n"
-                    + "       cat.name AS category_name, c.published_at,\n"
-                    + "       v.price, v.cover_file_id,\n"
-                    + "       c.enrollment_count, c.rating_avg\n"
-                    + "FROM educloud_course.course c\n"
-                    + "JOIN educloud_course.course_version v ON v.id = c.published_version_id\n"
-                    + "JOIN educloud_course.course_category cat ON cat.id = v.category_id AND cat.status = 'VISIBLE'\n"
-                    + "WHERE c.lifecycle_status = 'PUBLISHED' AND c.published_version_id IS NOT NULL\n"
-                    + "ORDER BY c.published_at DESC";
+            String sql = COURSE_SELECT_COLUMNS + """
+                    FROM educloud_course.course c
+                    JOIN educloud_course.course_version v ON v.id = c.published_version_id
+                    JOIN educloud_course.course_category cat ON cat.id = v.category_id AND cat.status = 'VISIBLE'
+                    WHERE c.lifecycle_status = 'PUBLISHED' AND c.published_version_id IS NOT NULL
+                    ORDER BY c.published_at DESC""";
             return jdbcTemplate.query(sql, this::mapCourseRow);
         } catch (Exception e) {
             log.warn("Cross-db query educloud_course visible courses failed, fallback to empty: {}", e.getMessage());
@@ -86,17 +91,14 @@ public class CrossDbCourseAccessor {
      */
     public List<CourseRow> findEnrolledCourseContexts(Long studentId) {
         try {
-            String sql = "SELECT c.id AS course_id, v.title, v.category_id,\n"
-                    + "       cat.name AS category_name, c.published_at,\n"
-                    + "       v.price, v.cover_file_id,\n"
-                    + "       c.enrollment_count, c.rating_avg\n"
-                    + "FROM educloud_course.course_enrollment e\n"
-                    + "JOIN educloud_course.course c ON c.id = e.course_id\n"
-                    + "JOIN educloud_course.course_version v ON v.id = c.published_version_id\n"
-                    + "JOIN educloud_course.course_category cat ON cat.id = v.category_id AND cat.status = 'VISIBLE'\n"
-                    + "WHERE e.student_id = ? AND e.status = 'ACTIVE'\n"
-                    + "ORDER BY e.enrolled_at DESC\n"
-                    + "LIMIT 50";
+            String sql = COURSE_SELECT_COLUMNS + """
+                    FROM educloud_course.course_enrollment e
+                    JOIN educloud_course.course c ON c.id = e.course_id
+                    JOIN educloud_course.course_version v ON v.id = c.published_version_id
+                    JOIN educloud_course.course_category cat ON cat.id = v.category_id AND cat.status = 'VISIBLE'
+                    WHERE e.student_id = ? AND e.status = 'ACTIVE'
+                    ORDER BY e.enrolled_at DESC
+                    LIMIT 50""";
             return jdbcTemplate.query(sql, this::mapCourseRow, studentId);
         } catch (Exception e) {
             log.warn("Cross-db query enrolled course contexts failed, fallback to empty: {}", e.getMessage());

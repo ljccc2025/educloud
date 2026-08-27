@@ -1,3 +1,7 @@
+-- 部署前提：root 需先预授权迁移账号（一次性）：
+--   GRANT SELECT ON educloud_course.* TO 'recommendation_migration'@'%' WITH GRANT OPTION;
+--   GRANT SELECT ON educloud_file.* TO 'recommendation_migration'@'%' WITH GRANT OPTION;
+--
 -- EduCloud Recommendation 数据库：跨库只读授权（V002）
 -- 依据：docs/superpowers/specs/2026-08-27-educloud-recommendation-design.md §4.1
 -- 应用账号仅授予 educloud_course / educloud_file 只读 SELECT（逐表授权，与仓库权限模型一致）
