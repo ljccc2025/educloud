@@ -335,6 +335,32 @@ export interface PaginatedResponse<T> {
   totalPages?: number;
 }
 
+// ---- 角色化动态流（真实 API：GET /api/v1/analytics/student/activities，阶段 4） ----
+// 契约见后端 ActivityItem；时间一律使用 timestamp（ISO-8601）计算相对时间，
+// 禁止使用后端中文相对时间（timeAgo），否则 dayjs 解析为 Invalid Date。
+export interface ActivityItem {
+  id: string;
+  /** 动态类型（ENROLLED / ASSIGNMENT_SUBMITTED / ASSIGNMENT_GRADED / COURSE_COMPLETED / CERTIFICATE_ISSUED / PROGRESS_MILESTONE / COURSE_REVIEWED ...） */
+  actionType: string;
+  /** 动作中文文案（后端按模板组合目标标题与扩展字段） */
+  action: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  targetTitle?: string | null;
+  /** 扩展字段（分数/进度/星级/评语） */
+  extra?: Record<string, unknown> | null;
+  /** 事件发生时间（ISO-8601） */
+  timestamp: string;
+}
+
+// ---- 完课证书（真实 API：GET /api/v1/content/certificates，阶段 3） ----
+export interface Certificate {
+  certNo: string;
+  courseId: string | number;
+  courseTitle: string;
+  issuedAt: string;
+}
+
 // ---- M13 推荐模块 ----
 export interface RecommendationItem {
   courseId: string;

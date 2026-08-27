@@ -4,6 +4,7 @@ import type {
   LiveRoom, ChatMessage,
   Assignment, Exam, Order, StudentUser, HomeStats,
   CategoryShowcase, CartResponse, PaginatedResponse,
+  ActivityItem, Certificate,
 } from '../types';
 import { courseApi } from './courseApi';
 import { searchApi } from './searchApi';
@@ -494,4 +495,32 @@ export const authApi = {
 export const homeApi = {
   getStats: (): Promise<HomeStats> => delay(homeStats),
   getCategories: (): Promise<CategoryShowcase[]> => delay(categories),
+};
+
+// ---------- 学习动态（角色化动态流阶段 4：真实 API，失败返回空数组） ----------
+// 相对时间必须用后端 timestamp（ISO-8601）计算，绝不能用 timeAgo（中文相对时间会让 dayjs Invalid Date）。
+export const activityApi = {
+  getStudentActivities: async (limit = 10): Promise<ActivityItem[]> => {
+    try {
+      const resp = await http.get<ApiEnvelope<ActivityItem[]>>('/analytics/student/activities', {
+        params: { limit },
+      });
+      return Array.isArray(resp.data?.data) ? resp.data.data : [];
+    } catch {
+      // 动态服务不可用时首页隐藏区块内容，不阻断页面渲染。
+      return [];
+    }
+  },
+};
+
+// ---------- 完课证书（角色化动态流阶段 3：真实 API） ----------
+export const certificateApi = {
+  getMyCertificates: async (): Promise<Certificate[]> => {
+    const resp = await http.get<ApiEnvelope<Certificate[]>>('/content/certificates');
+    return Array.isArray(resp.data?.data) ? resp.data.data : [];
+  },
+  getByCertNo: async (certNo: string): Promise<Certificate> => {
+    const resp = await http.get<ApiEnvelope<Certificate>>(`/content/certificates/${encodeURIComponent(certNo)}`);
+    return resp.data.data;
+  },
 };

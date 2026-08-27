@@ -29,8 +29,10 @@ import { useCourseStore } from '@/stores/useCourseStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { courseApi } from '@/services/courseApi';
 import { recommendationApi } from '@/services/recommendationApi';
+import { activityApi } from '@/services/api';
 import CourseCard from '@/components/CourseCard';
-import type { Category, Course, RecommendationItem } from '@/types';
+import type { ActivityItem, Category, Course, RecommendationItem } from '@/types';
+import { relativeTime } from '@/utils/relativeTime';
 import SideRays from '@/components/SideRays/SideRays';
 
 const stats = [
@@ -52,6 +54,19 @@ const categoryIcons: Record<string, LucideIcon> = {
   'SQL 数据分析': Database,
   'Python 数据分析': Terminal,
 };
+
+// 我的学习动态（角色化动态流阶段 4）：类型图标 + 底色；
+// 相对时间统一由后端 timestamp（ISO-8601）计算，绝不用 timeAgo（会 Invalid Date）。
+const ACTIVITY_META: Record<string, { emoji: string; bg: string; label: string }> = {
+  ENROLLED: { emoji: '📖', bg: 'bg-indigo-50 dark:bg-indigo-900/30', label: '报名' },
+  ASSIGNMENT_SUBMITTED: { emoji: '✍️', bg: 'bg-sky-50 dark:bg-sky-900/30', label: '交作业' },
+  ASSIGNMENT_GRADED: { emoji: '✅', bg: 'bg-green-50 dark:bg-green-900/30', label: '批改' },
+  COURSE_COMPLETED: { emoji: '🏆', bg: 'bg-amber-50 dark:bg-amber-900/30', label: '完课' },
+  CERTIFICATE_ISSUED: { emoji: '🎓', bg: 'bg-purple-50 dark:bg-purple-900/30', label: '证书' },
+  PROGRESS_MILESTONE: { emoji: '📈', bg: 'bg-emerald-50 dark:bg-emerald-900/30', label: '进度' },
+  COURSE_REVIEWED: { emoji: '⭐', bg: 'bg-yellow-50 dark:bg-yellow-900/30', label: '评价' },
+};
+const DEFAULT_ACTIVITY_META = { emoji: '📝', bg: 'bg-ink-50 dark:bg-ink-800', label: '其他' };
 
 export default function Home() {
   const { courses, fetchCourses } = useCourseStore();
@@ -92,6 +107,40 @@ export default function Home() {
   }, []);
 
   const [recommended, setRecommended] = useState<RecommendationItem[] | null>(null);
+
+  // 我的学习动态（仅登录后拉取；未登录不显示区块）
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [activitiesLoaded, setActivitiesLoaded] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let cancelled = false;
+    activityApi.getStudentActivities(10).then((items) => {
+      if (cancelled) return;
+      setActivities(items);
+      setActivitiesLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
+
+  // 筛选标签：只展示数据中实际出现过的动态类型，标签文案取类型元数据。
+  const activityTypeOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    activities.forEach((item) => {
+      if (!seen.has(item.actionType)) {
+        seen.set(item.actionType, ACTIVITY_META[item.actionType]?.label ?? item.actionType);
+      }
+    });
+    return Array.from(seen.entries()).map(([value, label]) => ({ value, label }));
+  }, [activities]);
+
+  const filteredActivities = useMemo(
+    () => (activityFilter === 'ALL' ? activities : activities.filter((item) => item.actionType === activityFilter)),
+    [activities, activityFilter],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -253,6 +302,94 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* 我的学习动态（角色化动态流阶段 4；未登录不显示） */}
+      {isLoggedIn && (
+        <section
+          data-home-activity-section
+          className="border-b border-ink-100 bg-white/50 dark:border-ink-800 dark:bg-ink-900/40"
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <div className="flex items-end justify-between mb-8">
+              <div>
+                <span className="section-label mb-4">学习足迹</span>
+                <h2 className="display-heading text-3xl md:text-4xl mt-4">我的学习动态</h2>
+              </div>
+            </div>
+
+            {/* 类型筛选标签 */}
+            {activityTypeOptions.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-6">
+                <button
+                  type="button"
+                  onClick={() => setActivityFilter('ALL')}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                    activityFilter === 'ALL'
+                      ? 'bg-indigo-800 text-white border-indigo-800'
+                      : 'bg-white text-ink-600 border-ink-200 hover:border-indigo-300 hover:text-indigo-800 dark:bg-ink-900 dark:text-ink-300 dark:border-ink-700'
+                  }`}
+                >
+                  全部
+                </button>
+                {activityTypeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setActivityFilter(option.value)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                      activityFilter === option.value
+                        ? 'bg-indigo-800 text-white border-indigo-800'
+                        : 'bg-white text-ink-600 border-ink-200 hover:border-indigo-300 hover:text-indigo-800 dark:bg-ink-900 dark:text-ink-300 dark:border-ink-700'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!activitiesLoaded ? (
+              <p className="text-sm text-ink-400 text-center py-10">动态加载中…</p>
+            ) : filteredActivities.length === 0 ? (
+              <div className="card-editorial px-6 py-12 text-center">
+                <p className="text-3xl mb-3">🌱</p>
+                <p className="text-sm text-ink-500 mb-4">
+                  {activities.length === 0 ? '还没有学习动态，从一门课程开始你的学习之旅吧' : '该类型下暂无动态'}
+                </p>
+                {activities.length === 0 && (
+                  <Link to="/courses" className="btn-outline text-sm">
+                    <BookOpen size={16} />
+                    浏览课程
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="card-editorial divide-y divide-ink-50 dark:divide-ink-800">
+                {filteredActivities.map((item) => {
+                  const meta = ACTIVITY_META[item.actionType] ?? DEFAULT_ACTIVITY_META;
+                  return (
+                    <div key={item.id} className="flex items-start gap-4 px-5 py-4">
+                      <span
+                        aria-hidden="true"
+                        className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl text-lg ${meta.bg}`}
+                      >
+                        {meta.emoji}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-ink-700 dark:text-ink-200">{item.action || meta.label}</p>
+                        <p className="text-xs text-ink-400 mt-0.5">{relativeTime(item.timestamp)}</p>
+                      </div>
+                      <span className="flex-shrink-0 px-2 py-0.5 text-[10px] font-medium rounded-full bg-ink-50 text-ink-500 dark:bg-ink-800 dark:text-ink-300">
+                        {meta.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Featured Courses */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
