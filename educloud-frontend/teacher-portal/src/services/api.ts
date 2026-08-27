@@ -1000,13 +1000,17 @@ export const api = {
     try {
       const resp = await http.get<ApiEnvelope<any[]>>('/analytics/teacher/activities');
       if (resp.data?.data) {
-        return resp.data.data.map((item) => ({
+        return resp.data.data.map((item): Activity => ({
           id: item.id || `act-${Math.random()}`,
+          type: 'system',
+          // 后端审计事件无 content 字段：由学员名 + 动作 + 课程名组合成可读内容（修复内容为空）
+          content: `${item.studentName || '学员'} ${item.action || '进行了操作'} · ${item.courseName || ''}`,
           studentName: item.studentName || '学员',
           studentAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.studentName}&backgroundColor=c7d2fe`,
           action: item.action || '进行了学习操作',
           courseName: item.courseName || '微服务实战',
-          time: item.timeAgo || '刚刚',
+          // 后端 timeAgo 是中文相对时间（如“近期”）无法被 dayjs 解析；改用可解析的 timestamp（修复 Invalid Date）
+          time: item.timestamp || new Date().toISOString(),
         }));
       }
     } catch (e) {
