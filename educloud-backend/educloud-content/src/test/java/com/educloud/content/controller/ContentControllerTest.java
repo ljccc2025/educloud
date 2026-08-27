@@ -10,7 +10,9 @@ import com.educloud.content.dto.response.ChapterResponse;
 import com.educloud.content.dto.response.ContentDraftResponse;
 import com.educloud.content.dto.response.CourseProgressResponse;
 import com.educloud.content.dto.response.CoursewareDownloadUrlResponse;
+import com.educloud.content.entity.CourseCertificateEntity;
 import com.educloud.content.security.TeacherAccessGuard;
+import com.educloud.content.service.CertificateService;
 import com.educloud.content.service.ChapterService;
 import com.educloud.content.service.ContentAuditService;
 import com.educloud.content.service.ContentRevisionService;
@@ -48,7 +50,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ContentPublicController.class,
         ContentTeacherController.class,
         ContentStudentController.class,
-        ContentAdminController.class
+        ContentAdminController.class,
+        CertificateController.class
 })
 @Import({SecurityConfig.class, ContentControllerTest.TestConfig.class})
 class ContentControllerTest {
@@ -72,6 +75,8 @@ class ContentControllerTest {
     private CourseProgressService progressService;
     @MockBean
     private ContentAuditService auditService;
+    @MockBean
+    private CertificateService certificateService;
     @MockBean
     private JwtDecoder jwtDecoder;
 
@@ -141,6 +146,49 @@ class ContentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
                 .andExpect(jsonPath("$.data.downloadUrl").value("http://video.stream/sample.mp4"));
+    }
+
+    @Test
+    void certificateList_returnsCurrentStudentCertificates() throws Exception {
+        Jwt jwt = createJwt("2001", Set.of("STUDENT"), Set.of());
+        when(jwtDecoder.decode(eq("student-token"))).thenReturn(jwt);
+
+        CourseCertificateEntity cert = new CourseCertificateEntity();
+        cert.setCertNo("CERT-20260827-000001");
+        cert.setUserId(2001L);
+        cert.setCourseId(101L);
+        cert.setCourseTitle("Spring Boot 微服务实践");
+        cert.setIssuedAt(LocalDateTime.of(2026, 8, 27, 10, 0, 0));
+        when(certificateService.listCertificates(2001L)).thenReturn(List.of(cert));
+
+        mockMvc.perform(get("/api/v1/content/certificates")
+                        .header("Authorization", "Bearer student-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SUCCESS"))
+                .andExpect(jsonPath("$.data[0].certNo").value("CERT-20260827-000001"))
+                .andExpect(jsonPath("$.data[0].courseId").value("101"))
+                .andExpect(jsonPath("$.data[0].courseTitle").value("Spring Boot 微服务实践"));
+    }
+
+    @Test
+    void certificateDetail_returnsCertificateByCertNo() throws Exception {
+        Jwt jwt = createJwt("2001", Set.of("STUDENT"), Set.of());
+        when(jwtDecoder.decode(eq("student-token"))).thenReturn(jwt);
+
+        CourseCertificateEntity cert = new CourseCertificateEntity();
+        cert.setCertNo("CERT-20260827-000002");
+        cert.setUserId(2002L);
+        cert.setCourseId(102L);
+        cert.setCourseTitle("Python 自动化测试实战");
+        cert.setIssuedAt(LocalDateTime.of(2026, 8, 27, 11, 0, 0));
+        when(certificateService.getByCertNo("CERT-20260827-000002")).thenReturn(cert);
+
+        mockMvc.perform(get("/api/v1/content/certificates/CERT-20260827-000002")
+                        .header("Authorization", "Bearer student-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.certNo").value("CERT-20260827-000002"))
+                .andExpect(jsonPath("$.data.courseTitle").value("Python 自动化测试实战"));
     }
 
     private static Jwt createJwt(String subject, Set<String> roles, Set<String> permissions) {

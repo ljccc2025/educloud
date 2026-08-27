@@ -46,7 +46,7 @@ spring:
           uri: lb://educloud-content
           order: 60
           predicates:
-            - Path=/api/v1/chapters,/api/v1/chapters/**,/api/v1/coursewares,/api/v1/coursewares/**,/api/v1/content-revisions,/api/v1/content-revisions/**,/api/v1/assignments,/api/v1/assignments/**,/api/v1/submissions,/api/v1/submissions/**,/api/v1/exams,/api/v1/exams/**,/api/v1/exam-attempts,/api/v1/exam-attempts/**,/api/v1/community,/api/v1/community/**,/api/v1/content-audits,/api/v1/content-audits/**,/api/v1/admin/content-audits/**,/api/v1/student/courses/**
+            - Path=/api/v1/chapters,/api/v1/chapters/**,/api/v1/coursewares,/api/v1/coursewares/**,/api/v1/content-revisions,/api/v1/content-revisions/**,/api/v1/assignments,/api/v1/assignments/**,/api/v1/submissions,/api/v1/submissions/**,/api/v1/exams,/api/v1/exams/**,/api/v1/exam-attempts,/api/v1/exam-attempts/**,/api/v1/community,/api/v1/community/**,/api/v1/content-audits,/api/v1/content-audits/**,/api/v1/admin/content-audits/**,/api/v1/student/courses/**,/api/v1/content/certificates,/api/v1/content/certificates/**
         - id: content-drafts
           uri: lb://educloud-content
           order: 65

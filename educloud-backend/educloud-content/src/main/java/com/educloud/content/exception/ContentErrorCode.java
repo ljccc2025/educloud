@@ -12,7 +12,8 @@ public enum ContentErrorCode implements ErrorCode {
     SUBMISSION_NOT_PENDING(409, "Content audit submission is not in pending state"),
     AUDIT_REJECT_REASON_REQUIRED(400, "Reject reason is required"),
     INVALID_PROGRESS(400, "Invalid learning progress report"),
-    TEACHER_ACCESS_DENIED(403, "You are not authorized to manage content for this course");
+    TEACHER_ACCESS_DENIED(403, "You are not authorized to manage content for this course"),
+    CERTIFICATE_NOT_FOUND(404, "Certificate not found");
 
     private final int httpStatus;
     private final String defaultMessage;
