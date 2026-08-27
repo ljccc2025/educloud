@@ -78,7 +78,8 @@ class OutboxEventDispatcherIT {
             for (String script : List.of(
                     "V000__technical_tables.sql",
                     "V001__user_identity_and_rbac.sql",
-                    "V002__session_and_platform.sql")) {
+                    "V002__session_and_platform.sql",
+                    "V013__outbox_claim_support.sql")) {
                 ScriptUtils.executeSqlScript(root, new FileSystemResource(sqlDir.resolve(script).toFile()));
             }
         }
