@@ -87,33 +87,6 @@ class ActivityFeedConsumerTest {
     }
 
     @Test
-    @DisplayName("支付成功事件同样映射为报名动态（付费选课）")
-    void testPaymentSuccessMapsToEnrolled() {
-        String json = """
-                {
-                  "eventId": "EVT_PAY_001",
-                  "eventType": "PaymentSuccess",
-                  "orderNo": "ORD_9901",
-                  "courseId": "course_101",
-                  "courseTitle": "Vue 3 中台",
-                  "studentId": "stu_1002",
-                  "teacherId": "teacher_02",
-                  "amountCents": 19900,
-                  "occurredAt": "2026-08-27T11:00:00"
-                }
-                """;
-
-        consumer.handle(message(json), "educloud-payment");
-
-        verify(activityFeedService).recordActivity(
-                eq("stu_1002"), eq("STUDENT"), eq("ENROLLED"), any(), any(), any(), any(),
-                eq("EVT_PAY_001_ENROLLED"), any());
-        verify(activityFeedService).recordActivity(
-                eq("teacher_02"), eq("TEACHER"), eq("STUDENT_ENROLLED"), any(), any(), any(), any(),
-                eq("EVT_PAY_001_STUDENT_ENROLLED"), any());
-    }
-
-    @Test
     @DisplayName("EventEnvelope 结构（payload 在 data 内）同样可解析")
     void testEventEnvelopePayload() {
         String json = """

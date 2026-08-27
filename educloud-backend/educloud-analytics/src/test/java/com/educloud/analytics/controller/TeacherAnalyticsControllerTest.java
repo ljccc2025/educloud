@@ -10,7 +10,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -35,6 +40,19 @@ class TeacherAnalyticsControllerTest {
     @MockBean
     private JwtDecoder jwtDecoder;
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    /** 直设 JWT 认证上下文（@WebMvcTest addFilters=false 时 SecurityMockMvcRequestPostProcessors 不生效）。 */
+    private static void authenticateAs(String subject) {
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        Jwt jwt = Jwt.withTokenValue("test-token").header("alg", "none").subject(subject).build();
+        context.setAuthentication(new JwtAuthenticationToken(jwt));
+        SecurityContextHolder.setContext(context);
+    }
+
     @Test
     @DisplayName("测试获取教师概览统计接口 GET /api/v1/analytics/teacher/stats")
     void testGetStats() throws Exception {
@@ -42,8 +60,9 @@ class TeacherAnalyticsControllerTest {
                 TeacherStatsResponse.builder().totalCourses(12).totalStudents(3420).totalRevenue(128500.0).completionRate(78.5).build()
         );
 
+        authenticateAs("teacher_01");
+
         mockMvc.perform(get("/api/v1/analytics/teacher/stats")
-                        .header("X-Teacher-Id", "teacher_01")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
@@ -58,8 +77,9 @@ class TeacherAnalyticsControllerTest {
                 List.of(EnrollmentTrendItem.builder().month("2026-08").enrollments(500).build())
         );
 
+        authenticateAs("teacher_01");
+
         mockMvc.perform(get("/api/v1/analytics/teacher/trend/enrollment")
-                        .header("X-Teacher-Id", "teacher_01")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
@@ -73,6 +93,8 @@ class TeacherAnalyticsControllerTest {
         when(teacherAnalyticsService.getEngagement(anyString())).thenReturn(
                 List.of(EngagementItem.builder().courseId("c_1").courseTitle("Spring Cloud").totalEnrollments(100).completionRate(85.0).build())
         );
+
+        authenticateAs("teacher_01");
 
         mockMvc.perform(get("/api/v1/analytics/teacher/engagement")
                         .accept(MediaType.APPLICATION_JSON))

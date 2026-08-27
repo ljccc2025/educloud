@@ -18,6 +18,7 @@ import com.educloud.course.mapper.AuditEventMapper;
 import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseReviewMapper;
+import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.mapper.OutboxEventMapper;
 import com.educloud.course.mapper.OutboxSequenceMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
@@ -140,6 +141,7 @@ class ReviewSummaryIT {
                 courseMapper,
                 sqlSessionTemplate.getMapper(CourseEnrollmentMapper.class),
                 sqlSessionTemplate.getMapper(CourseReviewMapper.class),
+                sqlSessionTemplate.getMapper(CourseVersionMapper.class),
                 new AuditWriter(sqlSessionTemplate.getMapper(AuditEventMapper.class),
                         requestContext, new ObjectMapper(), Clock.systemUTC()),
                 new CourseEventPublisher(

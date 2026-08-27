@@ -82,12 +82,14 @@ public class CourseEventPublisher {
     /**
      * 课程评价（动态流阶段 2）：评价 upsert 后同事务写 CourseReviewed outbox 行，
      * 含 rating；aggregateType=CourseReview、aggregateId=reviewId。
+     * courseTitle 为课程标题快照（规格 §4.1 学生/教师评价动态文案），可为 null（降级）。
      */
     public void courseReviewed(
             Long courseId,
             Long reviewId,
             Long studentId,
             Long teacherId,
+            String courseTitle,
             Integer rating,
             long aggregateVersion,
             LocalDateTime reviewedAt) {
@@ -96,6 +98,9 @@ public class CourseEventPublisher {
         payload.put("reviewId", reviewId);
         payload.put("studentId", studentId);
         payload.put("teacherId", teacherId);
+        if (courseTitle != null) {
+            payload.put("courseTitle", courseTitle);
+        }
         payload.put("rating", rating);
         payload.put("version", aggregateVersion);
         payload.put("reviewedAt", reviewedAt.toString());

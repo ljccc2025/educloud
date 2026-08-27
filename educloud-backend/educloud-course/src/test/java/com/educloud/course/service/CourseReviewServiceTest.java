@@ -14,6 +14,7 @@ import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseReviewMapper;
 import com.educloud.course.mapper.CourseReviewSummaryRow;
+import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.observability.AuditWriter;
 import com.educloud.course.support.MybatisPlusTestSupport;
@@ -40,6 +41,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -77,6 +79,9 @@ class CourseReviewServiceTest {
     private CourseReviewMapper reviewMapper;
 
     @Mock
+    private CourseVersionMapper versionMapper;
+
+    @Mock
     private AuditEventMapper auditEventMapper;
 
     @Mock
@@ -89,7 +94,7 @@ class CourseReviewServiceTest {
     private CourseEventPublisher eventPublisher;
 
     private CourseReviewService service() {
-        return new CourseReviewService(courseMapper, enrollmentMapper, reviewMapper, auditWriter, eventPublisher);
+        return new CourseReviewService(courseMapper, enrollmentMapper, reviewMapper, versionMapper, auditWriter, eventPublisher);
     }
 
     // ---------------------------------------------------------------- upsert：拒绝路径
@@ -105,7 +110,7 @@ class CourseReviewServiceTest {
                 });
         verify(reviewMapper, never()).upsert(any());
         verify(courseMapper, never()).updateRatingSummary(anyLong(), any(), anyInt());
-        verify(eventPublisher, never()).courseReviewed(any(), any(), any(), any(), any(), anyLong(), any());
+        verify(eventPublisher, never()).courseReviewed(any(), any(), any(), any(), any(), any(), anyLong(), any());
     }
 
     @Test
@@ -184,7 +189,8 @@ class CourseReviewServiceTest {
         verify(courseMapper).updateRatingSummary(101L, new BigDecimal("4.50"), 12);
 
         // 动态流阶段 2：同事务发布 CourseReviewed 事件（含 rating 与课程归属教师）。
-        verify(eventPublisher).courseReviewed(101L, 501L, 5001L, 2001L, 5, 7L, updatedAt);
+        verify(eventPublisher).courseReviewed(
+                eq(101L), eq(501L), eq(5001L), eq(2001L), isNull(), eq(5), eq(7L), eq(updatedAt));
 
         java.lang.reflect.Method upsert = CourseReviewService.class.getDeclaredMethod(
                 "upsert", Long.class, Long.class, ReviewUpsertRequest.class);
@@ -217,7 +223,8 @@ class CourseReviewServiceTest {
         verify(reviewMapper).upsert(any());
         verify(courseMapper).updateRatingSummary(101L, new BigDecimal("3.00"), 1);
         // 动态流阶段 2：更新评价同样发布 CourseReviewed（重查行 rating=3）。
-        verify(eventPublisher).courseReviewed(101L, 501L, 5001L, 2001L, 3, 7L, updatedAt);
+        verify(eventPublisher).courseReviewed(
+                eq(101L), eq(501L), eq(5001L), eq(2001L), isNull(), eq(3), eq(7L), eq(updatedAt));
     }
 
     // ---------------------------------------------------------------- hide：管理角色

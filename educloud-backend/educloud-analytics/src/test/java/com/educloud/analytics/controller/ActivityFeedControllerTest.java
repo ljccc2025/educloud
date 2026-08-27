@@ -10,7 +10,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -42,6 +47,19 @@ class ActivityFeedControllerTest {
     @MockBean
     private JwtDecoder jwtDecoder;
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    /** 直设 JWT 认证上下文（@WebMvcTest addFilters=false 时 SecurityMockMvcRequestPostProcessors 不生效）。 */
+    private static void authenticateAs(String subject) {
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        Jwt jwt = Jwt.withTokenValue("test-token").header("alg", "none").subject(subject).build();
+        context.setAuthentication(new JwtAuthenticationToken(jwt));
+        SecurityContextHolder.setContext(context);
+    }
+
     private static ActivityFeedEntity entity(
             long id, String actorId, String actorRole, String actionType,
             String targetType, String targetId, String targetTitle,
@@ -68,14 +86,32 @@ class ActivityFeedControllerTest {
                         "Spring Cloud 微服务", null, LocalDateTime.of(2026, 8, 27, 10, 30)))
         );
 
+        authenticateAs("stu_1001");
+
         mockMvc.perform(get("/api/v1/analytics/student/activities")
-                        .header("X-User-Id", "stu_1001")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
                 .andExpect(jsonPath("$.data[0].actionType").value("ENROLLED"))
                 .andExpect(jsonPath("$.data[0].action").value("你报名了《Spring Cloud 微服务》"))
                 .andExpect(jsonPath("$.data[0].targetTitle").value("Spring Cloud 微服务"));
+
+        verify(activityFeedService).listActivities(eq("stu_1001"), eq("STUDENT"), eq(10));
+    }
+
+    @Test
+    @DisplayName("安全回归：伪造 X-Student-Id/X-User-Id 头被忽略，身份仅取自 JWT")
+    void testSpoofedIdentityHeadersAreIgnored() throws Exception {
+        when(activityFeedService.listActivities(eq("stu_1001"), eq("STUDENT"), eq(10)))
+                .thenReturn(List.of());
+
+        authenticateAs("stu_1001");
+
+        mockMvc.perform(get("/api/v1/analytics/student/activities")
+                        .header("X-Student-Id", "victim_777")
+                        .header("X-User-Id", "victim_888")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
 
         verify(activityFeedService).listActivities(eq("stu_1001"), eq("STUDENT"), eq(10));
     }
@@ -88,8 +124,9 @@ class ActivityFeedControllerTest {
                         "Vue 3 中台", "{\"studentId\":\"stu_1002\"}", LocalDateTime.of(2026, 8, 27, 11, 0)))
         );
 
+        authenticateAs("teacher_01");
+
         mockMvc.perform(get("/api/v1/analytics/teacher/activities")
-                        .header("X-Teacher-Id", "teacher_01")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
@@ -105,8 +142,9 @@ class ActivityFeedControllerTest {
     void testEmptyResultReturnsEmptyArray() throws Exception {
         when(activityFeedService.listActivities(anyString(), anyString(), anyInt())).thenReturn(List.of());
 
+        authenticateAs("stu_9999");
+
         mockMvc.perform(get("/api/v1/analytics/student/activities")
-                        .header("X-User-Id", "stu_9999")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SUCCESS"))
@@ -122,8 +160,9 @@ class ActivityFeedControllerTest {
                         "微服务模块打包", "{\"score\":95}", LocalDateTime.of(2026, 8, 27, 14, 30, 5)))
         );
 
+        authenticateAs("stu_1001");
+
         mockMvc.perform(get("/api/v1/analytics/student/activities")
-                        .header("X-User-Id", "stu_1001")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].timestamp").value("2026-08-27T14:30:05"))
@@ -136,9 +175,10 @@ class ActivityFeedControllerTest {
     void testLimitClampedToMax() throws Exception {
         when(activityFeedService.listActivities(anyString(), anyString(), anyInt())).thenReturn(List.of());
 
+        authenticateAs("stu_1001");
+
         mockMvc.perform(get("/api/v1/analytics/student/activities")
                         .param("limit", "999")
-                        .header("X-User-Id", "stu_1001")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 

@@ -25,8 +25,10 @@ public class RabbitMqConfig {
 
     // 角色化动态流（规格 2026-08-27-activity-feed-certificate-design.md §5）：
     // 各域独立专用队列订阅领域事件交换机，与聚合消费互不影响。
+    // 注意：报名动态统一来源于 course 总线 EnrollmentCreated（付费选课由 order.paid
+    // 触发 enrollPaidCourse 后同样发布 EnrollmentCreated），不单独订阅支付事件，
+    // 避免同一报名产生重复 ENROLLED 动态。
     public static final String QUEUE_ACTIVITY_FEED_COURSE = "activity_feed.course.queue";
-    public static final String QUEUE_ACTIVITY_FEED_PAYMENT = "activity_feed.payment.queue";
     public static final String QUEUE_ACTIVITY_FEED_CONTENT = "activity_feed.content.queue";
     public static final String QUEUE_ACTIVITY_FEED_ASSIGNMENT = "activity_feed.assignment.queue";
 
@@ -126,14 +128,6 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public Queue activityFeedPaymentQueue() {
-        return QueueBuilder.durable(QUEUE_ACTIVITY_FEED_PAYMENT)
-                .deadLetterExchange(EXCHANGE_ANALYTICS_DLX)
-                .deadLetterRoutingKey(ROUTING_KEY_DLQ)
-                .build();
-    }
-
-    @Bean
     public Queue activityFeedContentQueue() {
         return QueueBuilder.durable(QUEUE_ACTIVITY_FEED_CONTENT)
                 .deadLetterExchange(EXCHANGE_ANALYTICS_DLX)
@@ -191,11 +185,6 @@ public class RabbitMqConfig {
     @Bean
     public Binding activityFeedCourseReviewBinding(Queue activityFeedCourseQueue, TopicExchange domainEventsExchange) {
         return BindingBuilder.bind(activityFeedCourseQueue).to(domainEventsExchange).with("CourseReview.#");
-    }
-
-    @Bean
-    public Binding activityFeedPaymentBinding(Queue activityFeedPaymentQueue, TopicExchange paymentEventsExchange) {
-        return BindingBuilder.bind(activityFeedPaymentQueue).to(paymentEventsExchange).with("#");
     }
 
     @Bean

@@ -70,11 +70,6 @@ public class ActivityFeedConsumer {
         handle(message, "educloud-course");
     }
 
-    @RabbitListener(queues = RabbitMqConfig.QUEUE_ACTIVITY_FEED_PAYMENT)
-    public void onPaymentEvent(Message message) {
-        handle(message, "educloud-payment");
-    }
-
     @RabbitListener(queues = RabbitMqConfig.QUEUE_ACTIVITY_FEED_CONTENT)
     public void onContentEvent(Message message) {
         handle(message, "educloud-content", null);
@@ -129,7 +124,9 @@ public class ActivityFeedConsumer {
             }
 
             switch (eventType.toLowerCase()) {
-                case "enrollmentcreated", "paymentsuccess", "orderpaid" -> mapEnrollment(root, eventId, occurredAt);
+                // 报名动态统一来自 course 总线 EnrollmentCreated（含付费选课），
+                // 不单独消费支付事件，避免同一报名产生重复 ENROLLED 动态。
+                case "enrollmentcreated" -> mapEnrollment(root, eventId, occurredAt);
                 case "assignmentgraded", "assignment.graded" -> mapAssignmentGraded(root, eventId, occurredAt);
                 case "assignmentsubmitted", "assignment.submitted" -> mapAssignmentSubmitted(root, eventId, occurredAt);
                 case "coursecompleted" -> mapCourseCompleted(root, eventId, occurredAt);

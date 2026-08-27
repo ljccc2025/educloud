@@ -112,7 +112,7 @@ class CourseEventPublisherTest {
 
     @Test
     void courseReviewedWritesOutboxRowWithRating() throws Exception {
-        publisher.courseReviewed(COURSE_ID, REVIEW_ID, STUDENT_ID, TEACHER_ID, 5, 4L, OCCURRED_AT);
+        publisher.courseReviewed(COURSE_ID, REVIEW_ID, STUDENT_ID, TEACHER_ID, "微服务实践", 5, 4L, OCCURRED_AT);
 
         CapturedWrite write = captureWrite();
         assertThat(write.aggregateType).isEqualTo("CourseReview");
@@ -126,6 +126,7 @@ class CourseEventPublisherTest {
         assertThat(payload.get("reviewId").asLong()).isEqualTo(REVIEW_ID);
         assertThat(payload.get("studentId").asLong()).isEqualTo(STUDENT_ID);
         assertThat(payload.get("teacherId").asLong()).isEqualTo(TEACHER_ID);
+        assertThat(payload.get("courseTitle").asText()).isEqualTo("微服务实践");
         assertThat(payload.get("rating").asInt()).isEqualTo(5);
         assertThat(payload.get("reviewedAt").asText()).isEqualTo(OCCURRED_AT.toString());
     }

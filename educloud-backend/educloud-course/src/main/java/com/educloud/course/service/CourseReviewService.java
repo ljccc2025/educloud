@@ -9,11 +9,13 @@ import com.educloud.course.dto.response.CourseReviewResponse;
 import com.educloud.course.entity.CourseEnrollmentEntity;
 import com.educloud.course.entity.CourseEntity;
 import com.educloud.course.entity.CourseReviewEntity;
+import com.educloud.course.entity.CourseVersionEntity;
 import com.educloud.course.exception.CourseErrorCode;
 import com.educloud.course.mapper.CourseEnrollmentMapper;
 import com.educloud.course.mapper.CourseMapper;
 import com.educloud.course.mapper.CourseReviewMapper;
 import com.educloud.course.mapper.CourseReviewSummaryRow;
+import com.educloud.course.mapper.CourseVersionMapper;
 import com.educloud.course.messaging.CourseEventPublisher;
 import com.educloud.course.observability.AuditWriter;
 import org.springframework.stereotype.Service;
@@ -68,6 +70,7 @@ public class CourseReviewService {
     private final CourseMapper courseMapper;
     private final CourseEnrollmentMapper enrollmentMapper;
     private final CourseReviewMapper reviewMapper;
+    private final CourseVersionMapper versionMapper;
     private final AuditWriter auditWriter;
     private final CourseEventPublisher eventPublisher;
 
@@ -75,11 +78,13 @@ public class CourseReviewService {
             CourseMapper courseMapper,
             CourseEnrollmentMapper enrollmentMapper,
             CourseReviewMapper reviewMapper,
+            CourseVersionMapper versionMapper,
             AuditWriter auditWriter,
             CourseEventPublisher eventPublisher) {
         this.courseMapper = Objects.requireNonNull(courseMapper, "courseMapper");
         this.enrollmentMapper = Objects.requireNonNull(enrollmentMapper, "enrollmentMapper");
         this.reviewMapper = Objects.requireNonNull(reviewMapper, "reviewMapper");
+        this.versionMapper = Objects.requireNonNull(versionMapper, "versionMapper");
         this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
     }
@@ -126,10 +131,20 @@ public class CourseReviewService {
         }
 
         // 动态流阶段 2：同事务写 CourseReviewed outbox 行（含 rating 与课程归属教师），
-        // 与业务同库同事务，失败一并回滚。
+        // 与业务同库同事务，失败一并回滚；标题快照尽力解析已发布版本，缺失降级。
         eventPublisher.courseReviewed(courseId, saved.getId(), studentId,
-                course.getOwnerTeacherId(), saved.getRating(), course.getVersion(), saved.getUpdatedAt());
+                course.getOwnerTeacherId(), resolvePublishedTitle(course), saved.getRating(),
+                course.getVersion(), saved.getUpdatedAt());
         return toResponse(saved);
+    }
+
+    /** 评价事件标题快照：尽力解析已发布版本标题，缺失返回 null（消费者降级，不阻断）。 */
+    private String resolvePublishedTitle(CourseEntity course) {
+        if (course.getPublishedVersionId() == null) {
+            return null;
+        }
+        CourseVersionEntity version = versionMapper.selectById(course.getPublishedVersionId());
+        return version != null ? version.getTitle() : null;
     }
 
     /**

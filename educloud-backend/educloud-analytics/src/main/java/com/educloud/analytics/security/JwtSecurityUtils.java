@@ -64,47 +64,36 @@ public final class JwtSecurityUtils {
         return "admin";
     }
 
+    /**
+     * 解析当前登录教师 ID：身份必须唯一来源于已验证 JWT 的 subject。
+     * 请求头（X-Teacher-Id/X-User-Id）不可作为身份依据——网关不会注入这些头，
+     * 客户端直接伪造即可越权读取他人动态（IDOR）；无有效 JWT 返回 null（
+     * 查询接口按空主体返回空列表）。
+     */
     public static String extractTeacherId(Jwt jwt, HttpServletRequest request) {
-        if (request != null) {
-            String teacherHeader = request.getHeader("X-Teacher-Id");
-            if (StringUtils.hasText(teacherHeader)) {
-                return teacherHeader.trim();
-            }
-            String userIdHeader = request.getHeader("X-User-Id");
-            if (StringUtils.hasText(userIdHeader)) {
-                return userIdHeader.trim();
-            }
-        }
         if (jwt != null) {
             String subject = jwt.getSubject();
             if (StringUtils.hasText(subject)) {
                 return subject.trim();
             }
         }
-        return "teacher_01";
+        return null;
     }
 
     /**
-     * 解析当前登录学员 ID（网关透传 X-Student-Id / X-User-Id，其次 JWT subject）。
+     * 解析当前登录学员 ID：身份必须唯一来源于已验证 JWT 的 subject。
+     * 请求头（X-Student-Id/X-User-Id）不可作为身份依据——网关不会注入这些头，
+     * 客户端直接伪造即可越权读取他人学习动态（含作业分数，IDOR）；无有效
+     * JWT 返回 null（查询接口按空主体返回空列表）。
      */
     public static String extractStudentId(Jwt jwt, HttpServletRequest request) {
-        if (request != null) {
-            String studentHeader = request.getHeader("X-Student-Id");
-            if (StringUtils.hasText(studentHeader)) {
-                return studentHeader.trim();
-            }
-            String userIdHeader = request.getHeader("X-User-Id");
-            if (StringUtils.hasText(userIdHeader)) {
-                return userIdHeader.trim();
-            }
-        }
         if (jwt != null) {
             String subject = jwt.getSubject();
             if (StringUtils.hasText(subject)) {
                 return subject.trim();
             }
         }
-        return "student_01";
+        return null;
     }
 
     public static Long userId(Jwt jwt) {
