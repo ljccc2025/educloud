@@ -11,6 +11,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -75,8 +77,28 @@ public class SecurityConfiguration {
         return converter;
     }
 
+    /**
+     * resource-server 的 Bearer 用户令牌解码器（BUG-038）：默认 iss/exp 校验之外组合 aud 校验，
+     * aud 必须包含 educloud.user.jwt.audience（默认 educloud-api），缺失/不匹配一律拒绝。
+     */
     @Bean
     public JwtDecoder jwtDecoder(JwtKeyProvider keyProvider, JwtProperties jwtProperties) {
+        return buildDecoder(keyProvider, new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(jwtProperties.issuer()),
+                new UserAudienceValidator(jwtProperties.audience())));
+    }
+
+    /**
+     * internal 服务令牌（client_credentials）解码器：与 resource-server 共用验签密钥，但只做
+     * 默认 iss/exp 校验，不做用户令牌的 aud=educloud-api 校验——内部令牌 aud 为本服务
+     * （默认 educloud-user），由 {@link InternalApiFilter} 在过滤器中单独校验 aud/clientId。
+     */
+    @Bean
+    public JwtDecoder internalJwtDecoder(JwtKeyProvider keyProvider, JwtProperties jwtProperties) {
+        return buildDecoder(keyProvider, JwtValidators.createDefaultWithIssuer(jwtProperties.issuer()));
+    }
+
+    private static JwtDecoder buildDecoder(JwtKeyProvider keyProvider, OAuth2TokenValidator<Jwt> validator) {
         // Spring Security 6.2 无 withJwkSource 静态方法：用 Nimbus jwt.proc 处理器 +
         // JWSVerificationKeySelector 消费本地 JWKSource（官方文档推荐方式，支持多 kid 轮换）。
         com.nimbusds.jwt.proc.ConfigurableJWTProcessor<com.nimbusds.jose.proc.SecurityContext> processor =
@@ -84,7 +106,7 @@ public class SecurityConfiguration {
         processor.setJWSKeySelector(new com.nimbusds.jose.proc.JWSVerificationKeySelector(
                 com.nimbusds.jose.JWSAlgorithm.RS256, keyProvider.jwkSource()));
         NimbusJwtDecoder decoder = new NimbusJwtDecoder(processor);
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(jwtProperties.issuer()));
+        decoder.setJwtValidator(validator);
         return decoder;
     }
 

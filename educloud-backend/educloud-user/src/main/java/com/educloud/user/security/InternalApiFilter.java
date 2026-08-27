@@ -27,8 +27,13 @@ public final class InternalApiFilter extends OncePerRequestFilter {
     private final JwtDecoder jwtDecoder;
     private final InternalProperties internalProperties;
 
-    public InternalApiFilter(JwtDecoder jwtDecoder, InternalProperties internalProperties) {
-        this.jwtDecoder = Objects.requireNonNull(jwtDecoder, "jwtDecoder");
+    /**
+     * 参数名 internalJwtDecoder 注入独立解码器（-parameters 编译参数保证参数名保留）：
+     * 区分 resource-server 的 jwtDecoder（带用户令牌 aud 校验），内部令牌链路由 SecurityConfiguration
+     * 的 internalJwtDecoder bean 提供（仅 iss/exp 校验，aud 在本过滤器内单独校验）。
+     */
+    public InternalApiFilter(JwtDecoder internalJwtDecoder, InternalProperties internalProperties) {
+        this.jwtDecoder = Objects.requireNonNull(internalJwtDecoder, "internalJwtDecoder");
         this.internalProperties = Objects.requireNonNull(internalProperties, "internalProperties");
     }
 
