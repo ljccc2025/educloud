@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   GraduationCap, Search, Bell, ShoppingCart, Menu, X, User,
-  BookOpen, Video, FileText, ClipboardList, LogOut, Sparkles, MessageCircle,
+  BookOpen, Video, FileText, ClipboardList, LogOut, Sparkles, MessageCircle, Award,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../features/engagement/useNotificationStore';
@@ -372,6 +372,14 @@ export default function Navbar() {
                           我的课程
                         </Link>
                         <Link
+                          to="/certificates"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-700 dark:text-ink-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-800 transition-colors"
+                        >
+                          <Award size={16} className="text-ink-400" />
+                          我的证书
+                        </Link>
+                        <Link
                           to="/orders"
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-700 dark:text-ink-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-800 transition-colors"
@@ -509,6 +517,13 @@ export default function Navbar() {
                     className="flex items-center gap-3 px-3 py-2.5 text-sm text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800 rounded-xl transition-colors"
                   >
                     <ShoppingCart size={18} /> 我的订单
+                  </NavLink>
+                  <NavLink
+                    to="/certificates"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-ink-600 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-ink-800 rounded-xl transition-colors"
+                  >
+                    <Award size={18} /> 我的证书
                   </NavLink>
                   <button
                     onClick={handleLogout}

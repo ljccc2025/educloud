@@ -27,6 +27,7 @@ import AiAssistant from './pages/AiAssistant';
 import Community from './pages/Community';
 import Checkout from './pages/Checkout';
 import CheckoutSuccess from './pages/CheckoutSuccess';
+import Certificates from './pages/Certificates';
 
 function SessionExpiryRedirect() {
   const navigate = useNavigate();
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="exams" element={<ProtectedRoute><Exams /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+          <Route path="certificates" element={<ProtectedRoute><Certificates /></ProtectedRoute>} />
           <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="ai-assistant" element={<ProtectedRoute><AiAssistant /></ProtectedRoute>} />
           <Route path="community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
