@@ -10,12 +10,14 @@ import com.educloud.analytics.mapper.DailyTeacherMetricsMapper;
 import com.educloud.analytics.service.TeacherAnalyticsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -25,8 +27,22 @@ public class TeacherAnalyticsServiceImpl implements TeacherAnalyticsService {
     private final DailyTeacherMetricsMapper teacherMetricsMapper;
     private final CourseEngagementStatsMapper courseEngagementStatsMapper;
     private final AuditEventReadModelMapper auditEventReadModelMapper;
+    private final JdbcTemplate jdbcTemplate;
 
     private static final DateTimeFormatter MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
+
+    /** 审计动作码 -> 中文文案映射（未知码原样返回） */
+    private static final Map<String, String> ACTION_TEXT = Map.of(
+            "COURSE_PUBLISH", "发布了课程",
+            "ORDER_CREATE", "创建了订单",
+            "REFUND_APPROVE", "审核通过退款",
+            "USER_LOGIN", "登录了系统",
+            "INDEX_REBUILD", "重建了搜索索引",
+            "MAIL_DELIVERY_FAIL", "邮件投递失败"
+    );
+
+    /** 课程雪花 ID 形态：15-20 位纯数字 */
+    private static final Pattern COURSE_SNOWFLAKE_ID = Pattern.compile("^\\d{15,20}$");
 
     @Override
     public TeacherStatsResponse getStats(String teacherId) {
@@ -161,12 +177,54 @@ public class TeacherAnalyticsServiceImpl implements TeacherAnalyticsService {
 
         return list.stream().map(a -> TeacherActivityItem.builder()
                 .id(String.valueOf(a.getId()))
-                .studentName(a.getActorId())
-                .action(a.getAction())
-                .courseName(a.getResourceId() != null ? a.getResourceId() : "微服务课程")
+                .studentName(resolveActorName(a.getActorId()))
+                .action(ACTION_TEXT.getOrDefault(a.getAction(), a.getAction()))
+                .courseName(resolveResourceName(a.getResourceId()))
                 .timeAgo("近期")
                 .timestamp(a.getOccurredAt() != null ? a.getOccurredAt().toString() : "")
                 .build()
         ).toList();
+    }
+
+    /**
+     * 跨库解析操作者真实姓名：按登录用户名关联 user_profile.display_name。
+     * 查不到或异常时原样返回 actorId，不阻断接口。
+     */
+    private String resolveActorName(String actorId) {
+        if (actorId == null || actorId.isBlank()) {
+            return "";
+        }
+        try {
+            String name = jdbcTemplate.queryForObject(
+                    "SELECT p.display_name FROM educloud_user.user_profile p"
+                            + " JOIN educloud_user.sys_user u ON u.id = p.user_id"
+                            + " WHERE u.username = ?",
+                    String.class, actorId);
+            return (name != null && !name.isBlank()) ? name : actorId;
+        } catch (Exception e) {
+            log.warn("Cross-db resolve actor name failed for [{}], fallback to raw actorId: {}", actorId, e.getMessage());
+            return actorId;
+        }
+    }
+
+    /**
+     * 跨库解析资源名称：仅当资源 ID 为课程雪花 ID（15-20 位纯数字）时查询已发布版本标题；
+     * 非雪花 ID（如演示数据 c_1001）、查不到或异常时返回空字符串，由前端省略技术标识。
+     */
+    private String resolveResourceName(String resourceId) {
+        if (resourceId == null || !COURSE_SNOWFLAKE_ID.matcher(resourceId).matches()) {
+            return "";
+        }
+        try {
+            String title = jdbcTemplate.queryForObject(
+                    "SELECT v.title FROM educloud_course.course c"
+                            + " JOIN educloud_course.course_version v ON v.id = c.published_version_id"
+                            + " WHERE c.id = ?",
+                    String.class, Long.valueOf(resourceId));
+            return title != null ? title : "";
+        } catch (Exception e) {
+            log.warn("Cross-db resolve course title failed for [{}], fallback to empty: {}", resourceId, e.getMessage());
+            return "";
+        }
     }
 }
