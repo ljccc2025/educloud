@@ -34,6 +34,7 @@ public class AssignmentService {
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
     private final ContentEventPublisher contentEventPublisher;
+    private final CourseClient courseClient;
 
     public Map<String, String> resolveStudentProfile(Long studentId, String givenName, String givenAvatar) {
         String finalName = (givenName != null && !givenName.isBlank() && !"学员".equals(givenName.trim())) ? givenName.trim() : null;
@@ -348,12 +349,32 @@ public class AssignmentService {
         return existing;
     }
 
+    /** 作业文档中的 courseId 为字符串；非数字视为不可见，避免整表读取被打断。 */
+    private static Long parseCourseId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(raw.trim());
+        } catch (NumberFormatException e) {
+            log.warn("Assignment has non-numeric courseId={}, hidden from student view", raw);
+            return null;
+        }
+    }
+
     public List<AssignmentResponse> getStudentAssignments(Long studentId) {
         List<AssignmentResponse> all = getAllAssignments();
         List<AssignmentResponse> studentView = new ArrayList<>();
+        // 仅返回已报名课程的作业，与考试列表口径保持一致（按课程去重，避免逐作业远程调用）
+        Map<Long, Boolean> enrolledByCourse = new LinkedHashMap<>();
 
         for (AssignmentResponse a : all) {
             if (!"PUBLISHED".equals(a.getStatus())) {
+                continue;
+            }
+            Long courseId = parseCourseId(a.getCourseId());
+            if (courseId == null
+                    || !enrolledByCourse.computeIfAbsent(courseId, cid -> courseClient.isEnrolled(cid, studentId))) {
                 continue;
             }
             AssignmentResponse copy = copyAssignment(a);

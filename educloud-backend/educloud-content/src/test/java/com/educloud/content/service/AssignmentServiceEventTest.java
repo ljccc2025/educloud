@@ -48,7 +48,8 @@ class AssignmentServiceEventTest {
         redisTemplate = mock(StringRedisTemplate.class, Mockito.RETURNS_DEEP_STUBS);
         objectMapper = new ObjectMapper();
         contentEventPublisher = mock(ContentEventPublisher.class);
-        service = new AssignmentService(redisTemplate, objectMapper, null, contentEventPublisher);
+        service = new AssignmentService(redisTemplate, objectMapper, null, contentEventPublisher,
+                mock(CourseClient.class));
 
         when(redisTemplate.opsForHash().get("educloud:assignments:map", ASSIGNMENT_ID))
                 .thenReturn(ASSIGNMENT_JSON);
