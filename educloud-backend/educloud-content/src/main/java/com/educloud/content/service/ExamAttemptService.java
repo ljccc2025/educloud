@@ -207,6 +207,15 @@ public class ExamAttemptService {
         return LocalDateTime.now().isAfter(deadline);
     }
 
+    /** 超时收敛判定（供 ExamTimeoutSweeper 使用）：应用侧时间比较，与提交路径一致。 */
+    public boolean isExpired(ExamAttemptEntity attempt) {
+        ExamEntity exam = examMapper.selectById(attempt.getExamId());
+        if (exam == null || exam.getDurationMinutes() == null) {
+            return false;
+        }
+        return isTimeout(exam, attempt);
+    }
+
     public List<ExamQuestionSnapshot> loadPaper(Long examId) {
         List<ExamPaperQuestionEntity> rows = paperQuestionMapper.selectList(
                 new LambdaQueryWrapper<ExamPaperQuestionEntity>()

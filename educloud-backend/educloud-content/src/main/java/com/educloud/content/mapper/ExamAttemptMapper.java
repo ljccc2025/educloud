@@ -18,10 +18,7 @@ public interface ExamAttemptMapper extends BaseMapper<ExamAttemptEntity> {
             + "WHERE id=#{id} AND status='IN_PROGRESS'")
     int markGraded(ExamAttemptEntity attempt);
 
-    /** 超时未交卷的进行中记录（服务端时间，JOIN exam 取时长）。 */
-    @Select("SELECT a.* FROM exam_attempt a JOIN exam e ON a.exam_id = e.id "
-            + "WHERE a.status = 'IN_PROGRESS' "
-            + "AND TIMESTAMPADD(MINUTE, e.duration_minutes, a.started_at) <= NOW(3) "
-            + "LIMIT 100")
+    /** 进行中的考试记录（超时判定在应用侧，避免 DB 容器 UTC 时钟与 started_at 本地时间直接比较）。 */
+    @Select("SELECT a.* FROM exam_attempt a WHERE a.status = 'IN_PROGRESS' LIMIT 100")
     List<ExamAttemptEntity> selectExpiredInProgress();
 }

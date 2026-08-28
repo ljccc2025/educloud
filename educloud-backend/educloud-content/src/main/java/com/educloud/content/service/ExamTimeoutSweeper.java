@@ -20,9 +20,14 @@ public class ExamTimeoutSweeper {
 
     @Scheduled(fixedDelay = 30_000)
     public void sweepExpiredAttempts() {
-        List<ExamAttemptEntity> expired = attemptMapper.selectExpiredInProgress();
-        for (ExamAttemptEntity attempt : expired) {
+        List<ExamAttemptEntity> candidates = attemptMapper.selectExpiredInProgress();
+        for (ExamAttemptEntity attempt : candidates) {
             try {
+                // 超时判定在应用侧（LocalDateTime.now() 与 started_at 同为 JVM 本地时间），
+                // 避免 DB 容器 UTC 时钟与 started_at(+08) 直接比较导致刚创建的 attempt 被误判超时。
+                if (!attemptService.isExpired(attempt)) {
+                    continue;
+                }
                 // 使用窗口无关的判分路径：考试窗口结束后（end_time 已过 / 状态 CLOSED）仍可收敛判分。
                 if (attemptService.timeoutSubmit(attempt) != null) {
                     log.info("Timeout-swept exam attempt: attemptId={}, examId={}, studentId={}",
