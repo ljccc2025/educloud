@@ -58,6 +58,12 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
+        <!-- common 的 ServletRequestContextAccessor 依赖 io.micrometer.tracing.Tracer，
+             缺 bridge 会在启动装配 common 自动配置时报 NoClassDefFoundError（与 course/recommendation 一致）。 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
