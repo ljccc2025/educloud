@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.util.List;
 
@@ -87,6 +88,7 @@ class OpenAiCompatibleProviderTest {
         assertThat(result.promptTokens()).isEqualTo(79);
         assertThat(result.completionTokens()).isEqualTo(36);
         assertThat(result.totalTokens()).isEqualTo(115);
+        assertThat(result.latencyMs()).isGreaterThanOrEqualTo(0L);
     }
 
     @Test
@@ -142,6 +144,19 @@ class OpenAiCompatibleProviderTest {
 
         server.verify();
         assertThat(result.finishReason()).isEqualTo("stop");
+    }
+
+    @Test
+    void chat_retriesOnceOnConnectFailureThenSucceeds() {
+        server.expect(requestTo(BASE_URL + "/chat/completions"))
+                .andRespond(withException(new ConnectException("Connection refused")));
+        server.expect(requestTo(BASE_URL + "/chat/completions"))
+                .andRespond(withSuccess(OK_BODY, MediaType.APPLICATION_JSON));
+
+        ChatResult result = provider.chat(List.of(new ChatTurn("user", "问")), new ChatOptions(1024));
+
+        server.verify();
+        assertThat(result.content()).isEqualTo("第一步，明确定义。");
     }
 
     @Test
