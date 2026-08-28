@@ -114,6 +114,7 @@ class GatewayRouteContractTest {
                 "/api/v1/teacher/courses/*/content-draft", "/api/v1/teacher/courses/*/content-draft/**",
                 "/api/v1/teacher/courses/*/chapters", "/api/v1/teacher/chapters/**",
                 "/api/v1/teacher/coursewares/**", "/api/v1/teacher/content-revisions/**",
+                "/api/v1/teacher/exams", "/api/v1/teacher/exams/**",
                 "/api/v1/courses/*/content-drafts");
         assertThat(pathArguments(route("course-core"))).containsExactly(
                 "/api/v1/categories/**", "/api/v1/course-drafts/**", "/api/v1/course-audits/**",
