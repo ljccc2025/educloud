@@ -2,13 +2,16 @@ package com.educloud.content.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.educloud.common.error.BusinessException;
+import com.educloud.content.dto.request.ExamCreateRequest;
 import com.educloud.content.dto.response.ExamQuestionResponse;
 import com.educloud.content.dto.response.ExamResponse;
 import com.educloud.content.entity.ExamAttemptEntity;
+import com.educloud.content.entity.ExamBankQuestionEntity;
 import com.educloud.content.entity.ExamEntity;
 import com.educloud.content.entity.ExamPaperQuestionEntity;
 import com.educloud.content.exception.ContentErrorCode;
 import com.educloud.content.mapper.ExamAttemptMapper;
+import com.educloud.content.mapper.ExamBankQuestionMapper;
 import com.educloud.content.mapper.ExamMapper;
 import com.educloud.content.mapper.ExamPaperQuestionMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -16,9 +19,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,12 +31,15 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ExamService {
 
+    private static final String STATUS_DRAFT = "DRAFT";
     private static final String STATUS_PUBLISHED = "PUBLISHED";
     private static final String STATUS_GRADED = "GRADED";
+    private static final String STATUS_ENABLED = "ENABLED";
 
     private final ExamMapper examMapper;
     private final ExamPaperQuestionMapper paperQuestionMapper;
     private final ExamAttemptMapper attemptMapper;
+    private final ExamBankQuestionMapper bankQuestionMapper;
     private final ObjectMapper objectMapper;
 
     public List<ExamResponse> listStudentExams(Long studentId) {
@@ -61,6 +69,174 @@ public class ExamService {
                         .eq(ExamAttemptEntity::getExamId, examId)
                         .eq(ExamAttemptEntity::getStudentId, studentId));
         return toStudentView(exam, attempt);
+    }
+
+    @Transactional
+    public ExamResponse createExam(ExamCreateRequest request, Long teacherId) {
+        validateWindow(request.getStartTime(), request.getEndTime());
+        List<ExamBankQuestionEntity> questions = loadQuestions(request.getPaper());
+        if (questions.size() != request.getPaper().size()) {
+            throw new BusinessException(ContentErrorCode.EXAM_QUESTION_NOT_FOUND,
+                    "Some paper questions not found or disabled");
+        }
+        int totalScore = request.getPaper().stream()
+                .mapToInt(ExamCreateRequest.PaperItem::getScore).sum();
+
+        ExamEntity exam = new ExamEntity();
+        exam.setCourseId(request.getCourseId());
+        exam.setCourseTitle(resolveCourseTitle(request.getCourseId()));
+        exam.setTitle(request.getTitle());
+        exam.setDescription(request.getDescription());
+        exam.setDurationMinutes(request.getDurationMinutes());
+        exam.setTotalScore(totalScore);
+        exam.setPassScore(request.getPassScore());
+        exam.setStartTime(request.getStartTime());
+        exam.setEndTime(request.getEndTime());
+        exam.setStatus(STATUS_DRAFT);
+        exam.setTeacherId(teacherId);
+        examMapper.insert(exam);
+
+        int sort = 0;
+        for (ExamCreateRequest.PaperItem item : request.getPaper()) {
+            ExamBankQuestionEntity q = questions.stream()
+                    .filter(x -> x.getId().equals(item.getQuestionId()))
+                    .findFirst().orElseThrow();
+            ExamPaperQuestionEntity row = new ExamPaperQuestionEntity();
+            row.setExamId(exam.getId());
+            row.setQuestionId(q.getId());
+            row.setQuestionSnapshot(buildSnapshot(q, item.getScore()));
+            row.setScore(item.getScore());
+            row.setSortOrder(sort++);
+            paperQuestionMapper.insert(row);
+        }
+        return toStudentView(exam, null);
+    }
+
+    public void publishExam(Long examId) {
+        ExamEntity exam = requireExam(examId);
+        if (!STATUS_DRAFT.equals(exam.getStatus())) {
+            throw new BusinessException(ContentErrorCode.EXAM_NOT_DRAFT, "Exam is not draft: " + examId);
+        }
+        Long paperCount = paperQuestionMapper.selectCount(
+                new LambdaQueryWrapper<ExamPaperQuestionEntity>()
+                        .eq(ExamPaperQuestionEntity::getExamId, examId));
+        if (paperCount == null || paperCount == 0) {
+            throw new BusinessException(ContentErrorCode.EXAM_PAPER_EMPTY, "Exam paper is empty: " + examId);
+        }
+        validateWindow(exam.getStartTime(), exam.getEndTime());
+        exam.setStatus(STATUS_PUBLISHED);
+        examMapper.updateById(exam);
+    }
+
+    public List<ExamResponse> listTeacherExams() {
+        return examMapper.selectList(
+                        new LambdaQueryWrapper<ExamEntity>()
+                                .orderByDesc(ExamEntity::getCreatedAt))
+                .stream().map(e -> toStudentView(e, null)).toList();
+    }
+
+    @Transactional
+    public ExamResponse updateExam(Long examId, ExamCreateRequest request, Long teacherId) {
+        ExamEntity exam = requireExam(examId);
+        if (!STATUS_DRAFT.equals(exam.getStatus())) {
+            throw new BusinessException(ContentErrorCode.EXAM_NOT_DRAFT, "Exam is not draft: " + examId);
+        }
+        paperQuestionMapper.delete(
+                new LambdaQueryWrapper<ExamPaperQuestionEntity>()
+                        .eq(ExamPaperQuestionEntity::getExamId, examId));
+        List<ExamBankQuestionEntity> questions = loadQuestions(request.getPaper());
+        if (questions.size() != request.getPaper().size()) {
+            throw new BusinessException(ContentErrorCode.EXAM_QUESTION_NOT_FOUND,
+                    "Some paper questions not found or disabled");
+        }
+        int totalScore = request.getPaper().stream()
+                .mapToInt(ExamCreateRequest.PaperItem::getScore).sum();
+        exam.setCourseId(request.getCourseId());
+        exam.setCourseTitle(resolveCourseTitle(request.getCourseId()));
+        exam.setTitle(request.getTitle());
+        exam.setDescription(request.getDescription());
+        exam.setDurationMinutes(request.getDurationMinutes());
+        exam.setTotalScore(totalScore);
+        exam.setPassScore(request.getPassScore());
+        exam.setStartTime(request.getStartTime());
+        exam.setEndTime(request.getEndTime());
+        examMapper.updateById(exam);
+        int sort = 0;
+        for (ExamCreateRequest.PaperItem item : request.getPaper()) {
+            ExamBankQuestionEntity q = questions.stream()
+                    .filter(x -> x.getId().equals(item.getQuestionId())).findFirst().orElseThrow();
+            ExamPaperQuestionEntity row = new ExamPaperQuestionEntity();
+            row.setExamId(examId);
+            row.setQuestionId(q.getId());
+            row.setQuestionSnapshot(buildSnapshot(q, item.getScore()));
+            row.setScore(item.getScore());
+            row.setSortOrder(sort++);
+            paperQuestionMapper.insert(row);
+        }
+        return toStudentView(exam, null);
+    }
+
+    public void deleteExam(Long examId) {
+        ExamEntity exam = requireExam(examId);
+        if (!STATUS_DRAFT.equals(exam.getStatus())) {
+            throw new BusinessException(ContentErrorCode.EXAM_NOT_DRAFT, "Exam is not draft: " + examId);
+        }
+        paperQuestionMapper.delete(
+                new LambdaQueryWrapper<ExamPaperQuestionEntity>()
+                        .eq(ExamPaperQuestionEntity::getExamId, examId));
+        examMapper.deleteById(examId);
+    }
+
+    private List<ExamBankQuestionEntity> loadQuestions(List<ExamCreateRequest.PaperItem> paper) {
+        List<Long> ids = paper.stream().map(ExamCreateRequest.PaperItem::getQuestionId).toList();
+        return bankQuestionMapper.selectList(
+                new LambdaQueryWrapper<ExamBankQuestionEntity>()
+                        .in(ExamBankQuestionEntity::getId, ids)
+                        .eq(ExamBankQuestionEntity::getStatus, STATUS_ENABLED));
+    }
+
+    private String buildSnapshot(ExamBankQuestionEntity q, int score) {
+        Map<String, Object> snap = new LinkedHashMap<>();
+        snap.put("questionId", q.getId());
+        snap.put("questionType", q.getQuestionType());
+        snap.put("stem", q.getStem());
+        snap.put("options", readStringList(q.getOptions()));
+        snap.put("answer", readIntList(q.getAnswer()));
+        snap.put("score", score);
+        try {
+            return objectMapper.writeValueAsString(snap);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Failed to build snapshot", e);
+        }
+    }
+
+    private void validateWindow(LocalDateTime start, LocalDateTime end) {
+        if (start == null || end == null || !end.isAfter(start)) {
+            throw new BusinessException(ContentErrorCode.EXAM_NOT_DRAFT,
+                    "Invalid exam window: end must be after start");
+        }
+    }
+
+    private String resolveCourseTitle(Long courseId) {
+        return String.valueOf(courseId);
+    }
+
+    private List<String> readStringList(String json) {
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {
+            });
+        } catch (JsonProcessingException e) {
+            return List.of();
+        }
+    }
+
+    private List<Integer> readIntList(String json) {
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {
+            });
+        } catch (JsonProcessingException e) {
+            return List.of();
+        }
     }
 
     private ExamResponse toStudentView(ExamEntity exam, ExamAttemptEntity attempt) {
