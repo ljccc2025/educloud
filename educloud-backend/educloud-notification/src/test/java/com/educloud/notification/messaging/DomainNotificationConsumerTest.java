@@ -1,11 +1,13 @@
 package com.educloud.notification.messaging;
 
+import com.educloud.notification.config.RabbitMqConfiguration;
 import com.educloud.notification.enums.NotificationKind;
 import com.educloud.notification.messaging.events.AssignmentGradedEvent;
 import com.educloud.notification.messaging.events.LiveStartedEvent;
 import com.educloud.notification.messaging.events.OrderRefundedEvent;
 import com.educloud.notification.messaging.events.PaymentSucceededEvent;
 import com.educloud.notification.service.NotificationService;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,11 +17,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 
@@ -50,7 +55,10 @@ class DomainNotificationConsumerTest {
     private JdbcTemplate jdbcTemplate;
 
     @Spy
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private ObjectMapper objectMapper = new ObjectMapper()
+            // content 服务发布 exam.graded payload 使用 studentId（ExamGradedEvent 无该字段），
+            // 模拟生产环境允许未知字段，使 studentId 回填分支可被测试。
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @InjectMocks
     private DomainNotificationConsumer consumer;
@@ -267,5 +275,76 @@ class DomainNotificationConsumerTest {
         verify(notificationService, never()).sendDirectNotification(
                 any(), eq(NotificationKind.LIVE), any(), any(), any(), any(), eq(false)
         );
+    }
+
+    @Test
+    @DisplayName("考试出分事件用 studentId 回填 userId 并发送考试通知测试")
+    void handleExamGradedBackfillsUserIdFromStudentId() {
+        // payload 只含 studentId、无 userId，onMessage 内走回填分支
+        String json = "{\"eventId\":\"evt_exam_5001\",\"examId\":77,\"examTitle\":\"期末考试\","
+                + "\"courseId\":501,\"score\":88,\"passed\":true,\"studentId\":3001}";
+        onMessage(json, RabbitMqConfiguration.ROUTING_KEY_EXAM_GRADED);
+
+        ArgumentCaptor<String> contentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notificationService, times(1)).sendDirectNotification(
+                eq(3001L),
+                eq(NotificationKind.EXAM),
+                eq("考试已出分"),
+                contentCaptor.capture(),
+                eq("查看考试"),
+                eq("/exams"),
+                eq(false)
+        );
+        assertThat(contentCaptor.getValue())
+                .contains("期末考试")
+                .contains("88")
+                .contains("已通过");
+    }
+
+    @Test
+    @DisplayName("考试出分事件 passed=false 文案包含未通过测试")
+    void handleExamGradedNotPassedContent() {
+        String json = "{\"eventId\":\"evt_exam_5003\",\"userId\":3002,\"examTitle\":\"期中测验\","
+                + "\"courseId\":502,\"score\":45,\"passed\":false}";
+        onMessage(json, RabbitMqConfiguration.ROUTING_KEY_EXAM_GRADED);
+
+        ArgumentCaptor<String> contentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notificationService).sendDirectNotification(
+                eq(3002L),
+                eq(NotificationKind.EXAM),
+                eq("考试已出分"),
+                contentCaptor.capture(),
+                eq("查看考试"),
+                eq("/exams"),
+                eq(false)
+        );
+        assertThat(contentCaptor.getValue())
+                .contains("期中测验")
+                .contains("45")
+                .contains("未通过");
+    }
+
+    @Test
+    @DisplayName("考试出分事件无 userId 且无 studentId 时跳过不发送测试")
+    void handleExamGradedSkipsWhenIdentityMissing() {
+        // 幂等放行后 event.userId 仍为 null，sendDirectNotification 不应被调用
+        String json = "{\"eventId\":\"evt_exam_5004\",\"examId\":88,\"examTitle\":\"无身份考试\","
+                + "\"courseId\":503,\"score\":60,\"passed\":true}";
+        onMessage(json, RabbitMqConfiguration.ROUTING_KEY_EXAM_GRADED);
+
+        verify(notificationService, never()).sendDirectNotification(
+                any(), eq(NotificationKind.EXAM), any(), any(), any(), any(), anyBoolean()
+        );
+    }
+
+    /** 构造 AMQP Message 并调用 onMessage（含幂等键 Redis mock 放行）。 */
+    private void onMessage(String json, String routingKey) {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
+
+        MessageProperties props = new MessageProperties();
+        props.setReceivedRoutingKey(routingKey);
+        Message message = new Message(json.getBytes(StandardCharsets.UTF_8), props);
+        consumer.onMessage(message);
     }
 }
