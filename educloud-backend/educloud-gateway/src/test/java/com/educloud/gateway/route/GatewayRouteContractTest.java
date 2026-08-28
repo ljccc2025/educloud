@@ -92,7 +92,8 @@ class GatewayRouteContractTest {
         assertThat(pathArguments(route("user-me"))).containsExactly(
                 "/api/v1/me", "/api/v1/me/profile");
         assertThat(pathArguments(route("content-me"))).containsExactly(
-                "/api/v1/me/assignments", "/api/v1/me/exams", "/api/v1/me/course-progress",
+                "/api/v1/me/assignments", "/api/v1/me/assignments/**",
+                "/api/v1/me/exams", "/api/v1/me/exams/**", "/api/v1/me/course-progress",
                 "/api/v1/me/courses/*/progress");
         assertThat(pathArguments(route("course-enrollments"))).containsExactly("/api/v1/me/enrollments");
         assertThat(pathArguments(route("content-course-scoped"))).containsExactly(

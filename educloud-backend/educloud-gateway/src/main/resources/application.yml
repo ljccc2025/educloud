@@ -31,7 +31,7 @@ spring:
           uri: lb://educloud-content
           order: 30
           predicates:
-            - Path=/api/v1/me/assignments,/api/v1/me/exams,/api/v1/me/course-progress,/api/v1/me/courses/*/progress
+            - Path=/api/v1/me/assignments,/api/v1/me/assignments/**,/api/v1/me/exams,/api/v1/me/exams/**,/api/v1/me/course-progress,/api/v1/me/courses/*/progress
         - id: course-enrollments
           uri: lb://educloud-course
           order: 40
