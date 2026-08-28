@@ -105,7 +105,11 @@ export default function Exams() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar size={15} className="text-ink-300" />
-                      截止时间：{exam.endTime || '长期有效'}
+                      开考时间：{exam.startTime ? dayjs(exam.startTime).format('YYYY-MM-DD HH:mm') : '已开放'}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar size={15} className="text-ink-300" />
+                      截止时间：{exam.endTime ? dayjs(exam.endTime).format('YYYY-MM-DD HH:mm') : '长期有效'}
                     </div>
                   </div>
 
@@ -128,6 +132,24 @@ export default function Exams() {
                       className="btn-outline w-full cursor-pointer text-xs !py-2.5"
                     >
                       查看答卷与解析
+                    </button>
+                  ) : exam.status === 'NOT_STARTED' ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="btn-outline w-full cursor-not-allowed opacity-60 text-xs !py-2.5"
+                    >
+                      {exam.startTime
+                        ? `${dayjs(exam.startTime).format('MM-DD HH:mm')} 开考`
+                        : '未开始'}
+                    </button>
+                  ) : exam.status === 'ENDED' ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="btn-outline w-full cursor-not-allowed opacity-60 text-xs !py-2.5"
+                    >
+                      已结束，超出考试窗口
                     </button>
                   ) : (
                     <button
