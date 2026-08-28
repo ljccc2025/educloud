@@ -13,6 +13,7 @@ import {
   Eye,
 } from 'lucide-react';
 import CustomSelect, { type SelectOption } from '../components/CustomSelect';
+import { apiErrorText } from '../services/http';
 import { api } from '../services/api';
 import type { Course, Exam, ExamBankQuestion, ExamQuestionType, ExamStatus } from '../types';
 import { cn } from '../utils/cn';
@@ -197,19 +198,28 @@ export default function ExamManage() {
     const paper = orderedPaper
       .filter((item) => item.q)
       .map((item) => ({ questionId: item.q!.id, score: Number(item.config.score) || item.q!.defaultScore || 0 }));
-    const created = await api.createExam({
-      title: examForm.title.trim(),
-      courseId: examForm.courseId,
-      duration,
-      passScore: Number(examForm.passScore) || 60,
-      questionCount: paper.length,
-      startTime: start,
-      endTime: dayjs(start).add(duration, 'minute').toISOString(),
-      paper,
-    });
-    if (!created) {
-      // 保留弹窗与已填表单，避免教师误以为创建成功
-      window.alert('创建考试失败，请重试');
+    const paperTotal = paper.reduce((sum, item) => sum + item.score, 0);
+    const passScore = Number(examForm.passScore) || 0;
+    // 与后端 EXAM_INVALID_PASS_SCORE 同规则，提前拦下并说明原因（表单默认 60 分常大于小卷总分）
+    if (passScore < 1 || passScore > paperTotal) {
+      window.alert(`及格分需在 1 至 ${paperTotal} 分（组卷总分）之间`);
+      return;
+    }
+    let created;
+    try {
+      created = await api.createExam({
+        title: examForm.title.trim(),
+        courseId: examForm.courseId,
+        duration,
+        passScore,
+        questionCount: paper.length,
+        startTime: start,
+        endTime: dayjs(start).add(duration, 'minute').toISOString(),
+        paper,
+      });
+    } catch (e) {
+      // 保留弹窗与已填表单，展示服务端原因，避免教师误以为创建成功
+      window.alert(`创建考试失败：${apiErrorText(e)}`);
       return;
     }
     if (publish) {
@@ -283,6 +293,16 @@ export default function ExamManage() {
     (acc, item) => acc + (item.q ? Number(item.config.score) || item.q.defaultScore || 0 : 0),
     0,
   );
+
+  // 及格分需落在 1..组卷总分内（后端同规则校验）；表单默认 60 分对小卷会超限，随总分自动收敛
+  useEffect(() => {
+    if (!showCreate || totalPaperScore === 0) return;
+    setExamForm((prev) => {
+      const current = Number(prev.passScore) || 0;
+      if (current >= 1 && current <= totalPaperScore) return prev;
+      return { ...prev, passScore: String(Math.max(1, Math.ceil(totalPaperScore * 0.6))) };
+    });
+  }, [showCreate, totalPaperScore]);
 
   return (
     <>

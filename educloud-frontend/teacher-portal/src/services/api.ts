@@ -1012,7 +1012,7 @@ export const api = {
     }
     return list.map(mapExamResponse);
   },
-  createExam: async (data: Partial<Exam> & { paper?: Array<{ questionId: string; score: number }> }): Promise<Exam | null> => {
+  createExam: async (data: Partial<Exam> & { paper?: Array<{ questionId: string; score: number }> }): Promise<Exam> => {
     let courseName = data.courseName;
     if (!courseName && data.courseId) {
       try {
@@ -1022,24 +1022,21 @@ export const api = {
         // ignore
       }
     }
-    try {
-      const paper = Array.isArray(data.paper) ? data.paper : [];
-      const resp = await http.post<ApiEnvelope<any>>('/teacher/exams', {
-        courseId: data.courseId,
-        title: data.title?.trim() ?? '',
-        description: data.description ?? '',
-        durationMinutes: data.duration ?? 60,
-        passScore: data.passScore ?? 60,
-        startTime: data.startTime ?? data.scheduledAt ?? new Date().toISOString(),
-        endTime: data.endTime ?? new Date(new Date(data.startTime ?? data.scheduledAt ?? Date.now()).getTime() + (data.duration ?? 60) * 60000).toISOString(),
-        paper,
-      });
-      return resp.data?.data ? mapExamResponse(resp.data.data) : null;
-    } catch (e) {
-      // 不再伪造本地 DRAFT 考试：那会让教师以为创建成功，实际库里没有这条考试
-      console.error('Failed to create exam via backend:', e);
-      return null;
+    const paper = Array.isArray(data.paper) ? data.paper : [];
+    const resp = await http.post<ApiEnvelope<any>>('/teacher/exams', {
+      courseId: data.courseId,
+      title: data.title?.trim() ?? '',
+      description: data.description ?? '',
+      durationMinutes: data.duration ?? 60,
+      passScore: data.passScore ?? 60,
+      startTime: data.startTime ?? data.scheduledAt ?? new Date().toISOString(),
+      endTime: data.endTime ?? new Date(new Date(data.startTime ?? data.scheduledAt ?? Date.now()).getTime() + (data.duration ?? 60) * 60000).toISOString(),
+      paper,
+    });
+    if (!resp.data?.data) {
+      throw new Error('创建考试失败：服务端未返回考试数据');
     }
+    return mapExamResponse(resp.data.data);
   },
   publishExam: async (examId: string): Promise<void> => {
     await http.post(`/teacher/exams/${examId}/publish`);
