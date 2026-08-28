@@ -84,7 +84,7 @@ public class ChatService {
             result = chatProvider.chat(messages, new ChatOptions(properties.provider().maxTokens()));
         } catch (AiProviderException exception) {
             log.error("AI provider call failed: upstreamStatus={}, retryable={}",
-                    exception.upstreamStatus(), exception.retryable());
+                    exception.upstreamStatus(), exception.retryable(), exception);
             AiMessageEntity failedRow = failedAssistantRow(conversation.getId(),
                     AiErrorCode.AI_PROVIDER_UNAVAILABLE.name());
             transactionTemplate.executeWithoutResult(status -> messageMapper.insert(failedRow));

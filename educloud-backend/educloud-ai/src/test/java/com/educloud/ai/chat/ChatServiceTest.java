@@ -279,6 +279,7 @@ class ChatServiceTest {
         AiMessageEntity failedRow = captor.getAllValues().get(1);
         assertThat(failedRow.getStatus()).isEqualTo("FAILED");
         assertThat(failedRow.getErrorCode()).isEqualTo("AI_PROVIDER_UNAVAILABLE");
+        assertThat(failedRow.getFinishReason()).isEqualTo("error");
         assertThat(failedRow.getContent()).isEmpty();
         // 失败调用不计次
         verify(quotaService, never()).recordUsage(any(), anyLong());
