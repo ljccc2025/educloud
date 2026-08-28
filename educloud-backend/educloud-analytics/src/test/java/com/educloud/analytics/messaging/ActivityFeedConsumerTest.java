@@ -336,6 +336,104 @@ class ActivityFeedConsumerTest {
     }
 
     @Test
+    @DisplayName("考试判分通过事件 → 学生 EXAM_PASSED 动态（extra 含分数与通过标记）")
+    void testExamGradedPassedMapsStudentActivity() {
+        String json = """
+                {
+                  "eventId": "EVT_EXM_001",
+                  "eventType": "ExamGraded",
+                  "examId": "exam_9001",
+                  "examTitle": "分布式系统期末考试",
+                  "studentId": "stu_9001",
+                  "score": 92,
+                  "passed": true,
+                  "occurredAt": "2026-08-27T16:00:00"
+                }
+                """;
+
+        consumer.handle(message(json), "educloud-content");
+
+        ArgumentCaptor<Map<String, Object>> extraCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(activityFeedService).recordActivity(
+                eq("stu_9001"), eq("STUDENT"), eq("EXAM_PASSED"), eq("EXAM"),
+                eq("exam_9001"), eq("分布式系统期末考试"), extraCaptor.capture(),
+                eq("EVT_EXM_001_EXAM_PASSED"), eq(LocalDateTime.of(2026, 8, 27, 16, 0)));
+        assertThat(extraCaptor.getValue())
+                .containsEntry("score", 92)
+                .containsEntry("passed", true);
+    }
+
+    @Test
+    @DisplayName("考试判分未通过事件 → 学生 EXAM_FAILED 动态（extra 含分数与通过标记）")
+    void testExamGradedFailedMapsStudentActivity() {
+        String json = """
+                {
+                  "eventId": "EVT_EXM_002",
+                  "eventType": "ExamGraded",
+                  "examId": "exam_9002",
+                  "examTitle": "微服务架构期中考试",
+                  "studentId": "stu_9002",
+                  "score": 45,
+                  "passed": false,
+                  "occurredAt": "2026-08-27T17:00:00"
+                }
+                """;
+
+        consumer.handle(message(json), "educloud-content");
+
+        ArgumentCaptor<Map<String, Object>> extraCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(activityFeedService).recordActivity(
+                eq("stu_9002"), eq("STUDENT"), eq("EXAM_FAILED"), eq("EXAM"),
+                eq("exam_9002"), eq("微服务架构期中考试"), extraCaptor.capture(),
+                eq("EVT_EXM_002_EXAM_FAILED"), eq(LocalDateTime.of(2026, 8, 27, 17, 0)));
+        assertThat(extraCaptor.getValue())
+                .containsEntry("score", 45)
+                .containsEntry("passed", false);
+    }
+
+    @Test
+    @DisplayName("考试判分事件缺学员 → 跳过且不抛异常")
+    void testExamGradedWithoutStudentSkipped() {
+        String json = """
+                {
+                  "eventId": "EVT_EXM_003",
+                  "eventType": "ExamGraded",
+                  "examId": "exam_9003",
+                  "examTitle": "数据库期末考试",
+                  "score": 88,
+                  "passed": true
+                }
+                """;
+
+        consumer.handle(message(json), "educloud-content");
+
+        verifyNoInteractions(activityFeedService);
+    }
+
+    @Test
+    @DisplayName("考试专用队列：消息缺省 eventType → 按 ExamGraded 兜底映射")
+    void testExamQueueDefaultsEventType() {
+        String json = """
+                {
+                  "eventId": "EVT_EXM_004",
+                  "examId": "exam_9004",
+                  "examTitle": "网络基础期末考试",
+                  "studentId": "stu_9004",
+                  "score": 100,
+                  "passed": true,
+                  "occurredAt": "2026-08-27T18:00:00"
+                }
+                """;
+
+        consumer.onExamEvent(message(json));
+
+        verify(activityFeedService).recordActivity(
+                eq("stu_9004"), eq("STUDENT"), eq("EXAM_PASSED"), eq("EXAM"),
+                eq("exam_9004"), eq("网络基础期末考试"), any(),
+                eq("EVT_EXM_004_EXAM_PASSED"), eq(LocalDateTime.of(2026, 8, 27, 18, 0)));
+    }
+
+    @Test
     @DisplayName("重复 eventId 二次到达 → 短路跳过，仅记录一次动态")
     void testDuplicateEventIdShortCircuited() {
         String json = """
