@@ -175,6 +175,7 @@ expected_permissions="$temporary_directory/expected-permissions"
 actual_permissions="$temporary_directory/actual-permissions"
 cat >"$expected_permissions" <<EOF
 r	${namespace}:${config_group}:config/educloud-gateway.yaml
+r	${namespace}:${discovery_group}:naming/educloud-ai
 r	${namespace}:${discovery_group}:naming/educloud-analytics
 r	${namespace}:${discovery_group}:naming/educloud-content
 r	${namespace}:${discovery_group}:naming/educloud-course
