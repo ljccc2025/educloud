@@ -191,9 +191,7 @@ export default function ExamManage() {
       window.alert('请至少勾选一道题目进行组卷');
       return;
     }
-    const start = examForm.startTime
-      ? dayjs(examForm.startTime).toISOString()
-      : dayjs().add(7, 'day').toISOString();
+    const start = examForm.startTime ? dayjs(examForm.startTime) : dayjs();
     const duration = Number(examForm.duration) || 60;
     const paper = orderedPaper
       .filter((item) => item.q)
@@ -213,8 +211,8 @@ export default function ExamManage() {
         duration,
         passScore,
         questionCount: paper.length,
-        startTime: start,
-        endTime: dayjs(start).add(duration, 'minute').toISOString(),
+        startTime: start.format('YYYY-MM-DDTHH:mm:ss'),
+        endTime: start.add(duration, 'minute').format('YYYY-MM-DDTHH:mm:ss'),
         paper,
       });
     } catch (e) {
@@ -316,7 +314,12 @@ export default function ExamManage() {
           </div>
           {activeTab === 'exams' ? (
             <div className="flex gap-2">
-              <button onClick={() => setShowCreate(true)} className="btn-primary">
+              <button onClick={() => {
+                // 预填当前时间：留空会默认排到未来，学生当场考不了又看不到原因
+                setExamForm({ ...emptyExamForm, startTime: dayjs().format('YYYY-MM-DDTHH:mm') });
+                setSelectedPaper({});
+                setShowCreate(true);
+              }} className="btn-primary">
                 <Plus className="w-4 h-4" />
                 创建考试
               </button>
