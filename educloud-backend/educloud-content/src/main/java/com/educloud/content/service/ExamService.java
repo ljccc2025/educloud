@@ -82,6 +82,7 @@ public class ExamService {
         }
         int totalScore = request.getPaper().stream()
                 .mapToInt(ExamCreateRequest.PaperItem::getScore).sum();
+        validatePassScore(request.getPassScore(), totalScore);
 
         ExamEntity exam = new ExamEntity();
         exam.setCourseId(request.getCourseId());
@@ -123,7 +124,7 @@ public class ExamService {
                         new LambdaQueryWrapper<ExamEntity>()
                                 .eq(ExamEntity::getTeacherId, teacherId)
                                 .orderByDesc(ExamEntity::getCreatedAt))
-                .stream().map(e -> toStudentView(e, null)).toList();
+                .stream().map(this::toTeacherView).toList();
     }
 
     @Transactional
@@ -144,6 +145,7 @@ public class ExamService {
                         .eq(ExamPaperQuestionEntity::getExamId, examId));
         int totalScore = request.getPaper().stream()
                 .mapToInt(ExamCreateRequest.PaperItem::getScore).sum();
+        validatePassScore(request.getPassScore(), totalScore);
         exam.setCourseId(request.getCourseId());
         exam.setCourseTitle(resolveCourseTitle(request.getCourseId()));
         exam.setTitle(request.getTitle());
@@ -200,6 +202,13 @@ public class ExamService {
         }
     }
 
+    private void validatePassScore(Integer passScore, int totalScore) {
+        if (passScore == null || passScore <= 0 || passScore > totalScore) {
+            throw new BusinessException(ContentErrorCode.EXAM_INVALID_PASS_SCORE,
+                    "Invalid pass score: must be between 1 and total score " + totalScore);
+        }
+    }
+
     private String resolveCourseTitle(Long courseId) {
         try {
             CourseClient.CourseSnapshot snapshot = courseClient.getCourseSnapshot(courseId);
@@ -235,6 +244,25 @@ public class ExamService {
             throw new BusinessException(ContentErrorCode.TEACHER_ACCESS_DENIED,
                     "You are not authorized to manage this exam: " + exam.getId());
         }
+    }
+
+    /** 教师视角视图：状态透传真实考试状态（DRAFT/PUBLISHED/CLOSED），不做学生展示态推导。 */
+    private ExamResponse toTeacherView(ExamEntity exam) {
+        List<ExamQuestionResponse> questions = loadQuestionsForDisplay(exam.getId());
+        return ExamResponse.builder()
+                .id(exam.getId())
+                .courseId(exam.getCourseId())
+                .courseTitle(exam.getCourseTitle())
+                .title(exam.getTitle())
+                .description(exam.getDescription())
+                .durationMinutes(exam.getDurationMinutes())
+                .totalScore(exam.getTotalScore())
+                .passScore(exam.getPassScore())
+                .startTime(exam.getStartTime())
+                .endTime(exam.getEndTime())
+                .status(exam.getStatus())
+                .questions(questions)
+                .build();
     }
 
     private List<String> readStringList(String json) {

@@ -25,7 +25,8 @@ public enum ContentErrorCode implements ErrorCode {
     EXAM_QUESTION_IN_USE(409, "Question is referenced by a published exam"),
     EXAM_NOT_DRAFT(409, "Exam is not in draft state"),
     EXAM_PAPER_EMPTY(400, "Exam paper must contain at least one question"),
-    EXAM_INVALID_WINDOW(400, "Invalid exam window");
+    EXAM_INVALID_WINDOW(400, "Invalid exam window"),
+    EXAM_INVALID_PASS_SCORE(400, "Pass score must be between 1 and total score");
 
     private final int httpStatus;
     private final String defaultMessage;
