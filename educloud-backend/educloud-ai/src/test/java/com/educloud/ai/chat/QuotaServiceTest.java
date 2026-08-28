@@ -107,6 +107,18 @@ class QuotaServiceTest {
         verify(redisTemplate, never()).expire(startsWith("educloud:ai:quota:2"), any(Duration.class));
     }
 
+    @Test
+    void recordUsageRepairsMissingTtlOnGlobalKeyAfterCrash() {
+        // INCR 后 EXPIRE 前崩溃的孤儿全局键：递增结果!=增量（非首增）且 getExpire=-1 → 补设 TTL
+        when(valueOperations.increment(personalKey())).thenReturn(1L);
+        when(valueOperations.increment("educloud:ai:quota:daily-tokens", 370L)).thenReturn(9999L);
+        when(redisTemplate.getExpire("educloud:ai:quota:daily-tokens")).thenReturn(-1L);
+
+        quotaService.recordUsage(STUDENT_ID, 370L);
+
+        verify(redisTemplate).expire(eq("educloud:ai:quota:daily-tokens"), any(Duration.class));
+    }
+
     private static String personalKey() {
         return "educloud:ai:quota:" + STUDENT_ID + ":" + LocalDate.now();
     }
