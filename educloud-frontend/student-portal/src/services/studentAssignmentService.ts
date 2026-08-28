@@ -250,7 +250,7 @@ export const studentAssignmentService = {
   getExams: async (): Promise<Exam[]> => {
     try {
       const resp = await http.get<ApiEnvelope<Exam[]>>('/me/exams');
-      if (resp.data?.data && Array.isArray(resp.data.data) && resp.data.data.length > 0) {
+      if (resp.data?.data && Array.isArray(resp.data.data)) {
         // 映射后端契约字段为前端标准化字段：stem -> question，durationMinutes -> duration
         return resp.data.data.map((raw) => {
           const exam = raw as Exam & { questions?: Array<{ id: number; stem?: string; options?: string[]; questionType?: string }> };
