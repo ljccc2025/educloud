@@ -27,9 +27,12 @@ export default function ExamSessionModal({
   const submittingRef = useRef(false);
   // 超时自动交卷只触发一次
   const autoSubmittedRef = useRef(false);
+  // 缓存已创建的考试 attemptId，避免重复 startExam 触发 409
+  const attemptIdRef = useRef<string | number | null>(null);
 
   useEffect(() => {
     if (isOpen && exam) {
+      attemptIdRef.current = null;
       setAnswers({});
       setResult(null);
       setTabSwitchCount(0);
@@ -43,6 +46,17 @@ export default function ExamSessionModal({
     return () => {
       document.body.style.overflow = 'auto';
     };
+  }, [isOpen, exam]);
+
+  // 弹窗打开时启动考试并缓存 attemptId（仅一次）
+  useEffect(() => {
+    if (isOpen && exam && attemptIdRef.current === null) {
+      studentAssignmentService.startExam(exam.id).then(({ attemptId }) => {
+        attemptIdRef.current = attemptId;
+      }).catch(() => {
+        attemptIdRef.current = `local-${Date.now()}`;
+      });
+    }
   }, [isOpen, exam]);
 
   useEffect(() => {
@@ -133,7 +147,12 @@ export default function ExamSessionModal({
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const { attemptId } = await studentAssignmentService.startExam(exam.id);
+      let attemptId = attemptIdRef.current;
+      if (attemptId === null) {
+        const started = await studentAssignmentService.startExam(exam.id);
+        attemptId = started.attemptId;
+        attemptIdRef.current = attemptId;
+      }
       const res = await studentAssignmentService.submitExam(exam.id, attemptId, answers, tabSwitchCount);
       setResult(res);
       onExamComplete(res.exam);
