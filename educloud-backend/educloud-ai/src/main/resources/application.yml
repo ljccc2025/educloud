@@ -1,0 +1,76 @@
+server:
+  port: ${SERVER_PORT:8105}
+  shutdown: graceful
+
+spring:
+  application:
+    name: educloud-ai
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  config:
+    # 非敏感 ai.* 微调项可发布在 Nacos（deploy/scripts/provision-ai-nacos.sh）；密钥只走 env，绝不进 Nacos
+    import: "optional:nacos:educloud-ai.yaml?group=EDUCLOUD_SERVICES&refreshEnabled=false"
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/educloud_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${EDUCLOUD_AI_DB_USERNAME:ai_app}
+    password: ${EDUCLOUD_AI_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      username: ${EDUCLOUD_AI_NACOS_USERNAME:${NACOS_ADMIN_USERNAME:nacos}}
+      password: ${EDUCLOUD_AI_NACOS_PASSWORD:${NACOS_ADMIN_PASSWORD:nacos}}
+      discovery:
+        namespace: ${NACOS_GATEWAY_NAMESPACE:educloud-local}
+        group: ${NACOS_GATEWAY_DISCOVERY_GROUP:EDUCLOUD_SERVICES}
+        register-enabled: true
+
+educloud:
+  ai:
+    provider:
+      name: ${AI_PROVIDER_NAME:openai-compatible}
+      base-url: ${AI_PROVIDER_BASE_URL:https://api.siliconflow.cn/v1}
+      model: ${AI_PROVIDER_MODEL:Qwen/Qwen3.6-27B}
+      api-key: ${AI_PROVIDER_API_KEY:}
+      # 实测：默认开思考 48-99s；必须顶层 enable_thinking:false 关思考（chat_template_kwargs 无效）
+      thinking-enabled: ${AI_THINKING_ENABLED:false}
+      max-tokens: ${AI_MAX_TOKENS:1024}
+    timeout:
+      connect-ms: ${AI_CONNECT_TIMEOUT_MS:5000}
+      read-ms: ${AI_READ_TIMEOUT_MS:25000}
+    quota:
+      daily-requests: ${AI_QUOTA_DAILY_REQUESTS:50}
+      daily-tokens: ${AI_QUOTA_DAILY_TOKENS:2000000}
+    context:
+      max-history-messages: ${AI_CONTEXT_MAX_HISTORY:10}
+      max-prompt-tokens: ${AI_CONTEXT_MAX_PROMPT_TOKENS:3000}
+    jwt:
+      jwks-location: ${AI_JWKS_LOCATION:file:/tmp/educloud-live/jwks.json}
+      issuer: ${EDUCLOUD_AI_JWT_ISSUER:https://issuer.educloud.local}
+      audience: ${EDUCLOUD_AI_JWT_AUDIENCE:educloud-api}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: assign_id
+
+management:
+  server:
+    address: ${AI_MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${AI_MANAGEMENT_PORT:8106}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

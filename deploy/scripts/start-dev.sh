@@ -345,6 +345,31 @@ fi
 
 wait_ready "http://127.0.0.1:8104/actuator/health" "educloud-recommendation"
 
+printf "[12.5/13] Starting educloud-ai...\n"
+if port_free 8105; then
+  if [[ -z "${AI_PROVIDER_API_KEY:-}" ]]; then
+    printf "  WARN: AI_PROVIDER_API_KEY is empty in .env; educloud-ai will fail to start\n"
+  fi
+  SERVER_PORT=8105 AI_MANAGEMENT_PORT=8106 \
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT="${MYSQL_PORT:-3306}" EDUCLOUD_AI_DB_PASSWORD="${EDUCLOUD_AI_DB_PASSWORD:-}" \
+  REDIS_HOST=127.0.0.1 REDIS_PORT="${REDIS_PORT:-6379}" REDIS_PASSWORD="${REDIS_PASSWORD:-}" \
+  NACOS_SERVER_ADDR=127.0.0.1:"${NACOS_HTTP_PORT:-8848}" \
+  EDUCLOUD_AI_NACOS_USERNAME="${EDUCLOUD_AI_NACOS_USERNAME:-${NACOS_ADMIN_USERNAME:-nacos}}" \
+  EDUCLOUD_AI_NACOS_PASSWORD="${EDUCLOUD_AI_NACOS_PASSWORD:-${NACOS_ADMIN_PASSWORD:-nacos}}" \
+  AI_JWKS_LOCATION=file:/tmp/educloud-live/jwks.json \
+  EDUCLOUD_AI_JWT_ISSUER="${EDUCLOUD_AI_JWT_ISSUER:-https://issuer.educloud.local}" \
+  EDUCLOUD_AI_JWT_AUDIENCE="${EDUCLOUD_AI_JWT_AUDIENCE:-educloud-api}" \
+  AI_PROVIDER_API_KEY="${AI_PROVIDER_API_KEY:-}" \
+  EDUCLOUD_ENVIRONMENT=local SPRING_CLOUD_NACOS_DISCOVERY_IP=127.0.0.1 \
+  setsid nohup java -jar educloud-backend/educloud-ai/target/educloud-ai-1.0.0-SNAPSHOT.jar \
+    > /tmp/educloud-live/ai.log 2>&1 < /dev/null &
+  printf "  educloud-ai started (8105/8106)\n"
+else
+  printf "  educloud-ai already running\n"
+fi
+
+wait_ready "http://127.0.0.1:8106/actuator/health" "educloud-ai"
+
 printf "[13/13] Starting frontend dev servers...\n"
 start_portal() {
   local dir="$1" port="$2"
@@ -376,4 +401,5 @@ printf "  Notification: http://192.168.100.136:8097  (management 8098)\n"
 printf "  Search:       http://192.168.100.136:8099  (management 8100)\n"
 printf "  Analytics:    http://192.168.100.136:8101  (management 8102)\n"
 printf "  Recommendation: http://192.168.100.136:8103  (management 8104)\n"
-printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content,order,payment,live,notification,search,analytics,recommendation}.log, /tmp/vm-vite-*.log\n"
+printf "  AI:           http://192.168.100.136:8105  (management 8106)\n"
+printf "\nLogs: /tmp/educloud-live/{user,gateway,course,file,content,order,payment,live,notification,search,analytics,recommendation,ai}.log, /tmp/vm-vite-*.log\n"

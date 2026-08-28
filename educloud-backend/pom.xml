@@ -26,6 +26,7 @@
         <module>educloud-search</module>
         <module>educloud-analytics</module>
         <module>educloud-recommendation</module>
+        <module>educloud-ai</module>
     </modules>
 
     <properties>
