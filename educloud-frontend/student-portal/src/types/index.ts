@@ -183,7 +183,7 @@ export interface Assignment {
 }
 
 // 考试状态
-export type ExamStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'SUBMITTED' | 'GRADED';
+export type ExamStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'SUBMITTED' | 'GRADED' | 'ENDED';
 
 // 考试题目
 export interface ExamQuestion {
@@ -192,6 +192,8 @@ export interface ExamQuestion {
   options: string[];
   questionType?: 'SINGLE' | 'MULTIPLE' | 'JUDGE';
   answer?: number[];
+  /** 后端契约原始题目字段（ExamQuestionResponse.stem），仅供 getExams 映射为 question 时读取 */
+  stem?: string;
   /** 兼容本地 mock 回退判分（真实 API 不下发标准答案） */
   correctAnswer?: number;
 }
@@ -204,6 +206,8 @@ export interface Exam {
   title: string;
   description: string;
   duration: number; // minutes
+  /** 后端契约原始时长字段（ExamResponse.durationMinutes），仅供 getExams 映射为 duration 时读取 */
+  durationMinutes?: number;
   totalQuestions: number;
   totalScore: number;
   status: ExamStatus;

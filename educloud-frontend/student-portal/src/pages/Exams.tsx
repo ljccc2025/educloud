@@ -12,6 +12,7 @@ const statusConfig: Record<ExamStatus, { label: string; className: string }> = {
   IN_PROGRESS: { label: '进行中', className: 'badge-amber' },
   SUBMITTED: { label: '已提交', className: 'badge-indigo' },
   GRADED: { label: '已批改', className: 'badge-green' },
+  ENDED: { label: '已结束', className: 'badge-red' },
 };
 
 export default function Exams() {

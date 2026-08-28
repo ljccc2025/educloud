@@ -251,7 +251,21 @@ export const studentAssignmentService = {
     try {
       const resp = await http.get<ApiEnvelope<Exam[]>>('/me/exams');
       if (resp.data?.data && Array.isArray(resp.data.data) && resp.data.data.length > 0) {
-        return resp.data.data.map((exam) => ({ ...exam, totalQuestions: exam.questions?.length ?? 0 }));
+        // 映射后端契约字段为前端标准化字段：stem -> question，durationMinutes -> duration
+        return resp.data.data.map((raw) => {
+          const exam = raw as Exam & { questions?: Array<{ id: number; stem?: string; options?: string[]; questionType?: string }> };
+          return {
+            ...exam,
+            duration: exam.durationMinutes ?? exam.duration,
+            totalQuestions: exam.questions?.length ?? 0,
+            questions: (exam.questions ?? []).map((q) => ({
+              id: q.id,
+              question: q.stem ?? (q as any).question ?? '',
+              options: q.options ?? [],
+              questionType: q.questionType,
+            })),
+          };
+        });
       }
     } catch (e) {
       console.warn('Failed to fetch /api/v1/me/exams, falling back:', e);
@@ -291,24 +305,29 @@ export const studentAssignmentService = {
   ): Promise<{ exam: Exam; score: number; passed: boolean }> => {
     // 真实 API 路径：attemptId 非 local- 前缀时走 HTTP
     if (!String(attemptId).startsWith('local-')) {
+      let resp;
       try {
-        const resp = await http.post<ApiEnvelope<any>>(
+        resp = await http.post<ApiEnvelope<any>>(
           `/me/exams/${examId}/attempts/${attemptId}/submit`,
           { answers, tabSwitchCount }
         );
-        if (resp.data?.data) {
-          const data = resp.data.data;
-          const list = await studentAssignmentService.getExams();
-          const target = list.find((i) => String(i.id) === String(examId));
-          const updated: Exam = target
-            ? { ...target, status: 'GRADED' as const, score: data.score, submittedAt: data.submittedAt }
-            : ({ id: examId, title: '', courseId: '', courseTitle: '', description: '', duration: 0,
-                totalQuestions: 0, totalScore: data.totalScore ?? 100, status: 'GRADED' as const,
-                passScore: 60, score: data.score } as Exam);
-          return { exam: updated, score: data.score, passed: data.passed };
-        }
       } catch (e) {
-        console.warn('Failed to submit exam via API, falling back:', e);
+        // 真实 attempt 提交失败：不得静默回退本地判分（真实题目无标准答案必然 0 分）
+        console.error('Failed to submit exam via API:', e);
+        throw new Error('交卷失败，请重试');
+      }
+      if (resp.data?.data) {
+        const data = resp.data.data;
+        const list = await studentAssignmentService.getExams();
+        const target = list.find((i) => String(i.id) === String(examId));
+        // ExamAttemptResponse 不含 totalScore，取自目标考试
+        const totalScore = target?.totalScore ?? 100;
+        const updated: Exam = target
+          ? { ...target, status: 'GRADED' as const, score: data.score, submittedAt: data.submittedAt }
+          : ({ id: examId, title: '', courseId: '', courseTitle: '', description: '', duration: 0,
+              totalQuestions: 0, totalScore, status: 'GRADED' as const,
+              passScore: 60, score: data.score } as Exam);
+        return { exam: updated, score: data.score, passed: data.passed };
       }
     }
     // 本地 mock 回退：保留现有判分逻辑（读取 correctAnswer/answer）

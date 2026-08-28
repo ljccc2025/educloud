@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Clock, Award } from 'lucide-react';
 import type { Exam, ExamQuestion } from '../../types';
@@ -23,6 +23,10 @@ export default function ExamSessionModal({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ score: number; passed: boolean } | null>(null);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  // 同步 ref：防止 handleFinish 在并发闭包中被重复触发
+  const submittingRef = useRef(false);
+  // 超时自动交卷只触发一次
+  const autoSubmittedRef = useRef(false);
 
   useEffect(() => {
     if (isOpen && exam) {
@@ -30,6 +34,8 @@ export default function ExamSessionModal({
       setResult(null);
       setTabSwitchCount(0);
       setTimeLeftSeconds(exam.duration * 60);
+      submittingRef.current = false;
+      autoSubmittedRef.current = false;
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
@@ -109,7 +115,7 @@ export default function ExamSessionModal({
   ];
 
   const handleSelectOption = (questionId: number, optionIdx: number, questionType?: string) => {
-    if (result) return;
+    if (result || timeLeftSeconds <= 0) return;
     setAnswers((prev) => {
       const current = prev[questionId] ?? [];
       if (questionType === 'MULTIPLE') {
@@ -123,7 +129,8 @@ export default function ExamSessionModal({
   };
 
   const handleFinish = async () => {
-    if (submitting) return;
+    if (submitting || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const { attemptId } = await studentAssignmentService.startExam(exam.id);
@@ -133,9 +140,18 @@ export default function ExamSessionModal({
     } catch (err) {
       alert(err instanceof Error ? err.message : '交卷失败');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
+
+  // 倒计时归零自动交卷（超时锁定），仅触发一次
+  useEffect(() => {
+    if (timeLeftSeconds <= 0 && isOpen && exam && !result && !autoSubmittedRef.current) {
+      autoSubmittedRef.current = true;
+      void handleFinish();
+    }
+  }, [isOpen, exam, result, timeLeftSeconds]);
 
   const formatTime = (secs: number) => {
     const mins = Math.floor(secs / 60);
@@ -277,10 +293,10 @@ export default function ExamSessionModal({
               <button
                 type="button"
                 onClick={handleFinish}
-                disabled={submitting}
+                disabled={submitting || timeLeftSeconds <= 0}
                 className="px-6 py-2.5 rounded-xl bg-indigo-800 hover:bg-indigo-900 text-white text-xs font-semibold shadow-md flex items-center gap-2 transition-all disabled:opacity-50"
               >
-                {submitting ? '正在阅卷...' : '确认交卷'}
+                {submitting ? '正在阅卷...' : timeLeftSeconds <= 0 ? '时间到，正在交卷...' : '确认交卷'}
               </button>
             )}
           </div>
