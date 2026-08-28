@@ -1,5 +1,7 @@
 package com.educloud.common.messaging;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.time.Instant;
 import java.util.Objects;
 
@@ -38,6 +40,18 @@ public record EventEnvelope<T>(
         }
         occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
         data = Objects.requireNonNull(data, "data");
+    }
+
+    /**
+     * 事件负载节点：经 envelope 包装时业务字段在 data 子节点内，
+     * 未包装的扁平结构原样返回。供消费端统一解包，避免各模块重复实现。
+     */
+    public static JsonNode payloadNode(JsonNode root) {
+        if (root == null) {
+            return null;
+        }
+        JsonNode data = root.get("data");
+        return data != null && data.isObject() ? data : root;
     }
 
     private static String requireText(String value, String field) {

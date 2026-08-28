@@ -214,6 +214,30 @@ class DomainNotificationConsumerTest {
     }
 
     @Test
+    @DisplayName("作业批改事件经 EventEnvelope 包装时用 data.studentId 回填收件人并发送通知")
+    void handleAssignmentGradedEnvelopeBackfillsUserIdFromDataStudentId() {
+        // 生产形态：content 经 Outbox 发 EventEnvelope，业务字段在 data 内且收件人字段名为 studentId
+        String json = "{\"eventId\":\"evt_assign_7001\",\"eventType\":\"AssignmentGraded\",\"aggregateId\":\"901\","
+                + "\"data\":{\"assignmentId\":\"901\",\"assignmentTitle\":\"第三章习题\",\"courseId\":501,"
+                + "\"score\":95,\"studentId\":3001}}";
+        onMessage(json, RabbitMqConfiguration.ROUTING_KEY_ASSIGNMENT_GRADED);
+
+        ArgumentCaptor<String> contentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notificationService, times(1)).sendDirectNotification(
+                eq(3001L),
+                eq(NotificationKind.ASSIGNMENT),
+                eq("作业批改完成"),
+                contentCaptor.capture(),
+                eq("查看作业"),
+                eq("/assignments"),
+                eq(false)
+        );
+        assertThat(contentCaptor.getValue())
+                .contains("第三章习题")
+                .contains("95");
+    }
+
+    @Test
     @DisplayName("开播事件无受众时跨库查询报名学生发送测试")
     void handleLiveStartedResolvesAudienceFromCourseEnrollment() {
         when(jdbcTemplate.queryForList(

@@ -39,6 +39,21 @@ class EventEnvelopeTest {
     }
 
     @Test
+    void payloadNodeUnwrapsEnvelopeDataAndKeepsFlatPayload() throws Exception {
+        var wrapped = objectMapper.readTree(
+                "{\"eventId\":\"e1\",\"eventType\":\"ExamGraded\",\"data\":{\"score\":88}}");
+        assertThat(EventEnvelope.payloadNode(wrapped).get("score").asInt()).isEqualTo(88);
+
+        var flat = objectMapper.readTree("{\"eventId\":\"e1\",\"score\":88}");
+        assertThat(EventEnvelope.payloadNode(flat)).isSameAs(flat);
+
+        var nonObjectData = objectMapper.readTree("{\"eventId\":\"e1\",\"data\":\"text\"}");
+        assertThat(EventEnvelope.payloadNode(nonObjectData)).isSameAs(nonObjectData);
+
+        assertThat(EventEnvelope.payloadNode(null)).isNull();
+    }
+
+    @Test
     void rejectsMissingRequiredFieldsAndInvalidVersions() {
         assertThatThrownBy(() -> new EventEnvelope<>(
                         " ", "type", 1, "source", 0, "Aggregate", "id", 0,

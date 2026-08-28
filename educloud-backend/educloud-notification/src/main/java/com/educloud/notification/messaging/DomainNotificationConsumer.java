@@ -1,5 +1,6 @@
 package com.educloud.notification.messaging;
 
+import com.educloud.common.messaging.EventEnvelope;
 import com.educloud.notification.config.RabbitMqConfiguration;
 import com.educloud.notification.enums.NotificationKind;
 import com.educloud.notification.messaging.events.AssignmentGradedEvent;
@@ -23,6 +24,14 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
 
+/**
+ * 域事件通知消费者。
+ *
+ * 事件源负载结构分两类，新增分支时先确认来源属于哪一类：
+ * - content 域（assignment.graded / exam.graded）：经 OutboxEventDispatcher 以 EventEnvelope 包装，
+ *   业务字段在 data 节点内，需用 {@link EventEnvelope#payloadNode} 解包；
+ * - payment / order / live 域：扁平发布，业务字段在顶层，直接取 root。
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -78,23 +87,16 @@ public class DomainNotificationConsumer {
                 LiveStartedEvent event = objectMapper.treeToValue(root, LiveStartedEvent.class);
                 handleLiveStarted(event);
             } else if (RabbitMqConfiguration.ROUTING_KEY_ASSIGNMENT_GRADED.equals(routingKey)) {
-                // 事件经 EventEnvelope 包装时业务字段在 data 节点内，兼容两种结构。
-                AssignmentGradedEvent event = objectMapper.treeToValue(
-                        payloadNode(root), AssignmentGradedEvent.class);
+                // content 域事件经 OutboxEventDispatcher 以 EventEnvelope 包装，业务字段在 data 节点内。
+                JsonNode payload = EventEnvelope.payloadNode(root);
+                AssignmentGradedEvent event = objectMapper.treeToValue(payload, AssignmentGradedEvent.class);
+                event.setUserId(recipientId(payload, event.getUserId()));
                 handleAssignmentGraded(event);
             } else if (RabbitMqConfiguration.ROUTING_KEY_EXAM_GRADED.equals(routingKey)) {
-                // 兼容 content 事件 payload 使用 studentId 字段：回填 userId。
-                // 事件经 EventEnvelope 包装，业务字段在 data 节点内，需兼容两种结构。
-                ExamGradedEvent examEvent = objectMapper.treeToValue(
-                        payloadNode(root), ExamGradedEvent.class);
-                if (examEvent.getUserId() == null) {
-                    JsonNode studentIdNode = root.has("studentId")
-                            ? root.get("studentId")
-                            : root.path("data").get("studentId");
-                    if (studentIdNode != null && !studentIdNode.isNull()) {
-                        examEvent.setUserId(studentIdNode.asLong());
-                    }
-                }
+                // 同上；且 content 侧 payload 用 studentId 表达收件人，需回填 userId。
+                JsonNode payload = EventEnvelope.payloadNode(root);
+                ExamGradedEvent examEvent = objectMapper.treeToValue(payload, ExamGradedEvent.class);
+                examEvent.setUserId(recipientId(payload, examEvent.getUserId()));
                 handleExamGraded(examEvent);
             } else {
                 log.info("[DomainNotificationConsumer] Unhandled routingKey: {}", routingKey);
@@ -236,10 +238,13 @@ public class DomainNotificationConsumer {
         }
     }
 
-    /** 事件负载节点：EventEnvelope 包装时业务字段在 data 节点内，否则取顶层（兼容扁平结构）。 */
-    private static JsonNode payloadNode(JsonNode root) {
-        JsonNode data = root.get("data");
-        return data != null && data.isObject() ? data : root;
+    /** content 域 payload 以 studentId 表达收件人：userId 缺失时回填，两者皆无则返回 null。 */
+    private static Long recipientId(JsonNode payload, Long userId) {
+        if (userId != null) {
+            return userId;
+        }
+        JsonNode studentId = payload.get("studentId");
+        return studentId != null && !studentId.isNull() ? studentId.asLong() : null;
     }
 
     private boolean tryAcquireIdempotency(String eventId) {
