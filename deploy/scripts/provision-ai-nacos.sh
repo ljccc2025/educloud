@@ -24,8 +24,8 @@ token="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("accessToke
 content=$(cat <<'YAML'
 ai:
   provider:
-    base-url: https://api.siliconflow.cn/v1
-    model: Qwen/Qwen3.6-27B
+    base-url: https://api.deepseek.com
+    model: deepseek-v4-flash-vision-exp
     thinking-enabled: false
     max-tokens: 1024
   timeout:

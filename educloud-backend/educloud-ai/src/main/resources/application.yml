@@ -35,8 +35,8 @@ educloud:
   ai:
     provider:
       name: ${AI_PROVIDER_NAME:openai-compatible}
-      base-url: ${AI_PROVIDER_BASE_URL:https://api.siliconflow.cn/v1}
-      model: ${AI_PROVIDER_MODEL:Qwen/Qwen3.6-27B}
+      base-url: ${AI_PROVIDER_BASE_URL:https://api.deepseek.com}
+      model: ${AI_PROVIDER_MODEL:deepseek-v4-flash-vision-exp}
       api-key: ${AI_PROVIDER_API_KEY:}
       # 实测：默认开思考 48-99s；必须顶层 enable_thinking:false 关思考（chat_template_kwargs 无效）
       thinking-enabled: ${AI_THINKING_ENABLED:false}
