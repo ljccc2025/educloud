@@ -52,6 +52,10 @@ public class ExamService {
 
     public ExamResponse getStudentExam(Long examId, Long studentId) {
         ExamEntity exam = requireExam(examId);
+        if (!STATUS_PUBLISHED.equals(exam.getStatus())) {
+            throw new BusinessException(ContentErrorCode.EXAM_NOT_PUBLISHED,
+                    "Exam is not published: " + examId);
+        }
         ExamAttemptEntity attempt = attemptMapper.selectOne(
                 new LambdaQueryWrapper<ExamAttemptEntity>()
                         .eq(ExamAttemptEntity::getExamId, examId)
@@ -91,6 +95,9 @@ public class ExamService {
         }
         if (attempt != null && STATUS_GRADED.equals(attempt.getStatus())) {
             return "GRADED";
+        }
+        if (now.isAfter(exam.getEndTime())) {
+            return "ENDED";
         }
         return "IN_PROGRESS";
     }

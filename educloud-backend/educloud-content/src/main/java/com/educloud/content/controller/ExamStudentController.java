@@ -9,6 +9,7 @@ import com.educloud.content.entity.ExamAttemptEntity;
 import com.educloud.content.security.JwtSecurityUtils;
 import com.educloud.content.service.ExamAttemptService;
 import com.educloud.content.service.ExamService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -63,7 +64,7 @@ public class ExamStudentController {
     @PostMapping("/{examId}/attempts/{attemptId}/submit")
     public ApiResponse<ExamAttemptResponse> submitAttempt(@PathVariable Long examId,
                                                           @PathVariable Long attemptId,
-                                                          @RequestBody ExamSubmitRequest request,
+                                                          @Valid @RequestBody ExamSubmitRequest request,
                                                           @AuthenticationPrincipal Jwt jwt) {
         Long studentId = JwtSecurityUtils.userId(jwt);
         return responses.success(attemptService.submitAttempt(examId, attemptId, studentId, request));
