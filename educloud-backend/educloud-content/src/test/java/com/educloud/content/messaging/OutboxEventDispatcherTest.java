@@ -90,6 +90,19 @@ class OutboxEventDispatcherTest {
     }
 
     @Test
+    void examGradedRoutesToDomainEventBusWithExactRoutingKey() {
+        OutboxEventEntity event = claimedEvent(9L, "ExamGraded", "Exam", "exam-001", 0);
+        when(outboxEventMapper.claimPending(anyString(), anyInt(), anyInt())).thenReturn(1, 0);
+        when(outboxEventMapper.selectClaimedByOwner(anyString())).thenReturn(List.of(event));
+
+        dispatcher.dispatchPending();
+
+        // 全域总线定向路由：与 analytics 动态流考试队列绑定（exam.graded）完全一致。
+        verify(rabbitTemplate).convertAndSend(eq("educloud.events"), eq("exam.graded"), any(Object.class));
+        verify(outboxEventMapper).markPublished(event.getId());
+    }
+
+    @Test
     void assignmentSubmittedRoutesToContentExchange() {
         OutboxEventEntity event = claimedEvent(2L, "AssignmentSubmitted", "Assignment", "asg-001", 0);
         when(outboxEventMapper.claimPending(anyString(), anyInt(), anyInt())).thenReturn(1, 0);
