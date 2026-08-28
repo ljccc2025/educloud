@@ -54,8 +54,12 @@ public class ExamAttemptService {
                         .eq(ExamAttemptEntity::getExamId, examId)
                         .eq(ExamAttemptEntity::getStudentId, studentId));
         if (existing != null) {
+            if (STATUS_IN_PROGRESS.equals(existing.getStatus())) {
+                // 幂等复用：刷新页面/重复点击开始考试时返回进行中的 attempt，避免前端误判为不可考。
+                return existing;
+            }
             throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_ALREADY_EXISTS,
-                    "Active attempt already exists: exam=" + examId + ", student=" + studentId);
+                    "Exam already attempted: exam=" + examId + ", student=" + studentId);
         }
         ExamAttemptEntity attempt = new ExamAttemptEntity();
         attempt.setExamId(examId);

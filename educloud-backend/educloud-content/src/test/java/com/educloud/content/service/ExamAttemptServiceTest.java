@@ -94,9 +94,28 @@ class ExamAttemptServiceTest {
     }
 
     @Test
-    void startAttempt_rejectsDuplicateAttempt() {
+    void startAttempt_reusesInProgressAttempt() {
         when(examMapper.selectById(101L)).thenReturn(publishedExam());
-        when(attemptMapper.selectOne(any())).thenReturn(new ExamAttemptEntity());
+        ExamAttemptEntity inProgress = new ExamAttemptEntity();
+        inProgress.setId(501L);
+        inProgress.setExamId(101L);
+        inProgress.setStudentId(2001L);
+        inProgress.setStatus("IN_PROGRESS");
+        inProgress.setStartedAt(LocalDateTime.now().minusMinutes(5));
+        when(attemptMapper.selectOne(any())).thenReturn(inProgress);
+
+        ExamAttemptEntity result = attemptService.startAttempt(101L, 2001L);
+
+        assertThat(result.getId()).isEqualTo(501L);
+        assertThat(result.getStatus()).isEqualTo("IN_PROGRESS");
+    }
+
+    @Test
+    void startAttempt_rejectsGradedAttempt() {
+        when(examMapper.selectById(101L)).thenReturn(publishedExam());
+        ExamAttemptEntity graded = new ExamAttemptEntity();
+        graded.setStatus("GRADED");
+        when(attemptMapper.selectOne(any())).thenReturn(graded);
 
         assertThatThrownBy(() -> attemptService.startAttempt(101L, 2001L))
                 .isInstanceOf(BusinessException.class)
