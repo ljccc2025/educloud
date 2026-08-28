@@ -171,6 +171,20 @@ export function apiErrorText(e: unknown): string {
       return '课程状态冲突';
     case 'REVIEW_NOT_FOUND':
       return '评价不存在';
+    // ---- AI 助教错误码（M15） ----
+    case 'AI_QUOTA_EXCEEDED':
+      return '今日提问次数已用完，明天再来';
+    case 'AI_GLOBAL_BUDGET_EXCEEDED':
+    case 'AI_PROVIDER_UNAVAILABLE':
+      return 'AI 服务暂时不可用，请稍后重试';
+    case 'AI_STREAM_NOT_SUPPORTED':
+      return '当前版本暂不支持流式输出';
+    case 'AI_QUESTION_TOO_LONG':
+      return '提问请控制在 1000 字以内';
+    case 'AI_CONVERSATION_NOT_FOUND':
+      return '会话不存在或已删除';
+    case 'AI_CONVERSATION_NOT_OWNED':
+      return '无法访问他人的会话';
     default:
       return message || '登录失败，请重试';
   }

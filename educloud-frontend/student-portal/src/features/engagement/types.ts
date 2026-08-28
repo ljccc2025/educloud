@@ -17,11 +17,42 @@ export interface AssistantMessage {
   role: 'student' | 'assistant';
   content: string;
   createdAt: string;
+  /** assistant 消息的落库状态；TRUNCATED 时前端提示"回答被截断，可追问继续" */
+  status?: 'OK' | 'TRUNCATED';
 }
 
-export interface AssistantReply {
+/** /api/v1/ai/chat 响应（雪花 ID 已字符串化） */
+export interface AiChatResponse {
+  conversationId: string;
+  messageId: string;
   content: string;
-  mode: 'mock' | 'remote';
+  finishReason: 'stop' | 'length' | string;
+  usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+  degraded: boolean;
+}
+
+export interface AiConversationSummary {
+  id: string;
+  title: string;
+  messageCount: number;
+  lastMessageAt: string;
+  createdAt: string;
+}
+
+export interface AiConversationMessage {
+  id: string;
+  role: 'student' | 'assistant';
+  content: string;
+  status: 'OK' | 'TRUNCATED';
+  createdAt: string;
+}
+
+export interface AiPage<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface CommunityReply {
