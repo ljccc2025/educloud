@@ -209,6 +209,8 @@ export interface Exam {
   /** 后端契约原始时长字段（ExamResponse.durationMinutes），仅供 getExams 映射为 duration 时读取 */
   durationMinutes?: number;
   totalQuestions: number;
+  /** 后端契约题数字段（ExamResponse.questionCount），已批改态不下发 questions 时供映射兜底 */
+  questionCount?: number;
   totalScore: number;
   status: ExamStatus;
   startTime?: string;

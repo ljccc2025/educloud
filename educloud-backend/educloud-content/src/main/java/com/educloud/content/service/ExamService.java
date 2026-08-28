@@ -262,6 +262,7 @@ public class ExamService {
                 .endTime(exam.getEndTime())
                 .status(exam.getStatus())
                 .questions(questions)
+                .questionCount(questions.size())
                 .build();
     }
 
@@ -288,6 +289,7 @@ public class ExamService {
         List<ExamQuestionResponse> questions = hasResult
                 ? List.of()
                 : loadQuestionsForDisplay(exam.getId());
+        int questionCount = hasResult ? countPaperQuestions(exam.getId()) : questions.size();
         return ExamResponse.builder()
                 .id(exam.getId())
                 .courseId(exam.getCourseId())
@@ -301,6 +303,7 @@ public class ExamService {
                 .endTime(exam.getEndTime())
                 .status(displayStatus(exam, attempt))
                 .questions(questions)
+                .questionCount(questionCount)
                 .score(hasResult ? attempt.getScore() : null)
                 .passed(hasResult ? attempt.getPassed() == 1 : null)
                 .attemptStatus(attempt == null ? null : attempt.getStatus())
@@ -320,6 +323,14 @@ public class ExamService {
             return "ENDED";
         }
         return "IN_PROGRESS";
+    }
+
+    /** 组卷题数：仅统计行数，不读取题目与答案。 */
+    private int countPaperQuestions(Long examId) {
+        Long count = paperQuestionMapper.selectCount(
+                new LambdaQueryWrapper<ExamPaperQuestionEntity>()
+                        .eq(ExamPaperQuestionEntity::getExamId, examId));
+        return count == null ? 0 : count.intValue();
     }
 
     private List<ExamQuestionResponse> loadQuestionsForDisplay(Long examId) {

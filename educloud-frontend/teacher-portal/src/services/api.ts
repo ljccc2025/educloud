@@ -632,7 +632,7 @@ function mapExamResponse(item: any): Exam {
     courseId: item?.courseId != null ? String(item.courseId) : '',
     courseName: item?.courseTitle ?? item?.courseName ?? '',
     description: item?.description,
-    questionCount: questions?.length ?? 0,
+    questionCount: Number(item?.questionCount ?? questions?.length ?? 0),
     duration: Number(item?.durationMinutes ?? 0),
     totalScore: Number(item?.totalScore ?? 0),
     passScore: Number(item?.passScore ?? 0),

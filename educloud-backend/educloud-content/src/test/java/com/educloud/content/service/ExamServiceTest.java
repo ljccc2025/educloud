@@ -3,6 +3,7 @@ package com.educloud.content.service;
 import com.educloud.common.error.BusinessException;
 import com.educloud.content.dto.request.ExamCreateRequest;
 import com.educloud.content.dto.response.ExamResponse;
+import com.educloud.content.entity.ExamAttemptEntity;
 import com.educloud.content.entity.ExamBankQuestionEntity;
 import com.educloud.content.entity.ExamEntity;
 import com.educloud.content.entity.ExamPaperQuestionEntity;
@@ -39,7 +40,8 @@ class ExamServiceTest {
     @BeforeAll
     static void initMybatisPlus() {
         MybatisPlusTestSupport.registerTableInfo(
-                ExamBankQuestionEntity.class, ExamEntity.class, ExamPaperQuestionEntity.class);
+                ExamBankQuestionEntity.class, ExamEntity.class, ExamPaperQuestionEntity.class,
+                ExamAttemptEntity.class);
     }
 
     @Mock
@@ -197,6 +199,26 @@ class ExamServiceTest {
         assertThatThrownBy(() -> examService.createExam(createRequest(), 777L))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContentErrorCode.EXAM_QUESTION_NOT_FOUND);
+    }
+
+    @Test
+    void studentView_whenGraded_omitsQuestionsButReportsQuestionCount() {
+        ExamEntity published = draftExam(11L);
+        published.setStatus("PUBLISHED");
+        ExamAttemptEntity graded = new ExamAttemptEntity();
+        graded.setStatus("GRADED");
+        graded.setScore(40);
+        graded.setPassed(1);
+        when(examMapper.selectById(11L)).thenReturn(published);
+        when(attemptMapper.selectOne(any())).thenReturn(graded);
+        when(paperQuestionMapper.selectCount(any())).thenReturn(3L);
+
+        ExamResponse view = examService.getStudentExam(11L, 900L);
+
+        assertThat(view.getQuestions()).isEmpty();
+        assertThat(view.getQuestionCount()).isEqualTo(3);
+        assertThat(view.getScore()).isEqualTo(40);
+        assertThat(view.getPassed()).isTrue();
     }
 
     private static org.mockito.verification.VerificationMode verifyTimes(int times) {

@@ -21,6 +21,8 @@ public class ExamResponse {
     private LocalDateTime endTime;
     private String status;
     private List<ExamQuestionResponse> questions;
+    /** 题目数量：已批改态不下发 questions，题数需单独提供。 */
+    private Integer questionCount;
     private Integer score;
     private Boolean passed;
     private String attemptStatus;

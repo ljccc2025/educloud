@@ -257,7 +257,7 @@ export const studentAssignmentService = {
           return {
             ...exam,
             duration: exam.durationMinutes ?? exam.duration,
-            totalQuestions: exam.questions?.length ?? 0,
+            totalQuestions: exam.questionCount ?? exam.questions?.length ?? 0,
             questions: (exam.questions ?? []).map((q) => ({
               id: q.id,
               question: q.stem ?? (q as any).question ?? '',
