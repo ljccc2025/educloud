@@ -66,6 +66,8 @@ class UserApplicationContextTest {
                 .web(WebApplicationType.SERVLET)
                 .run(
                         "--server.port=0",
+                        // 管理端口同样随机，避免与宿主机运行中的服务端口冲突
+                        "--management.server.port=0",
                         "--spring.main.banner-mode=off",
                         "--spring.autoconfigure.exclude=" + EXCLUDED_AUTOCONFIGURATIONS,
                         "--spring.cloud.nacos.discovery.enabled=false",
