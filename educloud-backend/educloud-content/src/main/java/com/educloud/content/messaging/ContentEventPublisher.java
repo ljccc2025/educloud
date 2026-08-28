@@ -140,6 +140,34 @@ public class ContentEventPublisher {
         writeOutbox("Certificate", certificateNo, "CertificateIssued", aggregateVersion, payload);
     }
 
+    /**
+     * 考试判分完成事件（在线考试模块）：交卷/超时收敛判分后发布，
+     * 经 Outbox 投递到全域总线 educloud.events（routing key exam.graded，
+     * analytics 动态流考试队列与 notification 均按该路由键定向订阅）。
+     */
+    public void examGraded(
+            Long examId,
+            String examTitle,
+            Long courseId,
+            String courseTitle,
+            Long studentId,
+            Integer score,
+            boolean passed,
+            long aggregateVersion,
+            LocalDateTime gradedAt) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("examId", examId);
+        payload.put("examTitle", examTitle);
+        payload.put("courseId", courseId);
+        payload.put("courseTitle", courseTitle);
+        payload.put("studentId", studentId);
+        payload.put("score", score);
+        payload.put("passed", passed);
+        payload.put("aggregateVersion", aggregateVersion);
+        payload.put("gradedAt", gradedAt.toString());
+        writeOutbox("Exam", String.valueOf(examId), "ExamGraded", aggregateVersion, payload);
+    }
+
     private void writeOutbox(String aggregateType, String aggregateId, String eventType,
                              long aggregateVersion, Map<String, Object> payload) {
         String payloadJson;

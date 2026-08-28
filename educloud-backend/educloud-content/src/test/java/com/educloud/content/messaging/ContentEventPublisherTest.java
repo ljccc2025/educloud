@@ -151,4 +151,25 @@ class ContentEventPublisherTest {
                 eq(1), eq(1L), anyString(), eq("req-1"), eq(null));
         assertThat(captured.traceId()).isNull();
     }
+
+    @Test
+    void examGradedWritesOutboxRowWithExamPayload() throws Exception {
+        publisher.examGraded(101L, "期中考试", 1001L, "Spring Boot 微服务实践",
+                2001L, 85, true, 1L, LocalDateTime.of(2026, 8, 28, 10, 0));
+
+        assertThat(captured.aggregateType()).isEqualTo("Exam");
+        assertThat(captured.aggregateId()).isEqualTo("101");
+        assertThat(captured.eventType()).isEqualTo("ExamGraded");
+        assertThat(captured.aggregateVersion()).isEqualTo(1L);
+
+        JsonNode payload = objectMapper.readTree(captured.payloadJson());
+        assertThat(payload.get("examId").asLong()).isEqualTo(101L);
+        assertThat(payload.get("examTitle").asText()).isEqualTo("期中考试");
+        assertThat(payload.get("courseId").asLong()).isEqualTo(1001L);
+        assertThat(payload.get("courseTitle").asText()).isEqualTo("Spring Boot 微服务实践");
+        assertThat(payload.get("studentId").asLong()).isEqualTo(2001L);
+        assertThat(payload.get("score").asInt()).isEqualTo(85);
+        assertThat(payload.get("passed").asBoolean()).isTrue();
+        assertThat(payload.get("gradedAt").asText()).isEqualTo("2026-08-28T10:00");
+    }
 }

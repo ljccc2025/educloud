@@ -55,6 +55,10 @@ public class OutboxEventDispatcher {
     private static final String ASSIGNMENT_GRADED_EVENT_TYPE = "AssignmentGraded";
     private static final String ASSIGNMENT_GRADED_ROUTING_KEY = "assignment.graded";
 
+    /** 考试判分事件：发布在全域总线，路由键与 analytics 动态流考试队列绑定一致。 */
+    private static final String EXAM_GRADED_EVENT_TYPE = "ExamGraded";
+    private static final String EXAM_GRADED_ROUTING_KEY = "exam.graded";
+
     /** 本实例认领标识（JVM 生命周期唯一；崩溃后其认领由 STALE_CLAIM_SECONDS 超时回置）。 */
     private final String claimOwner = UUID.randomUUID().toString();
 
@@ -134,6 +138,9 @@ public class OutboxEventDispatcher {
     private Route routeFor(String eventType, String aggregateType, String aggregateId) {
         if (ASSIGNMENT_GRADED_EVENT_TYPE.equals(eventType)) {
             return new Route(RabbitConfiguration.DOMAIN_EVENT_EXCHANGE, ASSIGNMENT_GRADED_ROUTING_KEY);
+        }
+        if (EXAM_GRADED_EVENT_TYPE.equals(eventType)) {
+            return new Route(RabbitConfiguration.DOMAIN_EVENT_EXCHANGE, EXAM_GRADED_ROUTING_KEY);
         }
         String contentRoutingKey = CONTENT_EVENT_ROUTING_KEYS.get(eventType);
         if (contentRoutingKey != null) {
