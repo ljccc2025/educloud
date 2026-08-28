@@ -301,6 +301,27 @@ class DomainNotificationConsumerTest {
                 .contains("已通过");
     }
 
+
+    @Test
+    @DisplayName("考试出分事件经 EventEnvelope 包装（data 节点含 studentId）回填 userId")
+    void handleExamGradedEnvelopeBackfillsUserIdFromDataStudentId() {
+        // 生产事件为 EventEnvelope：业务字段在 data 节点内
+        String json = "{\"eventId\":\"evt_exam_6001\",\"eventType\":\"ExamGraded\",\"aggregateId\":\"1\","
+                + "\"data\":{\"examId\":77,\"examTitle\":\"期末考试\",\"courseId\":501,"
+                + "\"score\":88,\"passed\":true,\"studentId\":3001}}";
+        onMessage(json, RabbitMqConfiguration.ROUTING_KEY_EXAM_GRADED);
+
+        verify(notificationService, times(1)).sendDirectNotification(
+                eq(3001L),
+                eq(NotificationKind.EXAM),
+                eq("考试已出分"),
+                any(String.class),
+                eq("查看考试"),
+                eq("/exams"),
+                eq(false)
+        );
+    }
+
     @Test
     @DisplayName("考试出分事件 passed=false 文案包含未通过测试")
     void handleExamGradedNotPassedContent() {

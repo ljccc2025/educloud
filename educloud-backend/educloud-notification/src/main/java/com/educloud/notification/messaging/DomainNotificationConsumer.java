@@ -81,10 +81,16 @@ public class DomainNotificationConsumer {
                 AssignmentGradedEvent event = objectMapper.treeToValue(root, AssignmentGradedEvent.class);
                 handleAssignmentGraded(event);
             } else if (RabbitMqConfiguration.ROUTING_KEY_EXAM_GRADED.equals(routingKey)) {
-                // 兼容 content 事件 payload 使用 studentId 字段：回填 userId
+                // 兼容 content 事件 payload 使用 studentId 字段：回填 userId。
+                // 事件经 EventEnvelope 包装，业务字段在 data 节点内，需兼容两种结构。
                 ExamGradedEvent examEvent = objectMapper.treeToValue(root, ExamGradedEvent.class);
-                if (examEvent.getUserId() == null && root.has("studentId")) {
-                    examEvent.setUserId(root.get("studentId").asLong());
+                if (examEvent.getUserId() == null) {
+                    JsonNode studentIdNode = root.has("studentId")
+                            ? root.get("studentId")
+                            : root.path("data").get("studentId");
+                    if (studentIdNode != null && !studentIdNode.isNull()) {
+                        examEvent.setUserId(studentIdNode.asLong());
+                    }
                 }
                 handleExamGraded(examEvent);
             } else {
