@@ -311,15 +311,21 @@ class DomainNotificationConsumerTest {
                 + "\"score\":88,\"passed\":true,\"studentId\":3001}}";
         onMessage(json, RabbitMqConfiguration.ROUTING_KEY_EXAM_GRADED);
 
+        ArgumentCaptor<String> contentCaptor = ArgumentCaptor.forClass(String.class);
         verify(notificationService, times(1)).sendDirectNotification(
                 eq(3001L),
                 eq(NotificationKind.EXAM),
                 eq("考试已出分"),
-                any(String.class),
+                contentCaptor.capture(),
                 eq("查看考试"),
                 eq("/exams"),
                 eq(false)
         );
+        // 业务字段从 data 节点解析：标题/分数/通过状态必须真实而非 fallback
+        assertThat(contentCaptor.getValue())
+                .contains("期末考试")
+                .contains("88")
+                .contains("已通过");
     }
 
     @Test

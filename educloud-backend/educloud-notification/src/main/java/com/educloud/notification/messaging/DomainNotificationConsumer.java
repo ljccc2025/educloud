@@ -78,12 +78,15 @@ public class DomainNotificationConsumer {
                 LiveStartedEvent event = objectMapper.treeToValue(root, LiveStartedEvent.class);
                 handleLiveStarted(event);
             } else if (RabbitMqConfiguration.ROUTING_KEY_ASSIGNMENT_GRADED.equals(routingKey)) {
-                AssignmentGradedEvent event = objectMapper.treeToValue(root, AssignmentGradedEvent.class);
+                // 事件经 EventEnvelope 包装时业务字段在 data 节点内，兼容两种结构。
+                AssignmentGradedEvent event = objectMapper.treeToValue(
+                        payloadNode(root), AssignmentGradedEvent.class);
                 handleAssignmentGraded(event);
             } else if (RabbitMqConfiguration.ROUTING_KEY_EXAM_GRADED.equals(routingKey)) {
                 // 兼容 content 事件 payload 使用 studentId 字段：回填 userId。
                 // 事件经 EventEnvelope 包装，业务字段在 data 节点内，需兼容两种结构。
-                ExamGradedEvent examEvent = objectMapper.treeToValue(root, ExamGradedEvent.class);
+                ExamGradedEvent examEvent = objectMapper.treeToValue(
+                        payloadNode(root), ExamGradedEvent.class);
                 if (examEvent.getUserId() == null) {
                     JsonNode studentIdNode = root.has("studentId")
                             ? root.get("studentId")
@@ -231,6 +234,12 @@ public class DomainNotificationConsumer {
             log.warn("Resolve live audience from educloud_course failed, courseId={}: {}", courseId, e.getMessage());
             return List.of();
         }
+    }
+
+    /** 事件负载节点：EventEnvelope 包装时业务字段在 data 节点内，否则取顶层（兼容扁平结构）。 */
+    private static JsonNode payloadNode(JsonNode root) {
+        JsonNode data = root.get("data");
+        return data != null && data.isObject() ? data : root;
     }
 
     private boolean tryAcquireIdempotency(String eventId) {
