@@ -26,6 +26,7 @@ public class RabbitMqConfiguration {
     public static final String ROUTING_KEY_ORDER_REFUNDED = "order.refunded";
     public static final String ROUTING_KEY_LIVE_STARTED = "live.started";
     public static final String ROUTING_KEY_ASSIGNMENT_GRADED = "assignment.graded";
+    public static final String ROUTING_KEY_EXAM_GRADED = "exam.graded";
 
     @Bean
     public TopicExchange educloudEventsExchange() {
@@ -55,6 +56,11 @@ public class RabbitMqConfiguration {
     @Bean
     public Binding assignmentGradedBinding(Queue notificationDomainQueue, TopicExchange educloudEventsExchange) {
         return BindingBuilder.bind(notificationDomainQueue).to(educloudEventsExchange).with(ROUTING_KEY_ASSIGNMENT_GRADED);
+    }
+
+    @Bean
+    public Binding examGradedBinding(Queue notificationDomainQueue, TopicExchange educloudEventsExchange) {
+        return BindingBuilder.bind(notificationDomainQueue).to(educloudEventsExchange).with(ROUTING_KEY_EXAM_GRADED);
     }
 
     /** 支付中心交换机（educloud.payment.exchange，payment 服务声明，此处幂等补声明）。 */

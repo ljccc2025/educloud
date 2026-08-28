@@ -3,6 +3,7 @@ package com.educloud.notification.messaging;
 import com.educloud.notification.config.RabbitMqConfiguration;
 import com.educloud.notification.enums.NotificationKind;
 import com.educloud.notification.messaging.events.AssignmentGradedEvent;
+import com.educloud.notification.messaging.events.ExamGradedEvent;
 import com.educloud.notification.messaging.events.LiveStartedEvent;
 import com.educloud.notification.messaging.events.OrderRefundedEvent;
 import com.educloud.notification.messaging.events.PaymentSucceededEvent;
@@ -79,6 +80,13 @@ public class DomainNotificationConsumer {
             } else if (RabbitMqConfiguration.ROUTING_KEY_ASSIGNMENT_GRADED.equals(routingKey)) {
                 AssignmentGradedEvent event = objectMapper.treeToValue(root, AssignmentGradedEvent.class);
                 handleAssignmentGraded(event);
+            } else if (RabbitMqConfiguration.ROUTING_KEY_EXAM_GRADED.equals(routingKey)) {
+                // 兼容 content 事件 payload 使用 studentId 字段：回填 userId
+                ExamGradedEvent examEvent = objectMapper.treeToValue(root, ExamGradedEvent.class);
+                if (examEvent.getUserId() == null && root.has("studentId")) {
+                    examEvent.setUserId(root.get("studentId").asLong());
+                }
+                handleExamGraded(examEvent);
             } else {
                 log.info("[DomainNotificationConsumer] Unhandled routingKey: {}", routingKey);
             }
@@ -169,6 +177,24 @@ public class DomainNotificationConsumer {
                 content,
                 "查看作业",
                 "/assignments",
+                false
+        );
+    }
+
+    public void handleExamGraded(ExamGradedEvent event) {
+        if (event.getUserId() == null) return;
+        String title = "考试已出分";
+        String passedText = Boolean.TRUE.equals(event.getPassed()) ? "已通过" : "未通过";
+        String content = "您的考试《" + (event.getExamTitle() != null ? event.getExamTitle() : "在线考试")
+                + "》已出分，得分：" + (event.getScore() != null ? event.getScore() : 0)
+                + " 分，" + passedText + "。";
+        notificationService.sendDirectNotification(
+                event.getUserId(),
+                NotificationKind.EXAM,
+                title,
+                content,
+                "查看考试",
+                "/exams",
                 false
         );
     }
