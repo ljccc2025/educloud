@@ -211,6 +211,8 @@ export interface Exam {
   totalQuestions: number;
   /** 后端契约题数字段（ExamResponse.questionCount），已批改态不下发 questions 时供映射兜底 */
   questionCount?: number;
+  /** 是否已报名该考试所属课程；false 时仅可见、不可开考（后端不下发题目） */
+  enrolled?: boolean;
   totalScore: number;
   status: ExamStatus;
   startTime?: string;

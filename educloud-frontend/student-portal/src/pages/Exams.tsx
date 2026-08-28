@@ -80,7 +80,9 @@ export default function Exams() {
                     <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded-2xl">
                       <FileQuestion size={24} className="text-indigo-800" strokeWidth={1.5} />
                     </div>
-                    <span className={config.className}>{config.label}</span>
+                    <span className={exam.enrolled === false ? 'badge-indigo' : config.className}>
+                      {exam.enrolled === false ? '未报名' : config.label}
+                    </span>
                   </div>
 
                   <h3 className="font-display text-lg font-bold text-ink-900 mb-1">
@@ -125,7 +127,15 @@ export default function Exams() {
                 </div>
 
                 <div className="mt-2">
-                  {isCompleted ? (
+                  {exam.enrolled === false ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="btn-outline w-full cursor-not-allowed opacity-60 text-xs !py-2.5"
+                    >
+                      报名《{exam.courseTitle}》后可参加考试
+                    </button>
+                  ) : isCompleted ? (
                     <button
                       type="button"
                       onClick={() => setActiveExam(exam)}

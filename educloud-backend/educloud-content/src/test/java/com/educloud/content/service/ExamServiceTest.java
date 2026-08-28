@@ -261,13 +261,21 @@ class ExamServiceTest {
     }
 
     @Test
-    void listStudentExams_excludesExamsOfCoursesNotEnrolled() {
+    void listStudentExams_listsNotEnrolledExamWithoutQuestions() {
         ExamEntity other = draftExam(11L);
         other.setStatus("PUBLISHED");
         when(examMapper.selectList(any())).thenReturn(List.of(other));
         when(courseClient.isEnrolled(1001L, 900L)).thenReturn(false);
+        when(paperQuestionMapper.selectList(any())).thenReturn(List.of(
+                paperRow(1L, 11L, 0), paperRow(2L, 11L, 1)));
 
-        assertThat(examService.listStudentExams(900L)).isEmpty();
+        List<ExamResponse> views = examService.listStudentExams(900L);
+
+        assertThat(views).hasSize(1);
+        assertThat(views.get(0).getEnrolled()).isFalse();
+        // 未报名只给元信息：题数可见，题目内容不下发
+        assertThat(views.get(0).getQuestionCount()).isEqualTo(2);
+        assertThat(views.get(0).getQuestions()).isEmpty();
     }
 
     /** 模拟生产行为：MyBatis-Plus 在 insert 时回填雪花 id。 */

@@ -48,24 +48,19 @@ public class ExamService {
                 new LambdaQueryWrapper<ExamEntity>()
                         .eq(ExamEntity::getStatus, STATUS_PUBLISHED)
                         .orderByDesc(ExamEntity::getStartTime));
-        // 仅展示已报名课程的考试：未报名学生不应看到、更不应能参考他人课程的考试
-        Map<Long, Boolean> enrolledByCourse = new LinkedHashMap<>();
-        List<ExamEntity> visible = new ArrayList<>();
-        for (ExamEntity exam : exams) {
-            Long courseId = exam.getCourseId();
-            if (courseId != null
-                    && enrolledByCourse.computeIfAbsent(courseId, cid -> courseClient.isEnrolled(cid, studentId))) {
-                visible.add(exam);
-            }
-        }
-        List<Long> examIds = visible.stream().map(ExamEntity::getId).toList();
+        List<Long> examIds = exams.stream().map(ExamEntity::getId).toList();
         // 批量取 attempt 与组卷行，避免列表接口逐考试发起查询
         Map<Long, ExamAttemptEntity> attemptsByExam = loadAttempts(examIds, studentId);
         Map<Long, List<ExamPaperQuestionEntity>> rowsByExam = loadPaperRows(examIds);
+        // 未报名课程的考试照常列出但标记 enrolled=false（题目不下发），由前端置灰提示报名
+        Map<Long, Boolean> enrolledByCourse = new LinkedHashMap<>();
         List<ExamResponse> result = new ArrayList<>();
-        for (ExamEntity exam : visible) {
+        for (ExamEntity exam : exams) {
+            Long courseId = exam.getCourseId();
+            boolean enrolled = courseId != null && enrolledByCourse.computeIfAbsent(
+                    courseId, cid -> courseClient.isEnrolled(cid, studentId));
             result.add(toStudentView(exam, attemptsByExam.get(exam.getId()),
-                    rowsByExam.getOrDefault(exam.getId(), List.of())));
+                    rowsByExam.getOrDefault(exam.getId(), List.of()), enrolled));
         }
         return result;
     }
@@ -311,14 +306,14 @@ public class ExamService {
     }
 
     private ExamResponse toStudentView(ExamEntity exam, ExamAttemptEntity attempt) {
-        return toStudentView(exam, attempt, loadPaperRowsOf(exam.getId()));
+        return toStudentView(exam, attempt, loadPaperRowsOf(exam.getId()), true);
     }
 
     private ExamResponse toStudentView(ExamEntity exam, ExamAttemptEntity attempt,
-                                       List<ExamPaperQuestionEntity> paperRows) {
+                                       List<ExamPaperQuestionEntity> paperRows, boolean enrolled) {
         boolean hasResult = attempt != null && STATUS_GRADED.equals(attempt.getStatus());
-        // 已批改态不下发题目与答案，题数直接取组卷行数
-        List<ExamQuestionResponse> questions = hasResult
+        // 已批改不下发题目与答案；未报名只给元信息，避免旁路读到他人课程题目
+        List<ExamQuestionResponse> questions = (hasResult || !enrolled)
                 ? List.of()
                 : toDisplayQuestions(paperRows);
         return ExamResponse.builder()
@@ -335,6 +330,7 @@ public class ExamService {
                 .status(displayStatus(exam, attempt))
                 .questions(questions)
                 .questionCount(paperRows.size())
+                .enrolled(enrolled)
                 .score(hasResult ? attempt.getScore() : null)
                 .passed(hasResult ? attempt.getPassed() == 1 : null)
                 .attemptStatus(attempt == null ? null : attempt.getStatus())
