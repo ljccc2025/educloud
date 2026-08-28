@@ -13,11 +13,13 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.lenient;
@@ -90,7 +92,8 @@ class QuotaServiceTest {
 
         quotaService.recordUsage(STUDENT_ID, 370L);
 
-        verify(valueOperations).increment(personalKey());
+        // 递增键必须是 8 位 yyyyMMdd 日期（规格 §3），防止 LocalDate.toString() 的 ISO 破折号格式回流
+        verify(valueOperations).increment(argThat(QuotaServiceTest::incrementKeyMustBeEightDigitDate));
         // 日期键由应用侧 JVM 本地时间生成（MySQL/Redis 与 JVM 时区不同，不允许在 SQL/脚本里算日期）
         verify(redisTemplate).expire(eq(personalKey()), any(Duration.class));
         verify(valueOperations).increment("educloud:ai:quota:daily-tokens", 370L);
@@ -120,6 +123,15 @@ class QuotaServiceTest {
     }
 
     private static String personalKey() {
-        return "educloud:ai:quota:" + STUDENT_ID + ":" + LocalDate.now();
+        // 与实现共用 yyyyMMdd 契约（规格 §3）；另由 captureIncrementKeyAssertsEightDigitDate 锁死格式
+        return "educloud:ai:quota:" + STUDENT_ID + ":"
+                + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    }
+
+    private static String incrementKeyMustBeEightDigitDate(String key) {
+        if (!key.matches("educloud:ai:quota:2001:\\d{8}")) {
+            throw new AssertionError("quota key date must be yyyyMMdd, got: " + key);
+        }
+        return key;
     }
 }

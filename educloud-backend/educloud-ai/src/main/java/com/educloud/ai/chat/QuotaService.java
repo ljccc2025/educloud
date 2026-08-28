@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
@@ -24,6 +25,7 @@ public class QuotaService {
 
     private static final String PERSONAL_KEY_PREFIX = "educloud:ai:quota:";
     private static final String GLOBAL_TOKENS_KEY = "educloud:ai:quota:daily-tokens";
+    private static final DateTimeFormatter DAY_KEY_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final StringRedisTemplate redisTemplate;
     private final AiProperties properties;
@@ -75,7 +77,8 @@ public class QuotaService {
     }
 
     private static String personalKey(Long studentId) {
-        return PERSONAL_KEY_PREFIX + studentId + ":" + LocalDate.now();
+        // 规格 §3 键格式为 {yyyyMMdd}（如 20260829）；LocalDate.toString() 是 2026-08-29，必须显式格式化
+        return PERSONAL_KEY_PREFIX + studentId + ":" + LocalDate.now().format(DAY_KEY_FORMAT);
     }
 
     private static Duration untilMidnight() {
