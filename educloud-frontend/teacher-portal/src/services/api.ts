@@ -1055,7 +1055,7 @@ export const api = {
   getExams: async (): Promise<Exam[]> => {
     try {
       const resp = await http.get<ApiEnvelope<any[]>>('/teacher/exams');
-      if (resp.data?.data && Array.isArray(resp.data.data) && resp.data.data.length > 0) {
+      if (resp.data?.data && Array.isArray(resp.data.data)) {
         return resp.data.data.map(mapExamResponse);
       }
     } catch (e) {
