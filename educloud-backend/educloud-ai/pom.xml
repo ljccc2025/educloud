@@ -50,6 +50,12 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
         </dependency>
+        <!-- application.yml 的 spring.config.import: optional:nacos: 前缀由 nacos-config 注册
+             ConfigDataLocationResolver；缺它启动即抛 UnsupportedConfigDataLocationException（gateway 同款）。 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>

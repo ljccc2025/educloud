@@ -40,7 +40,7 @@ public class JwtDecoderConfiguration {
     }
 
     @Bean
-    JwtDecoder aiJwtDecoder(JwksLoader loader, AiProperties properties) {
+    JwtDecoder aiJwtDecoder(JwksLoader loader, AiProperties properties, Clock clock) {
         JwksLoader.LoadedJwks loaded = loader.load(properties);
         JWKSource<SecurityContext> jwkSource = new ImmutableJWKSet<>(loaded.jwkSet());
         ConfigurableJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
@@ -49,7 +49,9 @@ public class JwtDecoderConfiguration {
 
         AiProperties.JwtProperties jwt = properties.jwt();
         List<OAuth2TokenValidator<Jwt>> validators = new ArrayList<>();
-        validators.add(new JwtTimestampValidator(Duration.ofSeconds(30)));
+        JwtTimestampValidator timestampValidator = new JwtTimestampValidator(Duration.ofSeconds(30));
+        timestampValidator.setClock(clock);
+        validators.add(timestampValidator);
         validators.add(new JwtIssuerValidator(
                 jwt != null && jwt.issuer() != null ? jwt.issuer() : "https://issuer.educloud.local"));
         // Spring Security 6.2 无 JwtAudienceValidator（6.4 才引入），用语义等价的 JwtClaimValidator 校验 aud 包含目标值
