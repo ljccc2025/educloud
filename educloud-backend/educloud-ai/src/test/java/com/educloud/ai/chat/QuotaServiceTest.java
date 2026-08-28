@@ -128,10 +128,8 @@ class QuotaServiceTest {
                 + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
     }
 
-    private static String incrementKeyMustBeEightDigitDate(String key) {
-        if (!key.matches("educloud:ai:quota:2001:\\d{8}")) {
-            throw new AssertionError("quota key date must be yyyyMMdd, got: " + key);
-        }
-        return key;
+    private static boolean incrementKeyMustBeEightDigitDate(String key) {
+        // ArgumentMatcher 需要返回 boolean；格式不符时由 verify 失败呈现
+        return key.matches("educloud:ai:quota:2001:\\d{8}");
     }
 }
