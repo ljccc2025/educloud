@@ -30,7 +30,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -110,6 +112,7 @@ class ExamServiceTest {
 
     @Test
     void createExam_buildsSnapshotAndTotals() {
+        stubExamIdOnInsert(11L);
         when(bankQuestionMapper.selectList(any())).thenReturn(List.of(
                 bankQuestion(1L, "Spring Boot 默认端口？"),
                 bankQuestion(2L, "MyBatis-Plus 的父类？")));
@@ -139,6 +142,7 @@ class ExamServiceTest {
 
     @Test
     void createExam_snapshotContract_keysAreStable() throws Exception {
+        stubExamIdOnInsert(11L);
         when(bankQuestionMapper.selectList(any())).thenReturn(List.of(
                 bankQuestion(1L, "Spring Boot 默认端口？"),
                 bankQuestion(2L, "MyBatis-Plus 的父类？")));
@@ -211,7 +215,8 @@ class ExamServiceTest {
         graded.setPassed(1);
         when(examMapper.selectById(11L)).thenReturn(published);
         when(attemptMapper.selectOne(any())).thenReturn(graded);
-        when(paperQuestionMapper.selectCount(any())).thenReturn(3L);
+        when(paperQuestionMapper.selectList(any())).thenReturn(List.of(
+                paperRow(1L, 11L, 0), paperRow(2L, 11L, 1), paperRow(3L, 11L, 2)));
 
         ExamResponse view = examService.getStudentExam(11L, 900L);
 
@@ -219,6 +224,56 @@ class ExamServiceTest {
         assertThat(view.getQuestionCount()).isEqualTo(3);
         assertThat(view.getScore()).isEqualTo(40);
         assertThat(view.getPassed()).isTrue();
+    }
+
+    @Test
+    void listStudentExams_loadsAttemptsAndPaperInOneQueryEach() {
+        ExamEntity gradedExam = draftExam(11L);
+        gradedExam.setStatus("PUBLISHED");
+        ExamEntity openExam = draftExam(12L);
+        openExam.setStatus("PUBLISHED");
+        when(examMapper.selectList(any())).thenReturn(List.of(gradedExam, openExam));
+        ExamAttemptEntity graded = new ExamAttemptEntity();
+        graded.setExamId(11L);
+        graded.setStatus("GRADED");
+        graded.setScore(40);
+        graded.setPassed(1);
+        when(attemptMapper.selectList(any())).thenReturn(List.of(graded));
+        when(paperQuestionMapper.selectList(any())).thenReturn(List.of(
+                paperRow(1L, 11L, 0), paperRow(2L, 11L, 1), paperRow(3L, 12L, 0)));
+
+        List<ExamResponse> views = examService.listStudentExams(900L);
+
+        assertThat(views).hasSize(2);
+        // 已批改：不下发题目但题数正确；未批改：正常下发题目
+        assertThat(views.get(0).getQuestions()).isEmpty();
+        assertThat(views.get(0).getQuestionCount()).isEqualTo(2);
+        assertThat(views.get(1).getQuestions()).hasSize(1);
+        assertThat(views.get(1).getQuestionCount()).isEqualTo(1);
+        // 列表路径不得逐考试发起查询
+        verify(paperQuestionMapper, times(1)).selectList(any());
+        verify(attemptMapper, times(1)).selectList(any());
+        verify(attemptMapper, never()).selectOne(any());
+    }
+
+    /** 模拟生产行为：MyBatis-Plus 在 insert 时回填雪花 id。 */
+    private void stubExamIdOnInsert(long id) {
+        doAnswer(invocation -> {
+            ((ExamEntity) invocation.getArgument(0)).setId(id);
+            return 1;
+        }).when(examMapper).insert(any(ExamEntity.class));
+    }
+
+    private static ExamPaperQuestionEntity paperRow(Long id, Long examId, int sortOrder) {
+        ExamPaperQuestionEntity row = new ExamPaperQuestionEntity();
+        row.setId(id);
+        row.setExamId(examId);
+        row.setQuestionId(1L);
+        row.setScore(10);
+        row.setSortOrder(sortOrder);
+        row.setQuestionSnapshot("{\"questionId\":1,\"questionType\":\"SINGLE\",\"stem\":\"题干\","
+                + "\"options\":[\"A\",\"B\"],\"answer\":[0],\"score\":10}");
+        return row;
     }
 
     private static org.mockito.verification.VerificationMode verifyTimes(int times) {

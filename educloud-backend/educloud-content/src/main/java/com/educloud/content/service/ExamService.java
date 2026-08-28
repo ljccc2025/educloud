@@ -48,13 +48,14 @@ public class ExamService {
                 new LambdaQueryWrapper<ExamEntity>()
                         .eq(ExamEntity::getStatus, STATUS_PUBLISHED)
                         .orderByDesc(ExamEntity::getStartTime));
+        List<Long> examIds = exams.stream().map(ExamEntity::getId).toList();
+        // 批量取 attempt 与组卷行，避免列表接口逐考试发起查询
+        Map<Long, ExamAttemptEntity> attemptsByExam = loadAttempts(examIds, studentId);
+        Map<Long, List<ExamPaperQuestionEntity>> rowsByExam = loadPaperRows(examIds);
         List<ExamResponse> result = new ArrayList<>();
         for (ExamEntity exam : exams) {
-            ExamAttemptEntity attempt = attemptMapper.selectOne(
-                    new LambdaQueryWrapper<ExamAttemptEntity>()
-                            .eq(ExamAttemptEntity::getExamId, exam.getId())
-                            .eq(ExamAttemptEntity::getStudentId, studentId));
-            result.add(toStudentView(exam, attempt));
+            result.add(toStudentView(exam, attemptsByExam.get(exam.getId()),
+                    rowsByExam.getOrDefault(exam.getId(), List.of())));
         }
         return result;
     }
@@ -120,11 +121,17 @@ public class ExamService {
     }
 
     public List<ExamResponse> listTeacherExams(Long teacherId) {
-        return examMapper.selectList(
-                        new LambdaQueryWrapper<ExamEntity>()
-                                .eq(ExamEntity::getTeacherId, teacherId)
-                                .orderByDesc(ExamEntity::getCreatedAt))
-                .stream().map(this::toTeacherView).toList();
+        List<ExamEntity> exams = examMapper.selectList(
+                new LambdaQueryWrapper<ExamEntity>()
+                        .eq(ExamEntity::getTeacherId, teacherId)
+                        .orderByDesc(ExamEntity::getCreatedAt));
+        List<Long> examIds = exams.stream().map(ExamEntity::getId).toList();
+        Map<Long, List<ExamPaperQuestionEntity>> rowsByExam = loadPaperRows(examIds);
+        List<ExamResponse> result = new ArrayList<>();
+        for (ExamEntity exam : exams) {
+            result.add(toTeacherView(exam, rowsByExam.getOrDefault(exam.getId(), List.of())));
+        }
+        return result;
     }
 
     @Transactional
@@ -248,7 +255,11 @@ public class ExamService {
 
     /** 教师视角视图：状态透传真实考试状态（DRAFT/PUBLISHED/CLOSED），不做学生展示态推导。 */
     private ExamResponse toTeacherView(ExamEntity exam) {
-        List<ExamQuestionResponse> questions = loadQuestionsForDisplay(exam.getId());
+        return toTeacherView(exam, loadPaperRowsOf(exam.getId()));
+    }
+
+    private ExamResponse toTeacherView(ExamEntity exam, List<ExamPaperQuestionEntity> paperRows) {
+        List<ExamQuestionResponse> questions = toDisplayQuestions(paperRows);
         return ExamResponse.builder()
                 .id(exam.getId())
                 .courseId(exam.getCourseId())
@@ -285,11 +296,16 @@ public class ExamService {
     }
 
     private ExamResponse toStudentView(ExamEntity exam, ExamAttemptEntity attempt) {
+        return toStudentView(exam, attempt, loadPaperRowsOf(exam.getId()));
+    }
+
+    private ExamResponse toStudentView(ExamEntity exam, ExamAttemptEntity attempt,
+                                       List<ExamPaperQuestionEntity> paperRows) {
         boolean hasResult = attempt != null && STATUS_GRADED.equals(attempt.getStatus());
+        // 已批改态不下发题目与答案，题数直接取组卷行数
         List<ExamQuestionResponse> questions = hasResult
                 ? List.of()
-                : loadQuestionsForDisplay(exam.getId());
-        int questionCount = hasResult ? countPaperQuestions(exam.getId()) : questions.size();
+                : toDisplayQuestions(paperRows);
         return ExamResponse.builder()
                 .id(exam.getId())
                 .courseId(exam.getCourseId())
@@ -303,7 +319,7 @@ public class ExamService {
                 .endTime(exam.getEndTime())
                 .status(displayStatus(exam, attempt))
                 .questions(questions)
-                .questionCount(questionCount)
+                .questionCount(paperRows.size())
                 .score(hasResult ? attempt.getScore() : null)
                 .passed(hasResult ? attempt.getPassed() == 1 : null)
                 .attemptStatus(attempt == null ? null : attempt.getStatus())
@@ -325,19 +341,49 @@ public class ExamService {
         return "IN_PROGRESS";
     }
 
-    /** 组卷题数：仅统计行数，不读取题目与答案。 */
-    private int countPaperQuestions(Long examId) {
-        Long count = paperQuestionMapper.selectCount(
-                new LambdaQueryWrapper<ExamPaperQuestionEntity>()
-                        .eq(ExamPaperQuestionEntity::getExamId, examId));
-        return count == null ? 0 : count.intValue();
+    /** 单考试组卷行加载：id 尚未确定时返回空列表，避免 List.of(null) 抛 NPE。 */
+    private List<ExamPaperQuestionEntity> loadPaperRowsOf(Long examId) {
+        if (examId == null) {
+            return List.of();
+        }
+        return loadPaperRows(List.of(examId)).getOrDefault(examId, List.of());
     }
 
-    private List<ExamQuestionResponse> loadQuestionsForDisplay(Long examId) {
+    /** 批量加载组卷行并按 examId 分组，避免列表接口逐考试发起查询。 */
+    private Map<Long, List<ExamPaperQuestionEntity>> loadPaperRows(List<Long> examIds) {
+        if (examIds.isEmpty()) {
+            return Map.of();
+        }
         List<ExamPaperQuestionEntity> rows = paperQuestionMapper.selectList(
                 new LambdaQueryWrapper<ExamPaperQuestionEntity>()
-                        .eq(ExamPaperQuestionEntity::getExamId, examId)
+                        .in(ExamPaperQuestionEntity::getExamId, examIds)
+                        .orderByAsc(ExamPaperQuestionEntity::getExamId)
                         .orderByAsc(ExamPaperQuestionEntity::getSortOrder));
+        Map<Long, List<ExamPaperQuestionEntity>> grouped = new LinkedHashMap<>();
+        for (ExamPaperQuestionEntity row : rows) {
+            grouped.computeIfAbsent(row.getExamId(), k -> new ArrayList<>()).add(row);
+        }
+        return grouped;
+    }
+
+    /** 批量加载该学生在给定考试集合中的作答记录（每门至多一条）。 */
+    private Map<Long, ExamAttemptEntity> loadAttempts(List<Long> examIds, Long studentId) {
+        if (examIds.isEmpty()) {
+            return Map.of();
+        }
+        List<ExamAttemptEntity> attempts = attemptMapper.selectList(
+                new LambdaQueryWrapper<ExamAttemptEntity>()
+                        .eq(ExamAttemptEntity::getStudentId, studentId)
+                        .in(ExamAttemptEntity::getExamId, examIds));
+        Map<Long, ExamAttemptEntity> byExam = new LinkedHashMap<>();
+        for (ExamAttemptEntity attempt : attempts) {
+            byExam.putIfAbsent(attempt.getExamId(), attempt);
+        }
+        return byExam;
+    }
+
+    /** 组卷行 → 学生/教师展示题目（不含正确答案）。 */
+    private List<ExamQuestionResponse> toDisplayQuestions(List<ExamPaperQuestionEntity> rows) {
         List<ExamQuestionResponse> list = new ArrayList<>();
         for (ExamPaperQuestionEntity row : rows) {
             Map<String, Object> snap = readSnapshot(row.getQuestionSnapshot());
