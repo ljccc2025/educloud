@@ -24,9 +24,13 @@ public class ExamTimeoutSweeper {
         for (ExamAttemptEntity attempt : expired) {
             try {
                 // 使用窗口无关的判分路径：考试窗口结束后（end_time 已过 / 状态 CLOSED）仍可收敛判分。
-                attemptService.timeoutSubmit(attempt);
-                log.info("Timeout-swept exam attempt: attemptId={}, examId={}, studentId={}",
-                        attempt.getId(), attempt.getExamId(), attempt.getStudentId());
+                if (attemptService.timeoutSubmit(attempt) != null) {
+                    log.info("Timeout-swept exam attempt: attemptId={}, examId={}, studentId={}",
+                            attempt.getId(), attempt.getExamId(), attempt.getStudentId());
+                } else {
+                    log.debug("Timeout-sweep skipped (concurrently graded): attemptId={}",
+                            attempt.getId());
+                }
             } catch (Exception e) {
                 log.warn("Failed to timeout-sweep attempt {}: {}", attempt.getId(), e.getMessage());
             }

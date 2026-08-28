@@ -142,6 +142,82 @@ class ExamAttemptServiceTest {
         verify(attemptMapper, never()).markGraded(any());
     }
 
+    @Test
+    void submit_rejectsMissingAttempt() {
+        when(attemptMapper.selectById(501L)).thenReturn(null);
+
+        assertThatThrownBy(() -> attemptService.submitAttempt(101L, 501L, 2001L, new ExamSubmitRequest()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ContentErrorCode.EXAM_ATTEMPT_NOT_FOUND);
+        verify(attemptMapper, never()).markGraded(any());
+    }
+
+    @Test
+    void submit_rejectsAlreadyGradedAttempt() {
+        ExamAttemptEntity graded = attempt(501L, 2001L);
+        graded.setStatus("GRADED");
+        when(attemptMapper.selectById(501L)).thenReturn(graded);
+
+        assertThatThrownBy(() -> attemptService.submitAttempt(101L, 501L, 2001L, new ExamSubmitRequest()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ContentErrorCode.EXAM_ATTEMPT_NOT_SUBMITTABLE);
+        verify(attemptMapper, never()).markGraded(any());
+    }
+
+    @Test
+    void submit_rejectsExamIdMismatch() {
+        ExamAttemptEntity mismatch = attempt(501L, 2001L);
+        mismatch.setExamId(999L);
+        when(attemptMapper.selectById(501L)).thenReturn(mismatch);
+
+        assertThatThrownBy(() -> attemptService.submitAttempt(101L, 501L, 2001L, new ExamSubmitRequest()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ContentErrorCode.EXAM_ATTEMPT_NOT_FOUND);
+        verify(attemptMapper, never()).markGraded(any());
+    }
+
+    @Test
+    void timeoutSubmit_gradesWithTimeoutFlag() {
+        when(paperQuestionMapper.selectList(any())).thenReturn(List.of(
+                paper(1L, "SINGLE", List.of(0), 10),
+                paper(2L, "MULTIPLE", List.of(0, 2), 20)));
+        when(attemptMapper.markGraded(any())).thenReturn(1);
+        when(examMapper.selectById(101L)).thenReturn(publishedExam());
+
+        ExamAttemptEntity timedOut = attempt(501L, 2001L);
+        timedOut.setStartedAt(LocalDateTime.now().minusMinutes(120));
+        timedOut.setTabSwitchCount(7);
+
+        var response = attemptService.timeoutSubmit(timedOut);
+
+        // 超时：无答案判分，score=0、passed=false、timeout=true；tabSwitchCount 保持原值。
+        assertThat(response).isNotNull();
+        assertThat(response.getScore()).isZero();
+        assertThat(response.getPassed()).isFalse();
+        assertThat(response.getTimeout()).isTrue();
+        assertThat(response.getTabSwitchCount()).isEqualTo(7);
+        assertThat(response.getResults()).hasSize(2);
+        assertThat(response.getResults()).allMatch(r -> !Boolean.TRUE.equals(r.getCorrect()));
+        verify(attemptMapper).markGraded(any());
+        verify(eventPublisher).examGraded(any(), any(), any(), any(), any(), any(), anyBoolean(), anyLong(), any());
+    }
+
+    @Test
+    void timeoutSubmit_returnsNullWhenCASLost() {
+        when(paperQuestionMapper.selectList(any())).thenReturn(List.of(
+                paper(1L, "SINGLE", List.of(0), 10)));
+        when(attemptMapper.markGraded(any())).thenReturn(0);
+
+        ExamAttemptEntity timedOut = attempt(501L, 2001L);
+        timedOut.setStartedAt(LocalDateTime.now().minusMinutes(120));
+
+        assertThat(attemptService.timeoutSubmit(timedOut)).isNull();
+        verify(eventPublisher, never()).examGraded(any(), any(), any(), any(), any(), any(), anyBoolean(), anyLong(), any());
+    }
+
     private static ExamPaperQuestionEntity paper(Long id, String type, List<Integer> answer, int score) {
         ExamPaperQuestionEntity p = new ExamPaperQuestionEntity();
         p.setId(id);

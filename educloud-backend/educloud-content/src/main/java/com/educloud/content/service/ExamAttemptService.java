@@ -9,6 +9,8 @@ import com.educloud.content.entity.ExamEntity;
 import com.educloud.content.entity.ExamPaperQuestionEntity;
 import com.educloud.content.exception.ContentErrorCode;
 import com.educloud.content.exam.ExamGradingEngine;
+import com.educloud.content.exam.ExamGradingEngine.GradedQuestion;
+import com.educloud.content.exam.ExamGradingEngine.GradeResult;
 import com.educloud.content.exam.ExamQuestionSnapshot;
 import com.educloud.content.mapper.ExamAttemptMapper;
 import com.educloud.content.mapper.ExamMapper;
@@ -18,6 +20,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +28,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,6 +39,7 @@ public class ExamAttemptService {
     /** 切屏次数 >= 该阈值标记 flagged。 */
     private static final int FLAG_THRESHOLD = 5;
     private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    private static final String STATUS_PUBLISHED = "PUBLISHED";
 
     private final ExamMapper examMapper;
     private final ExamPaperQuestionMapper paperQuestionMapper;
@@ -59,7 +65,13 @@ public class ExamAttemptService {
         attempt.setTabSwitchCount(0);
         attempt.setFlagged(0);
         attempt.setTimeout(0);
-        attemptMapper.insert(attempt);
+        try {
+            attemptMapper.insert(attempt);
+        } catch (DuplicateKeyException duplicate) {
+            // uk_exam_student(exam_id, student_id) 唯一约束并发兜底：另一请求已抢先创建。
+            throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_ALREADY_EXISTS,
+                    "Active attempt already exists: exam=" + examId + ", student=" + studentId);
+        }
         return attempt;
     }
 
@@ -74,6 +86,10 @@ public class ExamAttemptService {
             throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_NOT_OWNED,
                     "Attempt " + attemptId + " does not belong to student " + studentId);
         }
+        if (!attempt.getExamId().equals(examId)) {
+            throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_NOT_FOUND,
+                    "Attempt " + attemptId + " does not belong to exam " + examId);
+        }
         if (!STATUS_IN_PROGRESS.equals(attempt.getStatus())) {
             throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_NOT_SUBMITTABLE,
                     "Attempt is not in progress: " + attemptId);
@@ -83,24 +99,15 @@ public class ExamAttemptService {
         List<ExamQuestionSnapshot> paper = loadPaper(examId);
         Map<Long, List<Integer>> answers = request.getAnswers() == null ? Map.of() : request.getAnswers();
         boolean timeout = isTimeout(exam, attempt);
-        ExamGradingEngine.GradeResult result = ExamGradingEngine.grade(paper, answers);
-        int earned = result.earnedScore();
         int tabSwitches = request.getTabSwitchCount() == null ? 0 : request.getTabSwitchCount();
+        boolean passed = ExamGradingEngine.grade(paper, answers).earnedScore() >= exam.getPassScore();
 
-        attempt.setScore(earned);
-        attempt.setPassed(earned >= exam.getPassScore() ? 1 : 0);
-        attempt.setAnswersJson(writeJson(answers));
-        attempt.setSubmittedAt(LocalDateTime.now());
         attempt.setTabSwitchCount(tabSwitches);
         attempt.setFlagged(tabSwitches >= FLAG_THRESHOLD ? 1 : 0);
-        attempt.setTimeout(timeout ? 1 : 0);
 
-        int updated = attemptMapper.markGraded(attempt);
-        if (updated != 1) {
-            throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_NOT_SUBMITTABLE,
-                    "Attempt was concurrently submitted: " + attemptId);
-        }
+        ExamAttemptResponse response = doGrade(attempt, paper, answers, passed, timeout);
 
+        int earned = attempt.getScore();
         try {
             contentEventPublisher.examGraded(
                     exam.getId(), exam.getTitle(), exam.getCourseId(), exam.getCourseTitle(),
@@ -109,7 +116,7 @@ public class ExamAttemptService {
             log.warn("Failed to publish ExamGraded event for exam {} student {}",
                     examId, studentId, e);
         }
-        return toAttemptResponse(attempt, paper, answers, earned >= exam.getPassScore());
+        return response;
     }
 
     /**
@@ -128,22 +135,16 @@ public class ExamAttemptService {
         }
         List<ExamQuestionSnapshot> paper = loadPaper(attempt.getExamId());
         Map<Long, List<Integer>> answers = Map.of();
-        ExamGradingEngine.GradeResult result = ExamGradingEngine.grade(paper, answers);
-        int earned = result.earnedScore();
-        int tabSwitches = attempt.getTabSwitchCount() == null ? 0 : attempt.getTabSwitchCount();
 
-        attempt.setScore(earned);
-        attempt.setPassed(0);
-        attempt.setAnswersJson(writeJson(answers));
-        attempt.setSubmittedAt(LocalDateTime.now());
-        attempt.setTabSwitchCount(tabSwitches);
-        attempt.setFlagged(tabSwitches >= FLAG_THRESHOLD ? 1 : 0);
-        attempt.setTimeout(1);
-
-        int updated = attemptMapper.markGraded(attempt);
-        if (updated != 1) {
+        ExamAttemptResponse response;
+        try {
+            response = doGrade(attempt, paper, answers, false, true);
+        } catch (BusinessException e) {
+            // CAS 抢占失败（updated != 1）：另一请求已收敛判分，返回 null 而非抛错。
             return null;
         }
+
+        int earned = attempt.getScore();
         try {
             ExamEntity exam = examMapper.selectById(attempt.getExamId());
             contentEventPublisher.examGraded(
@@ -156,7 +157,7 @@ public class ExamAttemptService {
             log.warn("Failed to publish ExamGraded event on timeout-sweep: attempt {}",
                     attempt.getId(), e);
         }
-        return toAttemptResponse(attempt, paper, answers, false);
+        return response;
     }
 
     /** 超时判定：服务端时间 > started_at + duration。 */
@@ -200,7 +201,7 @@ public class ExamAttemptService {
         if (exam == null) {
             throw new BusinessException(ContentErrorCode.EXAM_NOT_FOUND, "Exam not found: " + examId);
         }
-        if (!"PUBLISHED".equals(exam.getStatus())) {
+        if (!STATUS_PUBLISHED.equals(exam.getStatus())) {
             throw new BusinessException(ContentErrorCode.EXAM_NOT_PUBLISHED, "Exam is not published: " + examId);
         }
         LocalDateTime now = LocalDateTime.now();
@@ -209,6 +210,27 @@ public class ExamAttemptService {
                     "Exam outside window: " + examId);
         }
         return exam;
+    }
+
+    /**
+     * 判分收尾公共路径：调用判分引擎、落库（CAS）、构建响应。tabSwitchCount/flagged 由调用方
+     * 在进入本方法前设置（submitAttempt 重算，timeoutSubmit 保持原值），本方法不会覆盖。
+     */
+    private ExamAttemptResponse doGrade(ExamAttemptEntity attempt, List<ExamQuestionSnapshot> paper,
+                                        Map<Long, List<Integer>> answers, boolean passed, boolean timeout) {
+        ExamGradingEngine.GradeResult result = ExamGradingEngine.grade(paper, answers);
+        int earned = result.earnedScore();
+        attempt.setScore(earned);
+        attempt.setPassed(passed ? 1 : 0);
+        attempt.setAnswersJson(writeJson(answers));
+        attempt.setSubmittedAt(LocalDateTime.now());
+        attempt.setTimeout(timeout ? 1 : 0);
+        int updated = attemptMapper.markGraded(attempt);
+        if (updated != 1) {
+            throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_NOT_SUBMITTABLE,
+                    "Attempt was concurrently submitted: " + attempt.getId());
+        }
+        return toAttemptResponse(attempt, paper, answers, result, passed);
     }
 
     private String writeJson(Map<Long, List<Integer>> answers) {
@@ -222,17 +244,20 @@ public class ExamAttemptService {
     private ExamAttemptResponse toAttemptResponse(ExamAttemptEntity attempt,
                                                   List<ExamQuestionSnapshot> paper,
                                                   Map<Long, List<Integer>> answers,
+                                                  GradeResult result,
                                                   boolean passed) {
+        Map<Long, GradedQuestion> gradedById = result.details().stream()
+                .collect(Collectors.toMap(GradedQuestion::questionId, Function.identity()));
         List<ExamAttemptResponse.ExamQuestionResult> results = new ArrayList<>();
         for (ExamQuestionSnapshot q : paper) {
+            GradedQuestion g = gradedById.get(q.questionId());
             results.add(ExamAttemptResponse.ExamQuestionResult.builder()
                     .questionId(q.questionId())
-                    .questionType(q.questionType())
+                    .questionType(g.questionType())
                     .options(q.options())
                     .answer(q.answer())
-                    .score(q.score())
-                    .correct(answers.containsKey(q.questionId())
-                            && isCorrectAnswer(q, answers.get(q.questionId())))
+                    .score(g.score())
+                    .correct(g.correct())
                     .build());
         }
         return ExamAttemptResponse.builder()
@@ -248,13 +273,5 @@ public class ExamAttemptService {
                 .answers(answers)
                 .results(results)
                 .build();
-    }
-
-    private boolean isCorrectAnswer(ExamQuestionSnapshot q, List<Integer> chosen) {
-        if ("MULTIPLE".equals(q.questionType())) {
-            return chosen.size() == q.answer().size()
-                    && chosen.stream().sorted().toList().equals(q.answer().stream().sorted().toList());
-        }
-        return chosen.size() == 1 && chosen.get(0).equals(q.answer().get(0));
     }
 }
