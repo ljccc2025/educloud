@@ -57,6 +57,16 @@ public class QuotaService {
         if (globalCount != null && globalCount == totalTokens) {
             redisTemplate.expire(GLOBAL_TOKENS_KEY, untilMidnight());
         }
+        // INCR 与 EXPIRE 非原子：进程若在两者之间崩溃，全局键会永久无 TTL、跨日持续累加，
+        // 累计超上限后熔断永久卡死；每次补查 TTL 兜底（个人键有日期后缀自隔离，无需补查）。
+        ensureTtl(GLOBAL_TOKENS_KEY);
+    }
+
+    private void ensureTtl(String key) {
+        Long ttl = redisTemplate.getExpire(key);
+        if (ttl != null && ttl == -1L) {
+            redisTemplate.expire(key, untilMidnight());
+        }
     }
 
     private long readCounter(String key) {
