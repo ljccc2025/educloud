@@ -159,7 +159,7 @@ class ExamBankServiceTest {
         q1.setCreatedAt(LocalDateTime.now());
         when(questionMapper.selectList(any())).thenReturn(List.of(q1));
 
-        List<ExamBankQuestionResponse> result = examBankService.listQuestions(1001L);
+        List<ExamBankQuestionResponse> result = examBankService.listQuestions(1001L, 777L);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getStem()).isEqualTo("题目一");

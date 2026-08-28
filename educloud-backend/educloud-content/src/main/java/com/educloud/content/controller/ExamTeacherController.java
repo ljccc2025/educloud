@@ -6,12 +6,11 @@ import com.educloud.content.dto.request.ExamCreateRequest;
 import com.educloud.content.dto.request.ExamQuestionRequest;
 import com.educloud.content.dto.response.ExamBankQuestionResponse;
 import com.educloud.content.dto.response.ExamResponse;
-import com.educloud.content.security.JwtSecurityUtils;
+import com.educloud.content.security.TeacherAccessGuard;
 import com.educloud.content.service.ExamBankService;
 import com.educloud.content.service.ExamService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -20,7 +19,7 @@ import java.util.List;
 
 /**
  * 教师端考试接口（规格 §4.1）：题库 CRUD + 考试 CRUD + 组卷发布。
- * 路径 /api/v1/teacher/exams/** 网关已预留；需 ROLE_TEACHER / ROLE_ADMIN。
+ * 路径 /api/v1/teacher/exams/** 网关已预留；鉴权经 {@link TeacherAccessGuard}（角色/权限 + 课程归属校验）。
  */
 @RestController
 @RequestMapping("/api/v1/teacher/exams")
@@ -30,74 +29,76 @@ public class ExamTeacherController {
     private final ExamBankService bankService;
     private final ExamService examService;
     private final ApiResponseFactory responses;
+    private final TeacherAccessGuard teacherAccessGuard;
 
     @PostMapping("/exam-bank/questions")
-    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public ApiResponse<ExamBankQuestionResponse> createQuestion(
             @Valid @RequestBody ExamQuestionRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        return responses.success(bankService.createQuestion(request, JwtSecurityUtils.userId(jwt)));
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt, request.getCourseId());
+        return responses.success(bankService.createQuestion(request, teacherId));
     }
 
     @GetMapping("/exam-bank/questions")
-    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public ApiResponse<List<ExamBankQuestionResponse>> listQuestions(
-            @RequestParam(required = false) Long courseId) {
-        return responses.success(bankService.listQuestions(courseId));
+            @RequestParam(required = false) Long courseId,
+            @AuthenticationPrincipal Jwt jwt) {
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        return responses.success(bankService.listQuestions(courseId, teacherId));
     }
 
     @PutMapping("/exam-bank/questions/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public ApiResponse<ExamBankQuestionResponse> updateQuestion(
             @PathVariable Long id,
             @Valid @RequestBody ExamQuestionRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        return responses.success(bankService.updateQuestion(id, request, JwtSecurityUtils.userId(jwt)));
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        return responses.success(bankService.updateQuestion(id, request, teacherId));
     }
 
     @DeleteMapping("/exam-bank/questions/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public ApiResponse<Void> deleteQuestion(@PathVariable Long id,
                                             @AuthenticationPrincipal Jwt jwt) {
-        bankService.deleteQuestion(id, JwtSecurityUtils.userId(jwt));
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        bankService.deleteQuestion(id, teacherId);
         return responses.success(null);
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public ApiResponse<ExamResponse> createExam(
             @Valid @RequestBody ExamCreateRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        return responses.success(examService.createExam(request, JwtSecurityUtils.userId(jwt)));
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt, request.getCourseId());
+        return responses.success(examService.createExam(request, teacherId));
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public ApiResponse<List<ExamResponse>> listExams(@AuthenticationPrincipal Jwt jwt) {
-        return responses.success(examService.listTeacherExams(JwtSecurityUtils.userId(jwt)));
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        return responses.success(examService.listTeacherExams(teacherId));
     }
 
     @PutMapping("/{examId}")
-    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public ApiResponse<ExamResponse> updateExam(@PathVariable Long examId,
                                                 @Valid @RequestBody ExamCreateRequest request,
                                                 @AuthenticationPrincipal Jwt jwt) {
-        return responses.success(examService.updateExam(examId, request, JwtSecurityUtils.userId(jwt)));
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        return responses.success(examService.updateExam(examId, request, teacherId));
     }
 
     @PostMapping("/{examId}/publish")
-    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public ApiResponse<Void> publishExam(@PathVariable Long examId,
                                          @AuthenticationPrincipal Jwt jwt) {
-        examService.publishExam(examId, JwtSecurityUtils.userId(jwt));
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        examService.publishExam(examId, teacherId);
         return responses.success(null);
     }
 
     @DeleteMapping("/{examId}")
-    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public ApiResponse<Void> deleteExam(@PathVariable Long examId,
                                         @AuthenticationPrincipal Jwt jwt) {
-        examService.deleteExam(examId, JwtSecurityUtils.userId(jwt));
+        Long teacherId = teacherAccessGuard.checkTeacherAccess(jwt);
+        examService.deleteExam(examId, teacherId);
         return responses.success(null);
     }
 }

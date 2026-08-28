@@ -46,10 +46,11 @@ public class ExamBankService {
         return toResponse(entity);
     }
 
-    public List<ExamBankQuestionResponse> listQuestions(Long courseId) {
+    public List<ExamBankQuestionResponse> listQuestions(Long courseId, Long teacherId) {
         return questionMapper.selectList(
                         new LambdaQueryWrapper<ExamBankQuestionEntity>()
                                 .eq(courseId != null, ExamBankQuestionEntity::getCourseId, courseId)
+                                .eq(ExamBankQuestionEntity::getTeacherId, teacherId)
                                 .eq(ExamBankQuestionEntity::getStatus, STATUS_ENABLED)
                                 .orderByDesc(ExamBankQuestionEntity::getId))
                 .stream().map(this::toResponse).toList();
