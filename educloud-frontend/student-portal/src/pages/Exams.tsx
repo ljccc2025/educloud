@@ -158,7 +158,6 @@ export default function Exams() {
           exam={activeExam}
           isOpen={Boolean(activeExam)}
           onClose={() => setActiveExam(null)}
-          onSubmitExam={studentAssignmentService.submitExam}
           onExamComplete={handleExamComplete}
         />
       )}

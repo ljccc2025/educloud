@@ -246,14 +246,20 @@ export const studentAssignmentService = {
     return target;
   },
 
-  /** 获取考试列表 */
+  /** 获取当前学员的考试列表（对接后端 API，回退至本地存储） */
   getExams: async (): Promise<Exam[]> => {
+    try {
+      const resp = await http.get<ApiEnvelope<Exam[]>>('/me/exams');
+      if (resp.data?.data && Array.isArray(resp.data.data) && resp.data.data.length > 0) {
+        return resp.data.data.map((exam) => ({ ...exam, totalQuestions: exam.questions?.length ?? 0 }));
+      }
+    } catch (e) {
+      console.warn('Failed to fetch /api/v1/me/exams, falling back:', e);
+    }
     const key = getUserStorageKey(EXAM_STORAGE_KEY_PREFIX);
     try {
       const stored = localStorage.getItem(key);
-      if (stored) {
-        return JSON.parse(stored);
-      }
+      if (stored) return JSON.parse(stored);
     } catch {
       // ignore
     }
@@ -265,50 +271,71 @@ export const studentAssignmentService = {
     return defaultExamsSeed;
   },
 
+  /** 开始考试（真实 API 失败时回退本地 mock） */
+  startExam: async (examId: string | number): Promise<{ attemptId: number | string }> => {
+    try {
+      const resp = await http.post<ApiEnvelope<any>>(`/me/exams/${examId}/attempts`);
+      if (resp.data?.data?.id) return { attemptId: resp.data.data.id };
+    } catch (e) {
+      console.warn('Failed to start exam via API, falling back:', e);
+    }
+    return { attemptId: `local-${Date.now()}` };
+  },
+
   /** 提交考试答卷并自动判分 */
   submitExam: async (
     examId: string | number,
-    answers: Record<number, number>
+    attemptId: string | number,
+    answers: Record<number, number[]>,
+    tabSwitchCount = 0,
   ): Promise<{ exam: Exam; score: number; passed: boolean }> => {
+    // 真实 API 路径：attemptId 非 local- 前缀时走 HTTP
+    if (!String(attemptId).startsWith('local-')) {
+      try {
+        const resp = await http.post<ApiEnvelope<any>>(
+          `/me/exams/${examId}/attempts/${attemptId}/submit`,
+          { answers, tabSwitchCount }
+        );
+        if (resp.data?.data) {
+          const data = resp.data.data;
+          const list = await studentAssignmentService.getExams();
+          const target = list.find((i) => String(i.id) === String(examId));
+          const updated: Exam = target
+            ? { ...target, status: 'GRADED' as const, score: data.score, submittedAt: data.submittedAt }
+            : ({ id: examId, title: '', courseId: '', courseTitle: '', description: '', duration: 0,
+                totalQuestions: 0, totalScore: data.totalScore ?? 100, status: 'GRADED' as const,
+                passScore: 60, score: data.score } as Exam);
+          return { exam: updated, score: data.score, passed: data.passed };
+        }
+      } catch (e) {
+        console.warn('Failed to submit exam via API, falling back:', e);
+      }
+    }
+    // 本地 mock 回退：保留现有判分逻辑（读取 correctAnswer/answer）
     const key = getUserStorageKey(EXAM_STORAGE_KEY_PREFIX);
     const list = await studentAssignmentService.getExams();
     const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
-
     let computedScore = 0;
-    let totalQuestions = 1;
-
     const updatedList = list.map((item) => {
       if (String(item.id) === String(examId)) {
         const questions = item.questions || [];
-        totalQuestions = Math.max(1, questions.length);
-        const eachScore = item.totalScore / totalQuestions;
+        const eachScore = item.totalScore / Math.max(1, questions.length);
         let correctCount = 0;
-
         questions.forEach((q) => {
-          if (answers[q.id] === q.correctAnswer) {
-            correctCount++;
-          }
+          const chosen = answers[q.id] ?? [];
+          const correct = Array.isArray(q.answer)
+            ? chosen.length === q.answer.length && [...chosen].sort().join() === [...q.answer].sort().join()
+            : chosen.length === 1 && chosen[0] === (q as any).correctAnswer;
+          if (correct) correctCount++;
         });
-
         computedScore = Math.round(correctCount * eachScore);
-        return {
-          ...item,
-          status: 'GRADED' as const,
-          score: computedScore,
-          submittedAt: now,
-        };
+        return { ...item, status: 'GRADED' as const, score: computedScore, submittedAt: now };
       }
       return item;
     });
-
     localStorage.setItem(key, JSON.stringify(updatedList));
     const target = updatedList.find((i) => String(i.id) === String(examId));
     if (!target) throw new Error('考试未找到');
-
-    return {
-      exam: target,
-      score: computedScore,
-      passed: computedScore >= (target.passScore || 60),
-    };
+    return { exam: target, score: computedScore, passed: computedScore >= (target.passScore || 60) };
   },
 };

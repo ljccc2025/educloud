@@ -1,17 +1,14 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Clock, Award, CheckCircle2, AlertCircle, Send, Check } from 'lucide-react';
+import { X, Clock, Award } from 'lucide-react';
 import type { Exam, ExamQuestion } from '../../types';
+import { studentAssignmentService } from '../../services/studentAssignmentService';
 import { cn } from '../../utils/cn';
 
 interface ExamSessionModalProps {
   exam: Exam | null;
   isOpen: boolean;
   onClose: () => void;
-  onSubmitExam: (
-    examId: string | number,
-    answers: Record<number, number>
-  ) => Promise<{ exam: Exam; score: number; passed: boolean }>;
   onExamComplete: (updated: Exam) => void;
 }
 
@@ -19,18 +16,19 @@ export default function ExamSessionModal({
   exam,
   isOpen,
   onClose,
-  onSubmitExam,
   onExamComplete,
 }: ExamSessionModalProps) {
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [answers, setAnswers] = useState<Record<number, number[]>>({});
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ score: number; passed: boolean } | null>(null);
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
 
   useEffect(() => {
     if (isOpen && exam) {
       setAnswers({});
       setResult(null);
+      setTabSwitchCount(0);
       setTimeLeftSeconds(exam.duration * 60);
       document.body.style.overflow = 'hidden';
     } else {
@@ -38,6 +36,20 @@ export default function ExamSessionModal({
     }
     return () => {
       document.body.style.overflow = 'auto';
+    };
+  }, [isOpen, exam]);
+
+  useEffect(() => {
+    if (!isOpen || !exam) return;
+    const onBlur = () => setTabSwitchCount((c) => c + 1);
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') setTabSwitchCount((c) => c + 1);
+    };
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [isOpen, exam]);
 
@@ -67,7 +79,8 @@ export default function ExamSessionModal({
         '直接使用同步 HTTP 长连接替代所有异步消息解耦',
         '微服务内部禁止封装业务模型',
       ],
-      correctAnswer: 1,
+      questionType: 'SINGLE',
+      answer: [1],
     },
     {
       id: 2,
@@ -78,7 +91,8 @@ export default function ExamSessionModal({
         '定时将数据全量清空重放',
         '通过客户端协商仲裁',
       ],
-      correctAnswer: 0,
+      questionType: 'SINGLE',
+      answer: [0],
     },
     {
       id: 3,
@@ -89,20 +103,31 @@ export default function ExamSessionModal({
         '必须通过 Lua 脚本生成 UUID',
         '为了使 Redis 自动开启 AOF 持久化',
       ],
-      correctAnswer: 1,
+      questionType: 'SINGLE',
+      answer: [1],
     },
   ];
 
-  const handleSelectOption = (questionId: number, optionIdx: number) => {
+  const handleSelectOption = (questionId: number, optionIdx: number, questionType?: string) => {
     if (result) return;
-    setAnswers((prev) => ({ ...prev, [questionId]: optionIdx }));
+    setAnswers((prev) => {
+      const current = prev[questionId] ?? [];
+      if (questionType === 'MULTIPLE') {
+        const next = current.includes(optionIdx)
+          ? current.filter((i) => i !== optionIdx)
+          : [...current, optionIdx];
+        return { ...prev, [questionId]: next };
+      }
+      return { ...prev, [questionId]: [optionIdx] };
+    });
   };
 
   const handleFinish = async () => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const res = await onSubmitExam(exam.id, answers);
+      const { attemptId } = await studentAssignmentService.startExam(exam.id);
+      const res = await studentAssignmentService.submitExam(exam.id, attemptId, answers, tabSwitchCount);
       setResult(res);
       onExamComplete(res.exam);
     } catch (err) {
@@ -185,7 +210,7 @@ export default function ExamSessionModal({
           {/* Question List */}
           <div className="space-y-6">
             {questions.map((q, qIndex) => {
-              const currentAns = answers[q.id];
+              const currentAns: number[] = answers[q.id] ?? [];
               return (
                 <div
                   key={q.id}
@@ -200,12 +225,11 @@ export default function ExamSessionModal({
 
                   <div className="space-y-2 pl-8">
                     {q.options.map((opt, optIndex) => {
-                      const isSelected = currentAns === optIndex;
-                      const isCorrect = q.correctAnswer === optIndex;
+                      const isSelected = currentAns.includes(optIndex);
                       return (
                         <div
                           key={optIndex}
-                          onClick={() => handleSelectOption(q.id, optIndex)}
+                          onClick={() => handleSelectOption(q.id, optIndex, q.questionType)}
                           className={cn(
                             'p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between',
                             isSelected
@@ -226,12 +250,6 @@ export default function ExamSessionModal({
                             </span>
                             <span>{opt}</span>
                           </div>
-
-                          {result && isCorrect && (
-                            <span className="text-emerald-600 font-bold text-xs flex items-center gap-1">
-                              <Check size={14} /> 正确答案
-                            </span>
-                          )}
                         </div>
                       );
                     })}

@@ -190,7 +190,10 @@ export interface ExamQuestion {
   id: number;
   question: string;
   options: string[];
-  correctAnswer: number;
+  questionType?: 'SINGLE' | 'MULTIPLE' | 'JUDGE';
+  answer?: number[];
+  /** 兼容本地 mock 回退判分（真实 API 不下发标准答案） */
+  correctAnswer?: number;
 }
 
 // 考试
@@ -210,6 +213,8 @@ export interface Exam {
   passScore: number;
   submittedAt?: string;
   questions?: ExamQuestion[];
+  attemptId?: number | string;
+  attemptStatus?: string;
 }
 
 // 订单项
