@@ -163,4 +163,16 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- 任务11 最小修复：educloud-ai 原缺 integration profile，-Pintegration 不生效会导致
+         IT 在 VM 上被静默跳过（Maven 报 profile 不存在且 skipITs 仍为 true）；
+         与 educloud-user/course/common/content/gateway 的门禁模式保持一致。 -->
+    <profiles>
+        <profile>
+            <id>integration</id>
+            <properties>
+                <skipITs>false</skipITs>
+            </properties>
+        </profile>
+    </profiles>
 </project>
