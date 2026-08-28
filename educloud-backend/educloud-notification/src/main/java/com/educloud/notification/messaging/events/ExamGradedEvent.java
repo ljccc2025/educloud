@@ -13,6 +13,7 @@ public class ExamGradedEvent {
     private String eventId;
     private Long examId;
     private Long userId;
+    private Long studentId;
     private Long courseId;
     private String examTitle;
     private String courseTitle;
