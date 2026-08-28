@@ -1,12 +1,14 @@
 package com.educloud.content.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Mapper;
 import com.educloud.content.entity.ExamAttemptEntity;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
+@Mapper
 public interface ExamAttemptMapper extends BaseMapper<ExamAttemptEntity> {
 
     /** CAS 判分收尾：仅 IN_PROGRESS 可迁移到 GRADED，返回 0 表示已被并发提交/不存在。 */
