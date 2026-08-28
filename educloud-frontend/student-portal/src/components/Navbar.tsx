@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   GraduationCap, Search, Bell, ShoppingCart, Menu, X, User,
-  BookOpen, Video, FileText, ClipboardList, LogOut, Sparkles, MessageCircle, Award,
+  BookOpen, Video, FileText, ClipboardList, LogOut, Sparkles, MessageCircle, Award, FileQuestion,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../features/engagement/useNotificationStore';
@@ -16,7 +16,8 @@ const navLinks = [
   { to: '/courses', label: '课程中心' },
   { to: '/my-courses', label: '我的课程' },
   { to: '/live/1', label: '直播课堂' },
-  { to: '/assignments', label: '作业考试' },
+  { to: '/assignments', label: '作业中心' },
+  { to: '/exams', label: '考试中心' },
   { to: '/ai-assistant', label: 'AI 助教' },
   { to: '/community', label: '学习社区' },
 ];
@@ -393,7 +394,15 @@ export default function Navbar() {
                           className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-700 dark:text-ink-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-800 transition-colors"
                         >
                           <ClipboardList size={16} className="text-ink-400" />
-                          作业与考试
+                          作业中心
+                        </Link>
+                        <Link
+                          to="/exams"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-700 dark:text-ink-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-800 transition-colors"
+                        >
+                          <FileQuestion size={16} className="text-ink-400" />
+                          考试中心
                         </Link>
                       </div>
 
