@@ -135,6 +135,28 @@ export interface Exam {
   studentCount: number;
   status: ExamStatus;
   scheduledAt: string;
+  /** 以下字段为对接后端 ExamResponse 后的扩展（M05 任务 13）。 */
+  description?: string;
+  totalScore?: number;
+  passScore?: number;
+  startTime?: string;
+  endTime?: string;
+}
+
+/** 教师端题库题目（后端 ExamBankQuestionResponse；answer 为选项索引）。 */
+export type ExamQuestionType = 'SINGLE' | 'MULTIPLE' | 'JUDGE';
+
+export interface ExamBankQuestion {
+  id: string;
+  courseId: string;
+  questionType: ExamQuestionType;
+  stem: string;
+  options: string[];
+  /** 正确答案索引列表（示例：SINGLE [0]、MULTIPLE [0, 2]、JUDGE [0]）。 */
+  answer: number[];
+  analysis?: string;
+  defaultScore: number;
+  createdAt?: string;
 }
 
 export interface Activity {

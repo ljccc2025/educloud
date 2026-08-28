@@ -12,6 +12,8 @@ import type {
   Submission,
   Student,
   Exam,
+  ExamBankQuestion,
+  ExamQuestionType,
   Activity,
   AnalyticsStats,
   EnrollmentTrend,
@@ -597,6 +599,71 @@ function mapTeacherActivityType(actionType?: string | null): Activity['type'] {
   }
 }
 
+/** 后端 ExamStatus（DRAFT|PUBLISHED|CLOSED）→ 前端 ExamStatus（DRAFT|PUBLISHED|ONGOING|ENDED）。 */
+function mapExamStatus(
+  status: string | null | undefined,
+  endTime?: string | null,
+): Exam['status'] {
+  switch (status) {
+    case 'DRAFT':
+      return 'DRAFT';
+    case 'CLOSED':
+      return 'ENDED';
+    case 'PUBLISHED':
+    default:
+      // PUBLISHED 且结束时间已过 → ENDED，否则 PUBLISHED（简化：不再细分 ONGOING）。
+      if (endTime && !Number.isNaN(new Date(endTime).getTime()) && new Date(endTime).getTime() < Date.now()) {
+        return 'ENDED';
+      }
+      return 'PUBLISHED';
+  }
+}
+
+/** 后端 ExamResponse → 前端 Exam 字段映射。 */
+function mapExamResponse(item: any): Exam {
+  const questions: Array<{ questionId?: unknown; score?: unknown }> = Array.isArray(item?.questions)
+    ? item.questions
+    : [];
+  const scheduledAt = item?.startTime ?? item?.endTime ?? '';
+  const id = item?.id != null ? String(item.id) : '';
+  return {
+    id,
+    title: item?.title ?? '',
+    courseId: item?.courseId != null ? String(item.courseId) : '',
+    courseName: item?.courseTitle ?? item?.courseName ?? '',
+    description: item?.description,
+    questionCount: questions?.length ?? 0,
+    duration: Number(item?.durationMinutes ?? 0),
+    totalScore: Number(item?.totalScore ?? 0),
+    passScore: Number(item?.passScore ?? 0),
+    studentCount: 0,
+    status: mapExamStatus(item?.status, item?.endTime),
+    scheduledAt,
+    startTime: item?.startTime,
+    endTime: item?.endTime,
+  };
+}
+
+/** 后端 ExamBankQuestionResponse → 前端 ExamBankQuestion（answer 为选项索引数组）。 */
+function mapBankQuestion(item: any): ExamBankQuestion {
+  let answer: number[] = [];
+  const rawAnswer = item?.answer;
+  if (Array.isArray(rawAnswer)) {
+    answer = rawAnswer.map((n: any) => Number(n)).filter((n) => Number.isFinite(n));
+  }
+  return {
+    id: item?.id != null ? String(item.id) : '',
+    courseId: item?.courseId != null ? String(item.courseId) : '',
+    questionType: (item?.questionType as ExamQuestionType) ?? 'SINGLE',
+    stem: item?.stem ?? '',
+    options: Array.isArray(item?.options) ? item.options.map((o: any) => String(o)) : [],
+    answer,
+    analysis: item?.analysis,
+    defaultScore: Number(item?.defaultScore ?? 0),
+    createdAt: item?.createdAt,
+  };
+}
+
 function cloneAssignment(assignment: Assignment): Assignment {
   return {
     ...assignment,
@@ -985,8 +1052,18 @@ export const api = {
   getStudents: () => delay(mockStudents),
 
   // Exams
-  getExams: () => delay(mockExams),
-  createExam: async (data: Partial<Exam>) => {
+  getExams: async (): Promise<Exam[]> => {
+    try {
+      const resp = await http.get<ApiEnvelope<any[]>>('/teacher/exams');
+      if (resp.data?.data && Array.isArray(resp.data.data) && resp.data.data.length > 0) {
+        return resp.data.data.map(mapExamResponse);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch /api/v1/teacher/exams from backend:', e);
+    }
+    return delay(mockExams);
+  },
+  createExam: async (data: Partial<Exam> & { paper?: Array<{ questionId: string; score: number }> }): Promise<Exam | null> => {
     let courseName = data.courseName;
     if (!courseName && data.courseId) {
       try {
@@ -996,19 +1073,124 @@ export const api = {
         // ignore
       }
     }
+    try {
+      const paper = Array.isArray(data.paper) ? data.paper : [];
+      const resp = await http.post<ApiEnvelope<any>>('/teacher/exams', {
+        courseId: data.courseId,
+        title: data.title?.trim() ?? '',
+        description: data.description ?? '',
+        durationMinutes: data.duration ?? 60,
+        passScore: data.passScore ?? 60,
+        startTime: data.startTime ?? data.scheduledAt ?? new Date().toISOString(),
+        endTime: data.endTime ?? new Date(new Date(data.startTime ?? data.scheduledAt ?? Date.now()).getTime() + (data.duration ?? 60) * 60000).toISOString(),
+        paper,
+      });
+      if (resp.data?.data) {
+        return mapExamResponse(resp.data.data);
+      }
+    } catch (e) {
+      console.warn('Failed to create exam via backend, fallback to local:', e);
+    }
     const newExam: Exam = {
       id: 'e-' + Date.now(),
       title: data.title ?? '未命名考试',
       courseId: data.courseId ?? '',
       courseName: courseName ?? '',
-      questionCount: data.questionCount ?? 0,
+      description: data.description,
+      questionCount: data.questionCount ?? (data?.paper?.length ?? 0),
       duration: data.duration ?? 60,
+      totalScore: 0,
+      passScore: data.passScore,
       studentCount: 0,
       status: 'DRAFT',
       scheduledAt: data.scheduledAt ?? new Date().toISOString(),
+      startTime: data.startTime,
+      endTime: data.endTime,
     };
     mockExams.unshift(newExam);
     return delay(newExam);
+  },
+  publishExam: async (examId: string): Promise<void> => {
+    try {
+      await http.post(`/teacher/exams/${examId}/publish`);
+    } catch (e) {
+      console.warn('Failed to publish exam via backend:', e);
+    }
+  },
+  deleteExam: async (examId: string): Promise<void> => {
+    try {
+      await http.delete(`/teacher/exams/${examId}`);
+    } catch (e) {
+      console.warn('Failed to delete exam via backend:', e);
+    }
+  },
+
+  // Exam Bank
+  getQuestions: async (courseId?: string): Promise<ExamBankQuestion[]> => {
+    try {
+      const resp = await http.get<ApiEnvelope<any[]>>('/teacher/exams/exam-bank/questions', {
+        params: courseId ? { courseId } : {},
+      });
+      if (resp.data?.data && Array.isArray(resp.data.data)) {
+        return resp.data.data.map(mapBankQuestion);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch exam bank questions from backend:', e);
+    }
+    return delay([]);
+  },
+  createQuestion: async (
+    data: Omit<ExamBankQuestion, 'id' | 'createdAt'>,
+  ): Promise<ExamBankQuestion> => {
+    try {
+      const resp = await http.post<ApiEnvelope<any>>('/teacher/exams/exam-bank/questions', {
+        courseId: data.courseId,
+        questionType: data.questionType,
+        stem: data.stem,
+        options: data.options,
+        answer: data.answer,
+        analysis: data.analysis ?? '',
+        defaultScore: data.defaultScore,
+      });
+      if (resp.data?.data) {
+        return mapBankQuestion(resp.data.data);
+      }
+    } catch (e) {
+      console.warn('Failed to create exam question via backend:', e);
+    }
+    return delay({
+      id: `bq-${Date.now()}`,
+      ...data,
+    } as ExamBankQuestion);
+  },
+  updateQuestion: async (
+    id: string,
+    data: Omit<ExamBankQuestion, 'id' | 'createdAt'>,
+  ): Promise<ExamBankQuestion> => {
+    try {
+      const resp = await http.put<ApiEnvelope<any>>(`/teacher/exams/exam-bank/questions/${id}`, {
+        courseId: data.courseId,
+        questionType: data.questionType,
+        stem: data.stem,
+        options: data.options,
+        answer: data.answer,
+        analysis: data.analysis ?? '',
+        defaultScore: data.defaultScore,
+      });
+      if (resp.data?.data) {
+        return mapBankQuestion(resp.data.data);
+      }
+    } catch (e) {
+      console.warn('Failed to update exam question via backend:', e);
+    }
+    return delay({ id, ...data } as ExamBankQuestion);
+  },
+  deleteQuestion: async (id: string): Promise<void> => {
+    try {
+      await http.delete(`/teacher/exams/exam-bank/questions/${id}`);
+    } catch (e) {
+      console.warn('Failed to delete exam question via backend:', e);
+    }
   },
 
   // Dashboard & Analytics
