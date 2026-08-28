@@ -119,6 +119,43 @@ public class ExamAttemptService {
         return response;
     }
 
+    public ExamAttemptResponse getAttemptResult(Long examId, Long attemptId, Long studentId) {
+        ExamAttemptEntity attempt = attemptMapper.selectById(attemptId);
+        if (attempt == null) {
+            throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_NOT_FOUND,
+                    "Exam attempt not found: " + attemptId);
+        }
+        if (!attempt.getStudentId().equals(studentId)) {
+            throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_NOT_OWNED,
+                    "Attempt " + attemptId + " does not belong to student " + studentId);
+        }
+        if (!attempt.getExamId().equals(examId)) {
+            throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_NOT_FOUND,
+                    "Attempt " + attemptId + " does not belong to exam " + examId);
+        }
+        if (!"GRADED".equals(attempt.getStatus())) {
+            throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_NOT_SUBMITTABLE,
+                    "Attempt not graded yet: " + attemptId);
+        }
+        Map<Long, List<Integer>> answers = readAnswers(attempt.getAnswersJson());
+        List<ExamQuestionSnapshot> paper = loadPaper(examId);
+        ExamGradingEngine.GradeResult result = ExamGradingEngine.grade(paper, answers);
+        return toAttemptResponse(attempt, paper, answers, result, attempt.getPassed() == 1);
+    }
+
+    private Map<Long, List<Integer>> readAnswers(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {
+            });
+        } catch (Exception e) {
+            log.warn("Failed to parse answers_json for attempt, treat as empty", e);
+            return Map.of();
+        }
+    }
+
     /**
      * 超时收敛判分入口（规格 §5.2）：由 ExamTimeoutSweeper 在考试窗口结束后调用，
      * 不校验考试窗口与上架状态（考试可能已转为 CLOSED），仅校验 attempt 状态与归属。
