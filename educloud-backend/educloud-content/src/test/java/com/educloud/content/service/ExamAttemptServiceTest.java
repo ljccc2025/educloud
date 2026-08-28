@@ -49,6 +49,8 @@ class ExamAttemptServiceTest {
     private ExamAttemptMapper attemptMapper;
     @Mock
     private ContentEventPublisher eventPublisher;
+    @Mock
+    private CourseClient courseClient;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -94,8 +96,20 @@ class ExamAttemptServiceTest {
     }
 
     @Test
+    void startAttempt_rejectsWhenNotEnrolled() {
+        when(examMapper.selectById(101L)).thenReturn(publishedExam());
+        when(courseClient.isEnrolled(1001L, 2001L)).thenReturn(false);
+
+        assertThatThrownBy(() -> attemptService.startAttempt(101L, 2001L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ContentErrorCode.EXAM_NOT_ENROLLED);
+    }
+
+    @Test
     void startAttempt_reusesInProgressAttempt() {
         when(examMapper.selectById(101L)).thenReturn(publishedExam());
+        when(courseClient.isEnrolled(1001L, 2001L)).thenReturn(true);
         ExamAttemptEntity inProgress = new ExamAttemptEntity();
         inProgress.setId(501L);
         inProgress.setExamId(101L);
@@ -113,6 +127,7 @@ class ExamAttemptServiceTest {
     @Test
     void startAttempt_rejectsGradedAttempt() {
         when(examMapper.selectById(101L)).thenReturn(publishedExam());
+        when(courseClient.isEnrolled(1001L, 2001L)).thenReturn(true);
         ExamAttemptEntity graded = new ExamAttemptEntity();
         graded.setStatus("GRADED");
         when(attemptMapper.selectOne(any())).thenReturn(graded);

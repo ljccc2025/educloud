@@ -214,6 +214,7 @@ class ExamServiceTest {
         graded.setScore(40);
         graded.setPassed(1);
         when(examMapper.selectById(11L)).thenReturn(published);
+        when(courseClient.isEnrolled(1001L, 900L)).thenReturn(true);
         when(attemptMapper.selectOne(any())).thenReturn(graded);
         when(paperQuestionMapper.selectList(any())).thenReturn(List.of(
                 paperRow(1L, 11L, 0), paperRow(2L, 11L, 1), paperRow(3L, 11L, 2)));
@@ -233,6 +234,7 @@ class ExamServiceTest {
         ExamEntity openExam = draftExam(12L);
         openExam.setStatus("PUBLISHED");
         when(examMapper.selectList(any())).thenReturn(List.of(gradedExam, openExam));
+        when(courseClient.isEnrolled(1001L, 900L)).thenReturn(true);
         ExamAttemptEntity graded = new ExamAttemptEntity();
         graded.setExamId(11L);
         graded.setStatus("GRADED");
@@ -254,6 +256,18 @@ class ExamServiceTest {
         verify(paperQuestionMapper, times(1)).selectList(any());
         verify(attemptMapper, times(1)).selectList(any());
         verify(attemptMapper, never()).selectOne(any());
+        // 报名校验按课程去重，两门同课程考试只查一次
+        verify(courseClient, times(1)).isEnrolled(1001L, 900L);
+    }
+
+    @Test
+    void listStudentExams_excludesExamsOfCoursesNotEnrolled() {
+        ExamEntity other = draftExam(11L);
+        other.setStatus("PUBLISHED");
+        when(examMapper.selectList(any())).thenReturn(List.of(other));
+        when(courseClient.isEnrolled(1001L, 900L)).thenReturn(false);
+
+        assertThat(examService.listStudentExams(900L)).isEmpty();
     }
 
     /** 模拟生产行为：MyBatis-Plus 在 insert 时回填雪花 id。 */

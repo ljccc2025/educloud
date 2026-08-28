@@ -21,6 +21,7 @@ public enum ContentErrorCode implements ErrorCode {
     EXAM_OUTSIDE_WINDOW(409, "Exam is outside the scheduled window"),
     EXAM_ATTEMPT_ALREADY_EXISTS(409, "An active attempt already exists for this exam"),
     EXAM_ATTEMPT_NOT_OWNED(403, "Exam attempt does not belong to current user"),
+    EXAM_NOT_ENROLLED(403, "Exam requires enrollment in its course"),
     EXAM_ATTEMPT_NOT_SUBMITTABLE(409, "Exam attempt is not in progress"),
     EXAM_QUESTION_IN_USE(409, "Question is referenced by a published exam"),
     EXAM_NOT_DRAFT(409, "Exam is not in draft state"),

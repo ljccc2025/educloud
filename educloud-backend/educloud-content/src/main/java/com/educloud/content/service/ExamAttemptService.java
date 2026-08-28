@@ -46,9 +46,15 @@ public class ExamAttemptService {
     private final ExamAttemptMapper attemptMapper;
     private final ContentEventPublisher contentEventPublisher;
     private final ObjectMapper objectMapper;
+    private final CourseClient courseClient;
 
     public ExamAttemptEntity startAttempt(Long examId, Long studentId) {
         ExamEntity exam = requirePublishedInWindow(examId);
+        // 服务端兜底：未报名课程的学生不能开考，避免绕过列表直接调接口参考他人课程考试
+        if (exam.getCourseId() == null || !courseClient.isEnrolled(exam.getCourseId(), studentId)) {
+            throw new BusinessException(ContentErrorCode.EXAM_NOT_ENROLLED,
+                    "Not enrolled in course " + exam.getCourseId() + " for exam " + examId);
+        }
         ExamAttemptEntity existing = attemptMapper.selectOne(
                 new LambdaQueryWrapper<ExamAttemptEntity>()
                         .eq(ExamAttemptEntity::getExamId, examId)

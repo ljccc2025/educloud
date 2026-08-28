@@ -48,12 +48,22 @@ public class ExamService {
                 new LambdaQueryWrapper<ExamEntity>()
                         .eq(ExamEntity::getStatus, STATUS_PUBLISHED)
                         .orderByDesc(ExamEntity::getStartTime));
-        List<Long> examIds = exams.stream().map(ExamEntity::getId).toList();
+        // 仅展示已报名课程的考试：未报名学生不应看到、更不应能参考他人课程的考试
+        Map<Long, Boolean> enrolledByCourse = new LinkedHashMap<>();
+        List<ExamEntity> visible = new ArrayList<>();
+        for (ExamEntity exam : exams) {
+            Long courseId = exam.getCourseId();
+            if (courseId != null
+                    && enrolledByCourse.computeIfAbsent(courseId, cid -> courseClient.isEnrolled(cid, studentId))) {
+                visible.add(exam);
+            }
+        }
+        List<Long> examIds = visible.stream().map(ExamEntity::getId).toList();
         // 批量取 attempt 与组卷行，避免列表接口逐考试发起查询
         Map<Long, ExamAttemptEntity> attemptsByExam = loadAttempts(examIds, studentId);
         Map<Long, List<ExamPaperQuestionEntity>> rowsByExam = loadPaperRows(examIds);
         List<ExamResponse> result = new ArrayList<>();
-        for (ExamEntity exam : exams) {
+        for (ExamEntity exam : visible) {
             result.add(toStudentView(exam, attemptsByExam.get(exam.getId()),
                     rowsByExam.getOrDefault(exam.getId(), List.of())));
         }
@@ -65,6 +75,11 @@ public class ExamService {
         if (!STATUS_PUBLISHED.equals(exam.getStatus())) {
             throw new BusinessException(ContentErrorCode.EXAM_NOT_PUBLISHED,
                     "Exam is not published: " + examId);
+        }
+        // 防枚举：未报名课程的学生不得通过 examId 直读他人课程考试的题目
+        if (exam.getCourseId() == null || !courseClient.isEnrolled(exam.getCourseId(), studentId)) {
+            throw new BusinessException(ContentErrorCode.EXAM_NOT_ENROLLED,
+                    "Not enrolled in course " + exam.getCourseId() + " for exam " + examId);
         }
         ExamAttemptEntity attempt = attemptMapper.selectOne(
                 new LambdaQueryWrapper<ExamAttemptEntity>()
