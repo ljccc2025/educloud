@@ -48,6 +48,7 @@ export default function ExamManage() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // 考试管理
   const [showCreate, setShowCreate] = useState(false);
@@ -67,16 +68,24 @@ export default function ExamManage() {
   const [editingQuestion, setEditingQuestion] = useState<ExamBankQuestion | null>(null);
 
   const loadExams = useCallback(async () => {
-    const data = await api.getExams();
-    setExams(data);
+    try {
+      setExams(await api.getExams());
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : '考试列表加载失败');
+    }
   }, []);
 
   useEffect(() => {
-    Promise.all([api.getExams(), api.getCourses()]).then(([examData, courseData]) => {
-      setExams(examData);
-      setCourses(courseData);
-      setLoading(false);
-    });
+    Promise.all([api.getExams(), api.getCourses()])
+      .then(([examData, courseData]) => {
+        setExams(examData);
+        setCourses(courseData);
+      })
+      .catch((e) => {
+        setLoadError(e instanceof Error ? e.message : '考试列表加载失败');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   // 题库：选中课程后加载题目
@@ -175,7 +184,7 @@ export default function ExamManage() {
     });
   }, [selectedPaper, bankQuestions]);
 
-  const handleCreateExam = async () => {
+  const handleCreateExam = async (publish = false) => {
     if (!examForm.title.trim() || !examForm.courseId) return;
     if (orderedPaper.length === 0) {
       window.alert('请至少勾选一道题目进行组卷');
@@ -188,7 +197,7 @@ export default function ExamManage() {
     const paper = orderedPaper
       .filter((item) => item.q)
       .map((item) => ({ questionId: item.q!.id, score: Number(item.config.score) || item.q!.defaultScore || 0 }));
-    await api.createExam({
+    const created = await api.createExam({
       title: examForm.title.trim(),
       courseId: examForm.courseId,
       duration,
@@ -198,6 +207,20 @@ export default function ExamManage() {
       endTime: dayjs(start).add(duration, 'minute').toISOString(),
       paper,
     });
+    if (!created) {
+      // 保留弹窗与已填表单，避免教师误以为创建成功
+      window.alert('创建考试失败，请重试');
+      return;
+    }
+    if (publish) {
+      try {
+        await api.publishExam(created.id);
+      } catch (e) {
+        window.alert(
+          `考试已保存为草稿，但发布失败：${e instanceof Error ? e.message : '请重试'}。可在列表中再次发布。`,
+        );
+      }
+    }
     await loadExams();
     setShowCreate(false);
     setExamForm(emptyExamForm);
@@ -205,8 +228,13 @@ export default function ExamManage() {
   };
 
   const handlePublish = async (exam: Exam) => {
-    await api.publishExam(exam.id);
-    // 本地乐观更新：发布后状态 → PUBLISHED
+    try {
+      await api.publishExam(exam.id);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '发布考试失败');
+      return;
+    }
+    // 接口成功后才更新本地状态 → PUBLISHED
     setExams((prev) =>
       prev.map((e) => (e.id === exam.id ? { ...e, status: 'PUBLISHED' as ExamStatus } : e)),
     );
@@ -214,7 +242,12 @@ export default function ExamManage() {
 
   const handleDeleteExam = async (exam: Exam) => {
     if (!window.confirm(`确认删除考试「${exam.title}」？此操作不可恢复。`)) return;
-    await api.deleteExam(exam.id);
+    try {
+      await api.deleteExam(exam.id);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '删除考试失败');
+      return;
+    }
     setExams((prev) => prev.filter((e) => e.id !== exam.id));
   };
 
@@ -355,6 +388,13 @@ export default function ExamManage() {
                       <tr>
                         <td colSpan={7} className="text-center py-12 text-ink-400">加载中…</td>
                       </tr>
+                    ) : loadError ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-12 space-y-3">
+                          <p className="text-red-600 text-sm">{loadError}</p>
+                          <button onClick={() => void loadExams()} className="btn-primary">重新加载</button>
+                        </td>
+                      </tr>
                     ) : exams.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="text-center py-12 text-ink-400">暂无考试</td>
@@ -408,20 +448,22 @@ export default function ExamManage() {
                               )}
                               {exam.status === 'DRAFT' && (
                                 <button
-                                  className="btn-ghost text-green-600"
+                                  className="btn-ghost text-green-600 flex items-center gap-1"
                                   title="发布"
                                   onClick={() => handlePublish(exam)}
                                 >
                                   <Play className="w-4 h-4" />
+                                  发布
                                 </button>
                               )}
                               {exam.status === 'DRAFT' && (
                                 <button
-                                  className="btn-ghost text-red-600"
+                                  className="btn-ghost text-red-600 flex items-center gap-1"
                                   title="删除"
                                   onClick={() => handleDeleteExam(exam)}
                                 >
                                   <Trash2 className="w-4 h-4" />
+                                  删除
                                 </button>
                               )}
                             </div>
@@ -553,7 +595,7 @@ function createExamModal(
   togglePaper: (qid: string) => void,
   setScore: (qid: string, score: number) => void,
   onClose: () => void,
-  onCreate: () => void,
+  onCreate: (publish: boolean) => void,
   _bankLoading: boolean,
 ) {
   if (!show) return null;
@@ -674,7 +716,8 @@ function createExamModal(
             </div>
 
             <div className="flex gap-3 pt-1">
-              <button onClick={onCreate} className="btn-primary flex-1">保存草稿</button>
+              <button onClick={() => onCreate(true)} className="btn-primary flex-1">保存并发布</button>
+              <button onClick={() => onCreate(false)} className="btn-outline flex-1">仅存草稿</button>
               <button onClick={onClose} className="btn-outline flex-1">取消</button>
             </div>
           </div>

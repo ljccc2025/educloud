@@ -29,10 +29,13 @@ export default function ExamSessionModal({
   const autoSubmittedRef = useRef(false);
   // 缓存已创建的考试 attemptId，避免重复 startExam 触发 409
   const attemptIdRef = useRef<string | number | null>(null);
+  // 开考失败原因：不再伪造 attemptId，改为显式提示
+  const [startError, setStartError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && exam) {
       attemptIdRef.current = null;
+      setStartError(null);
       setAnswers({});
       setResult(null);
       setTabSwitchCount(0);
@@ -53,8 +56,8 @@ export default function ExamSessionModal({
     if (isOpen && exam && attemptIdRef.current === null) {
       studentAssignmentService.startExam(exam.id).then(({ attemptId }) => {
         attemptIdRef.current = attemptId;
-      }).catch(() => {
-        attemptIdRef.current = `local-${Date.now()}`;
+      }).catch((e) => {
+        setStartError(e instanceof Error ? e.message : '开考失败，请重试');
       });
     }
   }, [isOpen, exam]);
@@ -237,6 +240,13 @@ export default function ExamSessionModal({
                 考试得分：<span className="text-3xl font-extrabold">{result.score}</span> / {exam.totalScore} 分
                 （及格分：{exam.passScore || 60} 分）
               </p>
+            </div>
+          )}
+
+          {/* 开考失败提示：此时交卷会被服务层拦下，避免无 attempt 的静默判分 */}
+          {startError && (
+            <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+              {startError}
             </div>
           )}
 

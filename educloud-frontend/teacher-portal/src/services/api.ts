@@ -483,54 +483,6 @@ for (const assignment of mockAssignments) {
   assignment.gradedCount = assignment.submissions.filter((submission) => submission.status === 'GRADED').length;
 }
 
-// ---------- Mock Exams ----------
-const mockExams: Exam[] = [
-  {
-    id: 'e-001',
-    title: 'Spring Boot 3 阶段测验（一至三章）',
-    courseId: 'c-001',
-    courseName: 'Spring Boot 3 实战',
-    questionCount: 30,
-    duration: 60,
-    studentCount: 856,
-    status: 'ENDED',
-    scheduledAt: '2026-08-10T14:00:00',
-  },
-  {
-    id: 'e-002',
-    title: 'Python 数据分析期中考试',
-    courseId: 'c-002',
-    courseName: 'Python 数据分析与可视化',
-    questionCount: 40,
-    duration: 90,
-    studentCount: 520,
-    status: 'PUBLISHED',
-    scheduledAt: '2026-08-25T09:00:00',
-  },
-  {
-    id: 'e-003',
-    title: 'React 18 前端工程化期末考试',
-    courseId: 'c-003',
-    courseName: 'React 18 + TypeScript',
-    questionCount: 50,
-    duration: 120,
-    studentCount: 0,
-    status: 'DRAFT',
-    scheduledAt: '2026-09-05T14:00:00',
-  },
-  {
-    id: 'e-004',
-    title: '机器学习算法基础测验',
-    courseId: 'c-005',
-    courseName: '机器学习入门',
-    questionCount: 25,
-    duration: 45,
-    studentCount: 310,
-    status: 'ONGOING',
-    scheduledAt: '2026-08-17T10:00:00',
-  },
-];
-
 // ---------- Mock Activities ----------
 const mockActivities: Activity[] = [
   { id: 'act-1', type: 'submission', content: '李思远 提交了作业「RESTful 博客 API」', time: '2026-08-17T14:22:00' },
@@ -1053,15 +1005,12 @@ export const api = {
 
   // Exams
   getExams: async (): Promise<Exam[]> => {
-    try {
-      const resp = await http.get<ApiEnvelope<any[]>>('/teacher/exams');
-      if (resp.data?.data && Array.isArray(resp.data.data)) {
-        return resp.data.data.map(mapExamResponse);
-      }
-    } catch (e) {
-      console.warn('Failed to fetch /api/v1/teacher/exams from backend:', e);
+    const resp = await http.get<ApiEnvelope<any[]>>('/teacher/exams');
+    const list = resp.data?.data;
+    if (!Array.isArray(list)) {
+      throw new Error('考试列表加载失败');
     }
-    return delay(mockExams);
+    return list.map(mapExamResponse);
   },
   createExam: async (data: Partial<Exam> & { paper?: Array<{ questionId: string; score: number }> }): Promise<Exam | null> => {
     let courseName = data.courseName;
@@ -1085,44 +1034,18 @@ export const api = {
         endTime: data.endTime ?? new Date(new Date(data.startTime ?? data.scheduledAt ?? Date.now()).getTime() + (data.duration ?? 60) * 60000).toISOString(),
         paper,
       });
-      if (resp.data?.data) {
-        return mapExamResponse(resp.data.data);
-      }
+      return resp.data?.data ? mapExamResponse(resp.data.data) : null;
     } catch (e) {
-      console.warn('Failed to create exam via backend, fallback to local:', e);
+      // 不再伪造本地 DRAFT 考试：那会让教师以为创建成功，实际库里没有这条考试
+      console.error('Failed to create exam via backend:', e);
+      return null;
     }
-    const newExam: Exam = {
-      id: 'e-' + Date.now(),
-      title: data.title ?? '未命名考试',
-      courseId: data.courseId ?? '',
-      courseName: courseName ?? '',
-      description: data.description,
-      questionCount: data.questionCount ?? (data?.paper?.length ?? 0),
-      duration: data.duration ?? 60,
-      totalScore: 0,
-      passScore: data.passScore,
-      studentCount: 0,
-      status: 'DRAFT',
-      scheduledAt: data.scheduledAt ?? new Date().toISOString(),
-      startTime: data.startTime,
-      endTime: data.endTime,
-    };
-    mockExams.unshift(newExam);
-    return delay(newExam);
   },
   publishExam: async (examId: string): Promise<void> => {
-    try {
-      await http.post(`/teacher/exams/${examId}/publish`);
-    } catch (e) {
-      console.warn('Failed to publish exam via backend:', e);
-    }
+    await http.post(`/teacher/exams/${examId}/publish`);
   },
   deleteExam: async (examId: string): Promise<void> => {
-    try {
-      await http.delete(`/teacher/exams/${examId}`);
-    } catch (e) {
-      console.warn('Failed to delete exam via backend:', e);
-    }
+    await http.delete(`/teacher/exams/${examId}`);
   },
 
   // Exam Bank

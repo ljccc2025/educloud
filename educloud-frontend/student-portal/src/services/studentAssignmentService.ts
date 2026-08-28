@@ -5,7 +5,6 @@ import { authApi } from './api';
 import { useAuthStore } from '../stores/useAuthStore';
 
 const STORAGE_KEY_PREFIX = 'educloud_student_assignments_';
-const EXAM_STORAGE_KEY_PREFIX = 'educloud_student_exams_';
 
 function getUserStorageKey(prefix: string): string {
   try {
@@ -77,72 +76,6 @@ const defaultAssignmentsSeed: Assignment[] = [
     dueDate: dayjs().add(12, 'day').format('YYYY-MM-DD 00:00'),
     status: 'PENDING',
     totalScore: 100,
-  },
-];
-
-// 默认基础考试清单（纯净初始态，全为未开始）
-const defaultExamsSeed: Exam[] = [
-  {
-    id: 'exam-001',
-    courseId: 'c_1001',
-    courseTitle: 'Spring Boot 微服务实践',
-    title: '微服务核心架构期末结业考试',
-    description: '检验 Spring Cloud 核心组件、分布式链路追踪、服务熔断与限流及分布式事务知识点。',
-    duration: 60,
-    totalQuestions: 20,
-    totalScore: 100,
-    passScore: 60,
-    status: 'NOT_STARTED',
-    startTime: dayjs().subtract(1, 'hour').format('YYYY-MM-DD HH:mm'),
-    endTime: dayjs().add(3, 'day').format('YYYY-MM-DD HH:mm'),
-    questions: [
-      {
-        id: 1,
-        question: '在 Spring Cloud 中，哪个组件通常用于提供统一的服务注册与动态配置中心？',
-        options: ['Nacos', 'Ribbon', 'OpenFeign', 'Sentinel'],
-        correctAnswer: 0,
-      },
-      {
-        id: 2,
-        question: '分布式事务 Seata 的 AT 模式中，第一阶段的核心动作是什么？',
-        options: ['提交全局事务', '执行业务SQL并生成前置/后置镜像保存到 undo_log', '全局回滚', '锁定所有数据库行'],
-        correctAnswer: 1,
-      },
-      {
-        id: 3,
-        question: 'Spring Cloud Gateway 底层基于哪种响应式网络框架开发？',
-        options: ['Tomcat BIO', 'Netty (Reactor)', 'Undertow', 'Jetty'],
-        correctAnswer: 1,
-      },
-      {
-        id: 4,
-        question: '关于 JWT (JSON Web Token) 的描述，以下哪项是正确的？',
-        options: ['JWT 本身默认加密，任何人无法查看 Payload', 'JWT 是无状态的，签名用于校验数据完整性', '必须依赖 Redis 存储每次请求的 Session', 'JWT 无法设置过期时间'],
-        correctAnswer: 1,
-      },
-    ],
-  },
-  {
-    id: 'exam-002',
-    courseId: 'c_1003',
-    courseTitle: '前端工程化与 React 进阶',
-    title: 'React 18 现代前端工程能力认证考核',
-    description: '涵盖 Fiber 架构、Concurrent Mode 并发渲染、Hooks 原理与 Vite 构建调优。',
-    duration: 45,
-    totalQuestions: 15,
-    totalScore: 100,
-    passScore: 60,
-    status: 'NOT_STARTED',
-    startTime: dayjs().subtract(1, 'hour').format('YYYY-MM-DD HH:mm'),
-    endTime: dayjs().add(5, 'day').format('YYYY-MM-DD HH:mm'),
-    questions: [
-      {
-        id: 1,
-        question: 'React 18 引入的 Automatic Batching (自动批处理) 默认生效在哪些场景？',
-        options: ['仅在 React 事件处理函数中', '在 Promise、setTimeout 及原生事件中均自动生效', '必须手动包裹 unstable_batchedUpdates', '仅在 class 组件中生效'],
-        correctAnswer: 1,
-      },
-    ],
   },
 ];
 
@@ -246,115 +179,73 @@ export const studentAssignmentService = {
     return target;
   },
 
-  /** 获取当前学员的考试列表（对接后端 API，回退至本地存储） */
+  /** 获取当前学员的考试列表。API 失败时抛错由页面展示错误态——不回退本地 mock，避免假数据导致误判分 */
   getExams: async (): Promise<Exam[]> => {
-    try {
-      const resp = await http.get<ApiEnvelope<Exam[]>>('/me/exams');
-      if (resp.data?.data && Array.isArray(resp.data.data)) {
-        // 映射后端契约字段为前端标准化字段：stem -> question，durationMinutes -> duration
-        return resp.data.data.map((raw) => {
-          const exam = raw as Exam & { questions?: Array<{ id: number; stem?: string; options?: string[]; questionType?: string }> };
-          return {
-            ...exam,
-            duration: exam.durationMinutes ?? exam.duration,
-            totalQuestions: exam.questionCount ?? exam.questions?.length ?? 0,
-            questions: (exam.questions ?? []).map((q) => ({
-              id: q.id,
-              question: q.stem ?? (q as any).question ?? '',
-              options: q.options ?? [],
-              questionType: q.questionType,
-            })),
-          };
-        });
-      }
-    } catch (e) {
-      console.warn('Failed to fetch /api/v1/me/exams, falling back:', e);
+    const resp = await http.get<ApiEnvelope<Exam[]>>('/me/exams');
+    const list = resp.data?.data;
+    if (!Array.isArray(list)) {
+      throw new Error('考试列表加载失败');
     }
-    const key = getUserStorageKey(EXAM_STORAGE_KEY_PREFIX);
-    try {
-      const stored = localStorage.getItem(key);
-      if (stored) return JSON.parse(stored);
-    } catch {
-      // ignore
-    }
-    try {
-      localStorage.setItem(key, JSON.stringify(defaultExamsSeed));
-    } catch {
-      // ignore
-    }
-    return defaultExamsSeed;
+    // 映射后端契约字段为前端标准化字段：stem -> question，durationMinutes -> duration
+    return list.map((raw) => {
+      const exam = raw as Exam & { questions?: Array<{ id: number; stem?: string; options?: string[]; questionType?: string }> };
+      return {
+        ...exam,
+        duration: exam.durationMinutes ?? exam.duration,
+        totalQuestions: exam.questionCount ?? exam.questions?.length ?? 0,
+        questions: (exam.questions ?? []).map((q) => ({
+          id: q.id,
+          question: q.stem ?? (q as any).question ?? '',
+          options: q.options ?? [],
+          questionType: q.questionType,
+        })),
+      };
+    });
   },
 
-  /** 开始考试（真实 API 失败时回退本地 mock） */
+  /** 开始考试：失败即抛错。伪造 local attemptId 会让后续提交落到本地判分，真实考试必判 0 分 */
   startExam: async (examId: string | number): Promise<{ attemptId: number | string }> => {
-    try {
-      const resp = await http.post<ApiEnvelope<any>>(`/me/exams/${examId}/attempts`);
-      if (resp.data?.data?.id) return { attemptId: resp.data.data.id };
-    } catch (e) {
-      console.warn('Failed to start exam via API, falling back:', e);
+    const resp = await http.post<ApiEnvelope<any>>(`/me/exams/${examId}/attempts`);
+    const attemptId = resp.data?.data?.id;
+    if (!attemptId) {
+      throw new Error('开考失败，请重试');
     }
-    return { attemptId: `local-${Date.now()}` };
+    return { attemptId };
   },
 
-  /** 提交考试答卷并自动判分 */
+  /** 提交考试答卷：一律由服务端判分。真实题目按安全约定不下发答案，本地判分必为 0 分，故不提供本地回退 */
   submitExam: async (
     examId: string | number,
     attemptId: string | number,
     answers: Record<number, number[]>,
     tabSwitchCount = 0,
   ): Promise<{ exam: Exam; score: number; passed: boolean }> => {
-    // 真实 API 路径：attemptId 非 local- 前缀时走 HTTP
-    if (!String(attemptId).startsWith('local-')) {
-      let resp;
-      try {
-        resp = await http.post<ApiEnvelope<any>>(
-          `/me/exams/${examId}/attempts/${attemptId}/submit`,
-          { answers, tabSwitchCount }
-        );
-      } catch (e) {
-        // 真实 attempt 提交失败：不得静默回退本地判分（真实题目无标准答案必然 0 分）
-        console.error('Failed to submit exam via API:', e);
-        throw new Error('交卷失败，请重试');
-      }
-      if (resp.data?.data) {
-        const data = resp.data.data;
-        const list = await studentAssignmentService.getExams();
-        const target = list.find((i) => String(i.id) === String(examId));
-        // ExamAttemptResponse 不含 totalScore，取自目标考试
-        const totalScore = target?.totalScore ?? 100;
-        const updated: Exam = target
-          ? { ...target, status: 'GRADED' as const, score: data.score, submittedAt: data.submittedAt }
-          : ({ id: examId, title: '', courseId: '', courseTitle: '', description: '', duration: 0,
-              totalQuestions: 0, totalScore, status: 'GRADED' as const,
-              passScore: 60, score: data.score } as Exam);
-        return { exam: updated, score: data.score, passed: data.passed };
-      }
+    if (!attemptId || String(attemptId).startsWith('local-')) {
+      throw new Error('考试会话已失效，请重新进入考试');
     }
-    // 本地 mock 回退：保留现有判分逻辑（读取 correctAnswer/answer）
-    const key = getUserStorageKey(EXAM_STORAGE_KEY_PREFIX);
+    let resp;
+    try {
+      resp = await http.post<ApiEnvelope<any>>(
+        `/me/exams/${examId}/attempts/${attemptId}/submit`,
+        { answers, tabSwitchCount }
+      );
+    } catch (e) {
+      console.error('Failed to submit exam via API:', e);
+      throw new Error('交卷失败，请重试');
+    }
+    const data = resp.data?.data;
+    if (!data) {
+      throw new Error('交卷失败，请重试');
+    }
     const list = await studentAssignmentService.getExams();
-    const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
-    let computedScore = 0;
-    const updatedList = list.map((item) => {
-      if (String(item.id) === String(examId)) {
-        const questions = item.questions || [];
-        const eachScore = item.totalScore / Math.max(1, questions.length);
-        let correctCount = 0;
-        questions.forEach((q) => {
-          const chosen = answers[q.id] ?? [];
-          const correct = Array.isArray(q.answer)
-            ? chosen.length === q.answer.length && [...chosen].sort().join() === [...q.answer].sort().join()
-            : chosen.length === 1 && chosen[0] === (q as any).correctAnswer;
-          if (correct) correctCount++;
-        });
-        computedScore = Math.round(correctCount * eachScore);
-        return { ...item, status: 'GRADED' as const, score: computedScore, submittedAt: now };
-      }
-      return item;
-    });
-    localStorage.setItem(key, JSON.stringify(updatedList));
-    const target = updatedList.find((i) => String(i.id) === String(examId));
-    if (!target) throw new Error('考试未找到');
-    return { exam: target, score: computedScore, passed: computedScore >= (target.passScore || 60) };
+    const target = list.find((i) => String(i.id) === String(examId));
+    // ExamAttemptResponse 不含 totalScore，取自目标考试
+    const totalScore = target?.totalScore ?? 100;
+    const updated: Exam = target
+      ? { ...target, status: 'GRADED' as const, score: data.score, submittedAt: data.submittedAt }
+      : ({ id: examId, title: '', courseId: '', courseTitle: '', description: '', duration: 0,
+          totalQuestions: 0, totalScore, status: 'GRADED' as const,
+          passScore: 60, score: data.score } as Exam);
+    return { exam: updated, score: data.score, passed: data.passed };
   },
 };

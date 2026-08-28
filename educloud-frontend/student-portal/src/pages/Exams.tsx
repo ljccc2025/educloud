@@ -18,12 +18,17 @@ const statusConfig: Record<ExamStatus, { label: string; className: string }> = {
 export default function Exams() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
 
   const loadExams = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const data = await studentAssignmentService.getExams();
       setExams(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '考试列表加载失败');
     } finally {
       setLoading(false);
     }
@@ -50,6 +55,17 @@ export default function Exams() {
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-2 border-indigo-800 border-t-transparent animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="p-6 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-between gap-4">
+          <p className="text-sm text-red-700 font-medium">{error}</p>
+          <button onClick={() => void loadExams()} className="btn-primary shrink-0">
+            重新加载
+          </button>
+        </div>
+      ) : exams.length === 0 ? (
+        <div className="p-12 rounded-2xl bg-white border border-ink-100 text-center">
+          <p className="text-ink-500">暂无考试，报名的课程发布考试后会显示在这里。</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
