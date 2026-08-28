@@ -83,6 +83,12 @@ public class ActivityFeedConsumer {
         handle(message, "educloud-content", "AssignmentGraded");
     }
 
+    /** 考试判分专用队列：绑定全域总线 educloud.events 的 exam.graded 路由。 */
+    @RabbitListener(queues = RabbitMqConfig.QUEUE_ACTIVITY_FEED_EXAM)
+    public void onExamEvent(Message message) {
+        handle(message, "educloud-content", "ExamGraded");
+    }
+
     /** 解析单条消息并映射为动态；包级可见便于单测。 */
     void handle(Message message, String sourceHint) {
         handle(message, sourceHint, null);
@@ -132,6 +138,7 @@ public class ActivityFeedConsumer {
                 case "coursecompleted" -> mapCourseCompleted(root, eventId, occurredAt);
                 case "certificateissued" -> mapCertificateIssued(root, eventId, occurredAt);
                 case "coursereviewed", "course.reviewed" -> mapCourseReviewed(root, eventId, occurredAt);
+                case "examgraded", "exam.graded" -> mapExamGraded(root, eventId, occurredAt);
                 case "coursepublished" -> mapCourseLifecycle(root, eventId, occurredAt, "COURSE_PUBLISHED");
                 case "coursecreated" -> mapCourseLifecycle(root, eventId, occurredAt, "COURSE_CREATED");
                 case "courseupdated" -> mapCourseLifecycle(root, eventId, occurredAt, "COURSE_UPDATED");
@@ -263,6 +270,26 @@ public class ActivityFeedConsumer {
                 text(root, "assignmentId"), text(root, "assignmentTitle", "title"),
                 extra.isEmpty() ? null : extra,
                 suffix(eventId, "ASSIGNMENT_GRADED"), occurredAt);
+    }
+
+    /** 考试判分 → 学生考试动态（通过/未通过两种文案，extra 带 score/passed）。 */
+    private void mapExamGraded(JsonNode root, String eventId, LocalDateTime occurredAt) {
+        String studentId = text(root, "studentId", "userId");
+        if (studentId == null || studentId.isBlank()) {
+            log.warn("ExamGraded event without studentId/userId skipped: eventId={}", eventId);
+            return;
+        }
+        JsonNode passedNode = field(root, "passed");
+        boolean passed = passedNode != null && passedNode.asBoolean(false);
+        String actionType = passed ? "EXAM_PASSED" : "EXAM_FAILED";
+        Map<String, Object> extra = new LinkedHashMap<>();
+        putIfPresent(extra, "score", root, "score");
+        extra.put("passed", passed);
+        activityFeedService.recordActivity(
+                studentId, ROLE_STUDENT, actionType, "EXAM",
+                text(root, "examId"), text(root, "examTitle", "title"),
+                extra.isEmpty() ? null : extra,
+                suffix(eventId, actionType), occurredAt);
     }
 
     /** 课程发布/创建 → 教师教学动态（教师从事件课程归属字段解析）。 */

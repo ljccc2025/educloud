@@ -31,11 +31,13 @@ public class RabbitMqConfig {
     public static final String QUEUE_ACTIVITY_FEED_COURSE = "activity_feed.course.queue";
     public static final String QUEUE_ACTIVITY_FEED_CONTENT = "activity_feed.content.queue";
     public static final String QUEUE_ACTIVITY_FEED_ASSIGNMENT = "activity_feed.assignment.queue";
+    public static final String QUEUE_ACTIVITY_FEED_EXAM = "activity_feed.exam.queue";
 
-    // 全域领域事件总线：作业批改事件（routing key assignment.graded）发布在该交换机，
+    // 全域领域事件总线：作业批改/考试判分事件（routing key assignment.graded / exam.graded）发布在该交换机，
     // 名称与 educloud-notification RabbitMqConfiguration.TOPIC_EXCHANGE_NAME 一致（幂等补声明）。
     public static final String EXCHANGE_DOMAIN_EVENTS = "educloud.events";
     public static final String ROUTING_KEY_ASSIGNMENT_GRADED = "assignment.graded";
+    public static final String ROUTING_KEY_EXAM_GRADED = "exam.graded";
 
     public static final String ROUTING_KEY_DLQ = "analytics.sync.dlq";
 
@@ -144,6 +146,14 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue activityFeedExamQueue() {
+        return QueueBuilder.durable(QUEUE_ACTIVITY_FEED_EXAM)
+                .deadLetterExchange(EXCHANGE_ANALYTICS_DLX)
+                .deadLetterRoutingKey(ROUTING_KEY_DLQ)
+                .build();
+    }
+
+    @Bean
     public Binding userBinding(Queue analyticsUserQueue, TopicExchange userEventsExchange) {
         return BindingBuilder.bind(analyticsUserQueue).to(userEventsExchange).with("user.*");
     }
@@ -196,6 +206,12 @@ public class RabbitMqConfig {
     @Bean
     public Binding activityFeedAssignmentBinding(Queue activityFeedAssignmentQueue, TopicExchange domainEventsExchange) {
         return BindingBuilder.bind(activityFeedAssignmentQueue).to(domainEventsExchange).with(ROUTING_KEY_ASSIGNMENT_GRADED);
+    }
+
+    // 考试判分事件发布在全域总线 educloud.events（routing key exam.graded），独立队列定向订阅。
+    @Bean
+    public Binding activityFeedExamBinding(Queue activityFeedExamQueue, TopicExchange domainEventsExchange) {
+        return BindingBuilder.bind(activityFeedExamQueue).to(domainEventsExchange).with(ROUTING_KEY_EXAM_GRADED);
     }
 
     @Bean

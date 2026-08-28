@@ -111,6 +111,8 @@ public class ActivityFeedController {
             case "COURSE_COMPLETED" -> "你完成了《" + t + "》";
             case "COURSE_REVIEWED" -> "你评价了《" + t + "》：" + extraValue(extra, "rating", "") + " 星";
             case "CERTIFICATE_ISSUED" -> "你获得了《" + t + "》完课证书";
+            case "EXAM_PASSED" -> "你通过了《" + t + "》考试：" + extraValue(extra, "score", "") + " 分";
+            case "EXAM_FAILED" -> "你完成了《" + t + "》考试（未通过）：" + extraValue(extra, "score", "") + " 分";
             case "PROGRESS_MILESTONE" -> "你的《" + t + "》进度达到 " + extraValue(extra, "progress", "") + "%";
             case "COURSE_CREATED" -> "你创建了《" + t + "》";
             case "COURSE_UPDATED" -> "你更新了《" + t + "》";
