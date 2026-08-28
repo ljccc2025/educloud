@@ -87,6 +87,7 @@ class ExamBankServiceTest {
         ExamBankQuestionEntity existing = new ExamBankQuestionEntity();
         existing.setId(9L);
         existing.setCourseId(1001L);
+        existing.setTeacherId(777L);
         existing.setQuestionType("SINGLE");
         existing.setStem("原文案");
         existing.setOptions("[\"A\"]");
@@ -99,7 +100,7 @@ class ExamBankServiceTest {
         updated.setStem("更新后的题干");
         updated.setDefaultScore(null);
 
-        ExamBankQuestionResponse response = examBankService.updateQuestion(9L, updated);
+        ExamBankQuestionResponse response = examBankService.updateQuestion(9L, updated, 777L);
 
         verify(questionMapper).updateById(existing);
         assertThat(response.getStem()).isEqualTo("更新后的题干");
@@ -111,6 +112,7 @@ class ExamBankServiceTest {
     void deleteQuestion_referencedByPublishedExam_rejected() {
         ExamBankQuestionEntity question = new ExamBankQuestionEntity();
         question.setId(9L);
+        question.setTeacherId(777L);
         question.setStatus("ENABLED");
         when(questionMapper.selectById(9L)).thenReturn(question);
 
@@ -124,7 +126,7 @@ class ExamBankServiceTest {
         published.setStatus("PUBLISHED");
         when(examMapper.selectById(55L)).thenReturn(published);
 
-        assertThatThrownBy(() -> examBankService.deleteQuestion(9L))
+        assertThatThrownBy(() -> examBankService.deleteQuestion(9L, 777L))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContentErrorCode.EXAM_QUESTION_IN_USE);
         verify(questionMapper, never()).updateById(any(ExamBankQuestionEntity.class));
@@ -134,11 +136,12 @@ class ExamBankServiceTest {
     void deleteQuestion_softDeletesWhenUnreferenced() {
         ExamBankQuestionEntity question = new ExamBankQuestionEntity();
         question.setId(9L);
+        question.setTeacherId(777L);
         question.setStatus("ENABLED");
         when(questionMapper.selectById(9L)).thenReturn(question);
         when(paperQuestionMapper.selectList(any())).thenReturn(List.of());
 
-        examBankService.deleteQuestion(9L);
+        examBankService.deleteQuestion(9L, 777L);
 
         assertThat(question.getStatus()).isEqualTo("DISABLED");
         verify(questionMapper).updateById(question);

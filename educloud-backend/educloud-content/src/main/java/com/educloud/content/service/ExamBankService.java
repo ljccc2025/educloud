@@ -55,8 +55,12 @@ public class ExamBankService {
                 .stream().map(this::toResponse).toList();
     }
 
-    public ExamBankQuestionResponse updateQuestion(Long id, ExamQuestionRequest request) {
+    public ExamBankQuestionResponse updateQuestion(Long id, ExamQuestionRequest request, Long teacherId) {
         ExamBankQuestionEntity entity = requireQuestion(id);
+        if (!entity.getTeacherId().equals(teacherId)) {
+            throw new BusinessException(ContentErrorCode.TEACHER_ACCESS_DENIED,
+                    "You are not authorized to update this question: " + id);
+        }
         entity.setQuestionType(request.getQuestionType());
         entity.setStem(request.getStem());
         entity.setOptions(writeJson(request.getOptions()));
@@ -70,8 +74,12 @@ public class ExamBankService {
     }
 
     /** 软删：被已发布考试引用的题目拒绝删除。 */
-    public void deleteQuestion(Long id) {
+    public void deleteQuestion(Long id, Long teacherId) {
         ExamBankQuestionEntity entity = requireQuestion(id);
+        if (!entity.getTeacherId().equals(teacherId)) {
+            throw new BusinessException(ContentErrorCode.TEACHER_ACCESS_DENIED,
+                    "You are not authorized to delete this question: " + id);
+        }
         Long referencingExamId = findReferencingPublishedExam(id);
         if (referencingExamId != null) {
             throw new BusinessException(ContentErrorCode.EXAM_QUESTION_IN_USE,

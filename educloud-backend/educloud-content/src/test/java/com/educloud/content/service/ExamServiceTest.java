@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -49,6 +50,8 @@ class ExamServiceTest {
     private ExamAttemptMapper attemptMapper;
     @Mock
     private ExamBankQuestionMapper bankQuestionMapper;
+    @Mock
+    private CourseClient courseClient;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -92,6 +95,7 @@ class ExamServiceTest {
         ExamEntity exam = new ExamEntity();
         exam.setId(id);
         exam.setCourseId(1001L);
+        exam.setTeacherId(777L);
         exam.setCourseTitle("Spring Boot 微服务实践");
         exam.setTitle("期中考试");
         exam.setDurationMinutes(60);
@@ -132,11 +136,32 @@ class ExamServiceTest {
     }
 
     @Test
+    void createExam_snapshotContract_keysAreStable() throws Exception {
+        when(bankQuestionMapper.selectList(any())).thenReturn(List.of(
+                bankQuestion(1L, "Spring Boot 默认端口？"),
+                bankQuestion(2L, "MyBatis-Plus 的父类？")));
+        when(paperQuestionMapper.selectList(any())).thenReturn(List.of());
+
+        ArgumentCaptor<ExamPaperQuestionEntity> captor = ArgumentCaptor.forClass(ExamPaperQuestionEntity.class);
+
+        examService.createExam(createRequest(), 777L);
+
+        verify(paperQuestionMapper, times(2)).insert(captor.capture());
+        String snapshotJson = captor.getAllValues().get(0).getQuestionSnapshot();
+        Map<String, Object> snapshot = objectMapper.readValue(
+                snapshotJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+                });
+        // 快照契约固定：六 key 缺一不可，防未来 key 改名
+        assertThat(snapshot.keySet()).containsExactlyInAnyOrder(
+                "questionId", "questionType", "stem", "options", "answer", "score");
+    }
+
+    @Test
     void publish_rejectsEmptyPaper() {
         when(examMapper.selectById(11L)).thenReturn(draftExam(11L));
         when(paperQuestionMapper.selectCount(any())).thenReturn(0L);
 
-        assertThatThrownBy(() -> examService.publishExam(11L))
+        assertThatThrownBy(() -> examService.publishExam(11L, 777L))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ContentErrorCode.EXAM_PAPER_EMPTY);
     }
@@ -147,7 +172,7 @@ class ExamServiceTest {
         when(examMapper.selectById(11L)).thenReturn(exam);
         when(paperQuestionMapper.selectCount(any())).thenReturn(1L);
 
-        examService.publishExam(11L);
+        examService.publishExam(11L, 777L);
 
         ArgumentCaptor<ExamEntity> captor = ArgumentCaptor.forClass(ExamEntity.class);
         verify(examMapper).updateById(captor.capture());

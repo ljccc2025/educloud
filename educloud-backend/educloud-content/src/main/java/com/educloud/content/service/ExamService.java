@@ -41,6 +41,7 @@ public class ExamService {
     private final ExamAttemptMapper attemptMapper;
     private final ExamBankQuestionMapper bankQuestionMapper;
     private final ObjectMapper objectMapper;
+    private final CourseClient courseClient;
 
     public List<ExamResponse> listStudentExams(Long studentId) {
         List<ExamEntity> exams = examMapper.selectList(
@@ -96,24 +97,13 @@ public class ExamService {
         exam.setTeacherId(teacherId);
         examMapper.insert(exam);
 
-        int sort = 0;
-        for (ExamCreateRequest.PaperItem item : request.getPaper()) {
-            ExamBankQuestionEntity q = questions.stream()
-                    .filter(x -> x.getId().equals(item.getQuestionId()))
-                    .findFirst().orElseThrow();
-            ExamPaperQuestionEntity row = new ExamPaperQuestionEntity();
-            row.setExamId(exam.getId());
-            row.setQuestionId(q.getId());
-            row.setQuestionSnapshot(buildSnapshot(q, item.getScore()));
-            row.setScore(item.getScore());
-            row.setSortOrder(sort++);
-            paperQuestionMapper.insert(row);
-        }
+        applyPaper(exam.getId(), request.getPaper(), questions);
         return toStudentView(exam, null);
     }
 
-    public void publishExam(Long examId) {
+    public void publishExam(Long examId, Long teacherId) {
         ExamEntity exam = requireExam(examId);
+        requireTeacherOwnership(exam, teacherId);
         if (!STATUS_DRAFT.equals(exam.getStatus())) {
             throw new BusinessException(ContentErrorCode.EXAM_NOT_DRAFT, "Exam is not draft: " + examId);
         }
@@ -128,9 +118,10 @@ public class ExamService {
         examMapper.updateById(exam);
     }
 
-    public List<ExamResponse> listTeacherExams() {
+    public List<ExamResponse> listTeacherExams(Long teacherId) {
         return examMapper.selectList(
                         new LambdaQueryWrapper<ExamEntity>()
+                                .eq(ExamEntity::getTeacherId, teacherId)
                                 .orderByDesc(ExamEntity::getCreatedAt))
                 .stream().map(e -> toStudentView(e, null)).toList();
     }
@@ -138,17 +129,19 @@ public class ExamService {
     @Transactional
     public ExamResponse updateExam(Long examId, ExamCreateRequest request, Long teacherId) {
         ExamEntity exam = requireExam(examId);
+        requireTeacherOwnership(exam, teacherId);
         if (!STATUS_DRAFT.equals(exam.getStatus())) {
             throw new BusinessException(ContentErrorCode.EXAM_NOT_DRAFT, "Exam is not draft: " + examId);
         }
-        paperQuestionMapper.delete(
-                new LambdaQueryWrapper<ExamPaperQuestionEntity>()
-                        .eq(ExamPaperQuestionEntity::getExamId, examId));
+        validateWindow(request.getStartTime(), request.getEndTime());
         List<ExamBankQuestionEntity> questions = loadQuestions(request.getPaper());
         if (questions.size() != request.getPaper().size()) {
             throw new BusinessException(ContentErrorCode.EXAM_QUESTION_NOT_FOUND,
                     "Some paper questions not found or disabled");
         }
+        paperQuestionMapper.delete(
+                new LambdaQueryWrapper<ExamPaperQuestionEntity>()
+                        .eq(ExamPaperQuestionEntity::getExamId, examId));
         int totalScore = request.getPaper().stream()
                 .mapToInt(ExamCreateRequest.PaperItem::getScore).sum();
         exam.setCourseId(request.getCourseId());
@@ -161,23 +154,13 @@ public class ExamService {
         exam.setStartTime(request.getStartTime());
         exam.setEndTime(request.getEndTime());
         examMapper.updateById(exam);
-        int sort = 0;
-        for (ExamCreateRequest.PaperItem item : request.getPaper()) {
-            ExamBankQuestionEntity q = questions.stream()
-                    .filter(x -> x.getId().equals(item.getQuestionId())).findFirst().orElseThrow();
-            ExamPaperQuestionEntity row = new ExamPaperQuestionEntity();
-            row.setExamId(examId);
-            row.setQuestionId(q.getId());
-            row.setQuestionSnapshot(buildSnapshot(q, item.getScore()));
-            row.setScore(item.getScore());
-            row.setSortOrder(sort++);
-            paperQuestionMapper.insert(row);
-        }
+        applyPaper(examId, request.getPaper(), questions);
         return toStudentView(exam, null);
     }
 
-    public void deleteExam(Long examId) {
+    public void deleteExam(Long examId, Long teacherId) {
         ExamEntity exam = requireExam(examId);
+        requireTeacherOwnership(exam, teacherId);
         if (!STATUS_DRAFT.equals(exam.getStatus())) {
             throw new BusinessException(ContentErrorCode.EXAM_NOT_DRAFT, "Exam is not draft: " + examId);
         }
@@ -212,13 +195,46 @@ public class ExamService {
 
     private void validateWindow(LocalDateTime start, LocalDateTime end) {
         if (start == null || end == null || !end.isAfter(start)) {
-            throw new BusinessException(ContentErrorCode.EXAM_NOT_DRAFT,
+            throw new BusinessException(ContentErrorCode.EXAM_INVALID_WINDOW,
                     "Invalid exam window: end must be after start");
         }
     }
 
     private String resolveCourseTitle(Long courseId) {
-        return String.valueOf(courseId);
+        try {
+            CourseClient.CourseSnapshot snapshot = courseClient.getCourseSnapshot(courseId);
+            if (snapshot != null && snapshot.title() != null) {
+                return snapshot.title();
+            }
+        } catch (BusinessException ignored) {
+            // 课程服务不可用/解析失败，回退到占位标题
+        }
+        return "课程 " + courseId;
+    }
+
+    /** 组卷公共方法：逐题 buildSnapshot + insert + sortOrder。 */
+    private void applyPaper(Long examId, List<ExamCreateRequest.PaperItem> paper,
+                            List<ExamBankQuestionEntity> questions) {
+        int sort = 0;
+        for (ExamCreateRequest.PaperItem item : paper) {
+            ExamBankQuestionEntity q = questions.stream()
+                    .filter(x -> x.getId().equals(item.getQuestionId()))
+                    .findFirst().orElseThrow();
+            ExamPaperQuestionEntity row = new ExamPaperQuestionEntity();
+            row.setExamId(examId);
+            row.setQuestionId(q.getId());
+            row.setQuestionSnapshot(buildSnapshot(q, item.getScore()));
+            row.setScore(item.getScore());
+            row.setSortOrder(sort++);
+            paperQuestionMapper.insert(row);
+        }
+    }
+
+    private void requireTeacherOwnership(ExamEntity exam, Long teacherId) {
+        if (!exam.getTeacherId().equals(teacherId)) {
+            throw new BusinessException(ContentErrorCode.TEACHER_ACCESS_DENIED,
+                    "You are not authorized to manage this exam: " + exam.getId());
+        }
     }
 
     private List<String> readStringList(String json) {

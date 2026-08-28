@@ -24,7 +24,8 @@ public enum ContentErrorCode implements ErrorCode {
     EXAM_ATTEMPT_NOT_SUBMITTABLE(409, "Exam attempt is not in progress"),
     EXAM_QUESTION_IN_USE(409, "Question is referenced by a published exam"),
     EXAM_NOT_DRAFT(409, "Exam is not in draft state"),
-    EXAM_PAPER_EMPTY(400, "Exam paper must contain at least one question");
+    EXAM_PAPER_EMPTY(400, "Exam paper must contain at least one question"),
+    EXAM_INVALID_WINDOW(400, "Invalid exam window");
 
     private final int httpStatus;
     private final String defaultMessage;
