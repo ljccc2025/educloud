@@ -102,6 +102,15 @@ spring:
           order: 150
           predicates:
             - Path=/api/v1/recommendations/**,/api/v1/assistant/**
+        - id: ai-core
+          uri: lb://educloud-ai
+          order: 155
+          predicates:
+            - Path=/api/v1/ai/**
+          metadata:
+            # AI 助教读超时 25s + 重试退避，全局 15s 不够用（规格 §5.3：网关该路由 35s）
+            response-timeout: 35000
+            connect-timeout: 5000
       discovery:
         locator:
           enabled: false

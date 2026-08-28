@@ -23,6 +23,7 @@ public final class RouteGroups {
     public static final String ANALYTICS = "analytics";
     public static final String SEARCH = "search";
     public static final String RECOMMENDATION = "recommendation";
+    public static final String AI = "ai";
     public static final String UNMATCHED = "unmatched";
 
     private static final PathPatternParser PARSER = new PathPatternParser();
@@ -64,7 +65,8 @@ public final class RouteGroups {
             rule(NOTIFICATION, "/api/v1/notifications/**", "/api/v1/notification-channels/**"),
             rule(ANALYTICS, "/api/v1/analytics/**", "/api/v1/audit-events/**"),
             rule(SEARCH, "/api/v1/search/**"),
-            rule(RECOMMENDATION, "/api/v1/recommendations/**", "/api/v1/assistant/**"));
+            rule(RECOMMENDATION, "/api/v1/recommendations/**", "/api/v1/assistant/**"),
+            rule(AI, "/api/v1/ai/**"));
 
     private RouteGroups() {
     }

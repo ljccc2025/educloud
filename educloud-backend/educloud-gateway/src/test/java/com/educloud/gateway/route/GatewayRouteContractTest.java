@@ -44,20 +44,21 @@ class GatewayRouteContractTest {
 
     @Test
     void declaresTheExactStaticRouteInventory() {
-        assertThat(routes).hasSize(17);
+        assertThat(routes).hasSize(18);
         assertThat(routes).extracting(RouteDefinition::getId).containsExactly(
                 "user-core", "user-me", "content-me", "course-enrollments",
                 "content-course-scoped", "content-core", "content-drafts", "course-core",
                 "order-core", "payment-core", "live-http", "live-ws", "file-core",
-                "notification-core", "analytics-core", "search-core", "recommendation-core");
+                "notification-core", "analytics-core", "search-core", "recommendation-core",
+                "ai-core");
         assertThat(routes).extracting(RouteDefinition::getOrder).containsExactly(
-                10, 20, 30, 40, 50, 60, 65, 70, 80, 90, 100, 101, 110, 120, 130, 140, 150);
+                10, 20, 30, 40, 50, 60, 65, 70, 80, 90, 100, 101, 110, 120, 130, 140, 150, 155);
 
         assertThat(targetServiceIds()).containsExactlyInAnyOrder(
                 "educloud-user", "educloud-course", "educloud-content", "educloud-order",
                 "educloud-payment", "educloud-live", "educloud-file",
                 "educloud-notification", "educloud-analytics", "educloud-search",
-                "educloud-recommendation");
+                "educloud-recommendation", "educloud-ai");
 
         assertThat(binder.bind("spring.cloud.gateway.discovery.locator.enabled", Boolean.class)
                 .orElseThrow(() -> new AssertionError("discovery locator setting is missing"))).isFalse();
@@ -140,6 +141,21 @@ class GatewayRouteContractTest {
         assertThat(pathArguments(route("search-core"))).containsExactly("/api/v1/search/**");
         assertThat(pathArguments(route("recommendation-core"))).containsExactly(
                 "/api/v1/recommendations/**", "/api/v1/assistant/**");
+        assertThat(pathArguments(route("ai-core"))).containsExactly("/api/v1/ai/**");
+    }
+
+    @Test
+    void aiRouteCarriesExtendedResponseTimeoutAndAiGroup() {
+        RouteDefinition aiRoute = route("ai-core");
+        assertThat(aiRoute.getMetadata())
+                .containsEntry("response-timeout", 35000)
+                .containsEntry("connect-timeout", 5000);
+        assertThat(RouteGroups.forPath(
+                org.springframework.http.server.PathContainer.parsePath("/api/v1/ai/chat")))
+                .isEqualTo(RouteGroups.AI);
+        assertThat(RouteGroups.forPath(
+                org.springframework.http.server.PathContainer.parsePath("/api/v1/ai/conversations/123/messages")))
+                .isEqualTo(RouteGroups.AI);
     }
 
     @Test
