@@ -1,7 +1,7 @@
 -- EduCloud AI 数据库：AI 助教 P1（V001）
 -- 依据：docs/superpowers/specs/2026-08-28-ai-assistant-p1-design.md §3
 
-CREATE TABLE ai_conversation (
+CREATE TABLE IF NOT EXISTS ai_conversation (
     id              BIGINT       NOT NULL COMMENT '雪花 ID，对外字符串化',
     student_id      BIGINT       NOT NULL COMMENT '归属学生，取自 JWT sub',
     title           VARCHAR(120) NOT NULL COMMENT '首条学生提问截断生成',
@@ -14,7 +14,7 @@ CREATE TABLE ai_conversation (
     KEY idx_student_last (student_id, last_message_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AI 会话';
 
-CREATE TABLE ai_message (
+CREATE TABLE IF NOT EXISTS ai_message (
     id                BIGINT      NOT NULL COMMENT '雪花 ID',
     conversation_id   BIGINT      NOT NULL COMMENT '会话',
     role              VARCHAR(16) NOT NULL COMMENT 'user/assistant',
