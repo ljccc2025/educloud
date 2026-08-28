@@ -79,6 +79,12 @@ export default function ExamSessionModal({
       setTimeLeftSeconds((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
+          // 倒计时归零自动交卷（超时锁定）：在 interval 内触发，避免弹窗打开首帧
+          // timeLeftSeconds 初始为 0 时被独立 effect 误判为超时立即交卷。
+          if (!autoSubmittedRef.current) {
+            autoSubmittedRef.current = true;
+            void handleFinish();
+          }
           return 0;
         }
         return prev - 1;
@@ -163,14 +169,6 @@ export default function ExamSessionModal({
       setSubmitting(false);
     }
   };
-
-  // 倒计时归零自动交卷（超时锁定），仅触发一次
-  useEffect(() => {
-    if (timeLeftSeconds <= 0 && isOpen && exam && !result && !autoSubmittedRef.current) {
-      autoSubmittedRef.current = true;
-      void handleFinish();
-    }
-  }, [isOpen, exam, result, timeLeftSeconds]);
 
   const formatTime = (secs: number) => {
     const mins = Math.floor(secs / 60);
