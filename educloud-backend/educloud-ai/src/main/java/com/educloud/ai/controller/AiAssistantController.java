@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -90,6 +91,7 @@ public class AiAssistantController {
         Long studentId = requireStudentId(jwt);
         AiConversationEntity entity = requireOwnedConversation(id, studentId);
         entity.setDeleted(1);
+        entity.setUpdatedAt(LocalDateTime.now());
         conversationMapper.updateById(entity);
         return ResponseEntity.noContent().build();
     }

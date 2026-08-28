@@ -112,7 +112,12 @@ class AiAssistantControllerTest {
                 .isEqualTo(204);
         // 最小修复（MP 3.5.12 编译问题）：BaseMapper 有 updateById(T) 与 updateById(Collection<T>)
         // 两个重载，裸 any() 二义性，需指明实体类型（ChatServiceTest 的 insert(any()) 同款修复）。
-        org.mockito.Mockito.verify(conversationMapper).updateById(any(AiConversationEntity.class));
+        org.mockito.ArgumentCaptor<AiConversationEntity> captor =
+                org.mockito.ArgumentCaptor.forClass(AiConversationEntity.class);
+        org.mockito.Mockito.verify(conversationMapper).updateById(captor.capture());
+        // 软删语义必须锁定：deleted 置 1 且 updatedAt 回写，而非物理 DELETE
+        assertThat(captor.getValue().getDeleted()).isEqualTo(1);
+        assertThat(captor.getValue().getUpdatedAt()).isNotNull();
     }
 
     @Test
