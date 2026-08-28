@@ -73,6 +73,14 @@ public class ExamAttemptService {
             attemptMapper.insert(attempt);
         } catch (DuplicateKeyException duplicate) {
             // uk_exam_student(exam_id, student_id) 唯一约束并发兜底：另一请求已抢先创建。
+            // 并发创建（如前端 StrictMode 双请求）时回查已有记录，IN_PROGRESS 幂等复用。
+            ExamAttemptEntity concurrent = attemptMapper.selectOne(
+                    new LambdaQueryWrapper<ExamAttemptEntity>()
+                            .eq(ExamAttemptEntity::getExamId, examId)
+                            .eq(ExamAttemptEntity::getStudentId, studentId));
+            if (concurrent != null && STATUS_IN_PROGRESS.equals(concurrent.getStatus())) {
+                return concurrent;
+            }
             throw new BusinessException(ContentErrorCode.EXAM_ATTEMPT_ALREADY_EXISTS,
                     "Active attempt already exists: exam=" + examId + ", student=" + studentId);
         }
